@@ -100,8 +100,11 @@ function renderSlots() {
         for (let i = 1; i <= count; i++) {
             const label = labels[i - 1] || '';
             const selectedId = getSelected(region, i);
+            const selectedClub = allClubs.find(c => c.id === selectedId);
+            const logoSrc = selectedClub ? selectedClub.logo_url : '';
             html += `<div class="slot-row">
               <span class="slot-seed">S${i} ${label}</span>
+              <img class="slot-logo" src="${logoSrc}" alt="" onerror="this.style.display='none'">
               <select class="slot-select" data-region="${region}" data-seed="${i}"
                       onchange="onSlotChange(this)">
                 <option value="">-- Chon doi --</option>`;
