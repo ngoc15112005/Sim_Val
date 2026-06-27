@@ -22,13 +22,11 @@
       <input type="text" id="tour-name" placeholder="VD: Major 2026">
 
       <label>Chon doi (<span id="slot-count">0</span>/<span id="slot-max">8</span>):</label>
-      <input type="text" id="club-search" placeholder="Tim kiem doi..." oninput="filterClubs()">
-
-      <div id="club-grid" class="club-grid">Dang tai...</div>
+      <div id="slot-grid">Dang tai...</div>
 
       <div class="form-actions">
-        <button type="button" id="btn-fill" onclick="fillRandom()">Fill Random</button>
-        <button type="button" id="btn-clear" onclick="clearSelection()">Clear</button>
+        <button type="button" id="btn-fill" onclick="fillAll()">Fill Random</button>
+        <button type="button" id="btn-clear" onclick="clearAll()">Clear</button>
         <button type="submit" id="btn-start">Bat dau giai</button>
       </div>
     </form>
@@ -59,142 +57,217 @@
 {% block scripts %}
 <script>
 let allClubs = [];
-let selectedIds = new Set();
 let tourType = 'major';
+
+const REGION_SLOTS = {
+    major:   { pacific: 2, americas: 2, emea: 2, china: 2 },
+    master:  { pacific: 3, americas: 3, emea: 3, china: 3 },
+    champion:{ pacific: 4, americas: 4, emea: 4, china: 4 },
+};
+
+const TOUR_LABELS = {
+    major:    ['', ''],
+    master:   ['(auto)', '(swiss)', '(swiss)'],
+    champion: ['', '', '', ''],
+};
 
 function getTeamCount() {
     const map = { major: 8, master: 12, champion: 16 };
     return map[tourType] || 8;
 }
 
+function getSlots() { return REGION_SLOTS[tourType] || REGION_SLOTS.major; }
+function getLabels() { return TOUR_LABELS[tourType] || TOUR_LABELS.major; }
+
 async function loadClubs() {
     allClubs = await API.get('/api/clubs');
-    renderClubs(allClubs);
+    renderSlots();
 }
 
-function renderClubs(clubs) {
-    const grid = document.getElementById('club-grid');
+function renderSlots() {
+    const grid = document.getElementById('slot-grid');
     const slots = getSlots();
-    document.getElementById('slot-max').textContent = getTeamCount();
-    document.getElementById('slot-count').textContent = selectedIds.size;
-
-    if (clubs.length === 0) {
-        grid.innerHTML = '<p>Khong tim thay doi nao.</p>';
-        return;
-    }
-
-    const groups = {};
-    for (const c of clubs) {
-        const r = c.region_slug || 'other';
-        groups[r] = groups[r] || [];
-        groups[r].push(c);
-    }
+    const labels = getLabels();
+    let total = 0;
 
     let html = '';
-    for (const [region, clubList] of Object.entries(groups)) {
-        const limit = slots[region] || 0;
-        const current = [...selectedIds].filter(sid => {
-            const sc = allClubs.find(c => c.id === sid);
-            return sc && sc.region_slug === region;
-        }).length;
-        html += `<div class="region-group">
-          <h3 class="region-title">${region.toUpperCase()} (${current}/${limit})</h3>`;
-        for (const c of clubList) {
-            const checked = selectedIds.has(c.id) ? 'checked' : '';
-            const disabled = !checked && current >= limit ? 'disabled' : '';
-            html += `<label class="club-item ${checked ? 'selected' : ''} ${disabled ? 'dimmed' : ''}">
-              <input type="checkbox" value="${c.id}" ${checked} ${disabled}
-                     onchange="toggleClub(${c.id}, this)">
-              <img class="club-logo" src="${c.logo_url || ''}" alt="" onerror="this.style.display='none'">
-              <span class="club-code">${c.short_code}</span>
-              <span class="club-name">${c.name}</span>
-              <span class="club-rating">${c.current_rating}</span>
-            </label>`;
+    for (const [region, count] of Object.entries(slots)) {
+        total += count;
+        const regionClubs = allClubs.filter(c => c.region_slug === region);
+        html += `<div class="region-slot-group">
+          <h3 class="region-title">${region.toUpperCase()} (${count} slot)</h3>`;
+
+        for (let i = 1; i <= count; i++) {
+            const label = labels[i - 1] || '';
+            const selectedId = getSelected(region, i);
+            html += `<div class="slot-row">
+              <span class="slot-seed">S${i} ${label}</span>
+              <select class="slot-select" data-region="${region}" data-seed="${i}"
+                      onchange="onSlotChange(this)">
+                <option value="">-- Chon doi --</option>`;
+            for (const c of regionClubs) {
+                const sel = c.id === selectedId ? 'selected' : '';
+                html += `<option value="${c.id}" ${sel}>
+                  ${c.short_code} (${c.current_rating})
+                </option>`;
+            }
+            html += `</select>
+              <button type="button" class="btn-icon btn-reroll" data-region="${region}" data-seed="${i}"
+                      onclick="rerollSlot(this)" title="Random slot nay">&#x21bb;</button>
+            </div>`;
         }
         html += '</div>';
     }
+
+    document.getElementById('slot-max').textContent = total;
+    document.getElementById('slot-count').textContent = countSelected();
     grid.innerHTML = html;
 }
 
-function toggleClub(id, cb) {
-    if (cb.checked) {
-        const c = allClubs.find(c => c.id === id);
-        const slots = getSlots();
-        const regionLimit = slots[c.region_slug] || 0;
-        const currentInRegion = [...selectedIds].filter(sid => {
-            const sc = allClubs.find(c => c.id === sid);
-            return sc && sc.region_slug === c.region_slug;
-        }).length;
-        if (currentInRegion >= regionLimit) {
-            cb.checked = false;
-            alert(`Khu vuc ${c.region_slug.toUpperCase()} toi da ${regionLimit} doi.`);
-            return;
-        }
-        selectedIds.add(id);
-    } else {
-        selectedIds.delete(id);
-    }
-    renderClubs(allClubs);
+function getSelected(region, seedNum) {
+    const sel = document.querySelector(`[data-region="${region}"][data-seed="${seedNum}"]`);
+    return sel ? parseInt(sel.value) || null : null;
 }
 
-function filterClubs() {
-    const q = document.getElementById('club-search').value.toLowerCase();
-    if (!q) { renderClubs(allClubs); return; }
-    const filtered = allClubs.filter(c =>
-        c.name.toLowerCase().includes(q) || c.short_code.toLowerCase().includes(q)
-    );
-    renderClubs(filtered);
-}
-
-const REGION_SLOTS = {
-    major: { pacific: 2, americas: 2, emea: 2, china: 2 },
-    master: { pacific: 3, americas: 3, emea: 3, china: 3 },
-    champion: { pacific: 4, americas: 4, emea: 4, china: 4 },
-};
-
-function getSlots() { return REGION_SLOTS[tourType] || REGION_SLOTS.major; }
-
-function fillRandom() {
+function allSelected() {
+    let selected = [];
     const slots = getSlots();
-    selectedIds.clear();
+    for (const [region, count] of Object.entries(slots)) {
+        for (let i = 1; i <= count; i++) {
+            const sel = document.querySelector(`[data-region="${region}"][data-seed="${i}"]`);
+            if (sel && sel.value) {
+                selected.push({ club_id: parseInt(sel.value), regional_seed: i, region: region });
+            }
+        }
+    }
+    return selected;
+}
 
-    for (const [region, limit] of Object.entries(slots)) {
+function countSelected() {
+    return allSelected().length;
+}
+
+function onSlotChange(sel) {
+    if (!sel.value) { renderSlots(); return; }
+    const region = sel.dataset.region;
+    const seedNum = parseInt(sel.dataset.seed);
+    const val = parseInt(sel.value);
+
+    // Check if this team is already selected in another slot
+    const allSelects = document.querySelectorAll('.slot-select');
+    for (const other of allSelects) {
+        if (other === sel) continue;
+        if (parseInt(other.value) === val) {
+            other.value = '';
+        }
+    }
+    document.getElementById('slot-count').textContent = countSelected();
+    renderSlots();
+}
+
+function fillAll() {
+    const slots = getSlots();
+    // First, clear all
+    clearAllSilent();
+
+    for (const [region, count] of Object.entries(slots)) {
         const pool = allClubs.filter(c => c.region_slug === region);
         const shuffled = pool.sort(() => Math.random() - 0.5);
-        for (let i = 0; i < limit && i < shuffled.length; i++) {
-            selectedIds.add(shuffled[i].id);
+        let selected = [];
+
+        for (let i = 1; i <= count; i++) {
+            if (shuffled.length === 0) break;
+            // 70% random + 30% prefer higher rating for lower seed numbers
+            let pick;
+            if (Math.random() < 0.3 && i <= 2) {
+                // 30% rating: pick from top of remaining pool
+                const remaining = shuffled.filter(c => !selected.includes(c.id));
+                remaining.sort((a, b) => b.current_rating - a.current_rating);
+                pick = remaining[0];
+            } else {
+                // 70% random from remaining
+                const remaining = shuffled.filter(c => !selected.includes(c.id));
+                pick = remaining[Math.floor(Math.random() * remaining.length)];
+            }
+            if (pick) {
+                selected.push(pick.id);
+                const sel = document.querySelector(`[data-region="${region}"][data-seed="${i}"]`);
+                if (sel) sel.value = pick.id;
+            }
         }
     }
-    renderClubs(allClubs);
+    document.getElementById('slot-count').textContent = countSelected();
+    renderSlots();
 }
 
-function clearSelection() {
-    selectedIds.clear();
-    renderClubs(allClubs);
+function rerollSlot(btn) {
+    const region = btn.dataset.region;
+    const seedNum = parseInt(btn.dataset.seed);
+    const sel = document.querySelector(`[data-region="${region}"][data-seed="${seedNum}"]`);
+    const slots = getSlots();
+    const count = slots[region];
+
+    const pool = allClubs.filter(c => c.region_slug === region);
+    // Get already selected teams in this region
+    const usedInRegion = [];
+    for (let i = 1; i <= count; i++) {
+        if (i === seedNum) continue;
+        const v = getSelected(region, i);
+        if (v) usedInRegion.push(v);
+    }
+
+    const available = pool.filter(c => !usedInRegion.includes(c.id));
+    if (available.length === 0) return;
+    const pick = available[Math.floor(Math.random() * available.length)];
+    sel.value = pick.id;
+    onSlotChange(sel);
+}
+
+function clearAll() {
+    document.querySelectorAll('.slot-select').forEach(s => s.value = '');
+    document.getElementById('slot-count').textContent = 0;
+    renderSlots();
+}
+
+function clearAllSilent() {
+    document.querySelectorAll('.slot-select').forEach(s => s.value = '');
 }
 
 document.getElementById('tour-type').addEventListener('change', (e) => {
     tourType = e.target.value;
-    selectedIds.clear();
-    renderClubs(allClubs);
+    renderSlots();
 });
 
 document.getElementById('create-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const selected = allSelected();
     const count = getTeamCount();
-    if (selectedIds.size !== count) {
-        alert(`Vui long chon dung ${count} doi.`);
+    if (selected.length !== count) {
+        alert(`Vui long chon dung ${count} doi (hien tai ${selected.length}).`);
         return;
     }
+
     const name = document.getElementById('tour-name').value || tourType.toUpperCase() + ' ' + new Date().toISOString().slice(0,10);
     const btn = document.getElementById('btn-start');
     btn.disabled = true;
     btn.textContent = 'Dang tao...';
+
+    // Build club_ids ordered by seed for initial bracket seeding
+    const slots = getSlots();
+    let ordered = [];
+    for (const [region, _] of Object.entries(slots)) {
+        const regionSelected = selected.filter(s => s.region === region);
+        regionSelected.sort((a, b) => a.regional_seed - b.regional_seed);
+        ordered.push(...regionSelected);
+    }
+    const club_ids = ordered.map(s => s.club_id);
+
     try {
         const result = await API.post('/api/tournament/start', {
             type: tourType,
             name: name,
-            club_ids: Array.from(selectedIds),
+            club_ids: club_ids,
+            regional_seeds: ordered.map(s => s.regional_seed),
         });
         if (result.error) { alert(result.error); }
         else { window.location.href = '/tournament/' + result.id; }

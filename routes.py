@@ -39,6 +39,7 @@ def register_routes(app):
         tour_type = data.get('type')
         name = data.get('name', tour_type.upper())
         club_ids = data.get('club_ids', [])
+        regional_seeds = data.get('regional_seeds', [])
 
         if tour_type not in Config.TOURNAMENT_TYPES:
             return jsonify({'error': f'Loại giải không hợp lệ: {tour_type}'}), 400
@@ -62,7 +63,7 @@ def register_routes(app):
                     }), 400
 
         try:
-            tour = create_tournament(tour_type, name, club_ids)
+            tour = create_tournament(tour_type, name, club_ids, regional_seeds)
             generate_bracket(tour)
             db.session.commit()
             return jsonify(tour.to_dict())

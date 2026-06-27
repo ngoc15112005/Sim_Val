@@ -5,8 +5,15 @@ from models import db, Club, Tournament, TournamentParticipant, Match
 from config import Config
 
 
-def create_tournament(tour_type, name, selected_club_ids):
-    """Create a tournament with given participants."""
+def create_tournament(tour_type, name, selected_club_ids, regional_seeds=None):
+    """Create a tournament with given participants.
+
+    Args:
+        tour_type: 'major', 'master', or 'champion'
+        name: Display name
+        selected_club_ids: List of club IDs in seed order
+        regional_seeds: List of regional seeds (1,2,3...) corresponding to each club_id
+    """
     cfg = Config.TOURNAMENT_TYPES[tour_type]
     team_count = cfg['team_count']
 
@@ -18,16 +25,17 @@ def create_tournament(tour_type, name, selected_club_ids):
         raise ValueError('Mot so club_id khong ton tai')
 
     club_map = {c.id: c for c in clubs}
-    sorted_ids = sorted(selected_club_ids, key=lambda cid: club_map[cid].current_rating, reverse=True)
 
     tour = Tournament(type=tour_type, name=name, status='setup')
     db.session.add(tour)
     db.session.flush()
 
-    for seed, cid in enumerate(sorted_ids, 1):
+    for seed, cid in enumerate(selected_club_ids, 1):
         club = club_map[cid]
+        r_seed = regional_seeds[seed - 1] if regional_seeds and seed - 1 < len(regional_seeds) else None
         p = TournamentParticipant(
             tournament_id=tour.id, club_id=cid, seed=seed,
+            regional_seed=r_seed,
             region=club.region.slug if club.region else None,
         )
         db.session.add(p)
@@ -71,9 +79,9 @@ def _generate_swiss_round1(tournament, participants):
 
 
 def _generate_master_swiss_round1(tournament):
-    """Master: top 4 seeds auto-qualify playoffs, remaining 8 play Swiss."""
+    """Master: regional_seed=1 auto-qualify playoffs, rest play Swiss."""
     participants = tournament.participants
-    swiss_teams = [p for p in participants if p.seed > 4]
+    swiss_teams = [p for p in participants if p.regional_seed and p.regional_seed >= 2]
     _generate_swiss_round1(tournament, swiss_teams)
 
 
@@ -121,7 +129,7 @@ def _generate_swiss_next_round(tournament, win_target, loss_target, advance_coun
     """
     cfg = Config.TOURNAMENT_TYPES[tournament.type]
     if tournament.type == 'master':
-        swiss_participants = [p for p in tournament.participants if p.seed > 4]
+        swiss_participants = [p for p in tournament.participants if p.regional_seed and p.regional_seed >= 2]
     else:
         swiss_participants = list(tournament.participants)
 
@@ -183,7 +191,7 @@ def _finalize_swiss(tournament, records, advance_count):
             p.final_rank = 9 + (i - advance_count) if tournament.type == 'major' else 13 + (i - advance_count)
 
     if tournament.type == 'master':
-        directs = [p for p in tournament.participants if p.seed <= 4]
+        directs = [p for p in tournament.participants if p.regional_seed == 1]
         for dp in directs:
             advancing.append(dp)
         for sp in swiss_advancing:
@@ -270,12 +278,12 @@ def _generate_playoffs(tournament, advancing, draw_order=None):
 
 
 def _generate_master_quarterfinals(tournament, seeds, draw_order=None):
-    """Master playoffs: top 4 seeds pick Swiss qualifiers.
+    """Master playoffs: regional_seed=1 teams pick Swiss qualifiers.
 
-    Seeds 1-4 draw random order, each picks opponent from seeds 5-8.
+    Regional seed 1 teams draw random order, each picks opponent from Swiss qualifiers.
     """
-    directs = [s for s in seeds if s.seed <= 4]
-    swiss_qualifiers = [s for s in seeds if s.seed > 4]
+    directs = [s for s in seeds if s.regional_seed == 1]
+    swiss_qualifiers = [s for s in seeds if s.regional_seed and s.regional_seed >= 2]
 
     pick_order = list(directs)
     random.shuffle(pick_order)

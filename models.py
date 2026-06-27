@@ -93,6 +93,7 @@ class TournamentParticipant(db.Model):
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
     club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
     seed = db.Column(db.Integer, nullable=False)
+    regional_seed = db.Column(db.Integer)
     region = db.Column(db.String(20))
     group_label = db.Column(db.String(5))
     final_rank = db.Column(db.Integer)
@@ -103,6 +104,7 @@ class TournamentParticipant(db.Model):
         return {
             'id': self.id, 'tournament_id': self.tournament_id,
             'club_id': self.club_id, 'seed': self.seed,
+            'regional_seed': self.regional_seed,
             'region': self.region, 'final_rank': self.final_rank,
             'club': self.club.to_dict() if self.club else None,
         }

@@ -153,3 +153,31 @@ li a { color: var(--blue); text-decoration: none; margin-left: 8px; }
 li a:hover { text-decoration: underline; }
 
 .empty { color: var(--dim); font-style: italic; padding: 20px 0; }
+
+/* Slot-based team selection */
+.region-slot-group { margin-bottom: 16px; }
+.region-slot-group .region-title { margin-bottom: 6px; }
+
+.slot-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px; padding: 4px 6px;
+    background: var(--bg); border-radius: 6px;
+}
+.slot-seed {
+    font-size: 0.85em; color: var(--accent); font-weight: 600;
+    min-width: 90px;
+}
+.slot-select {
+    flex: 1; padding: 6px 10px; font-size: 0.9em;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    cursor: pointer;
+}
+.slot-select:focus { outline: none; border-color: var(--accent); }
+.btn-icon {
+    background: none; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--dim); cursor: pointer;
+    padding: 5px 10px; font-size: 1em; transition: all 0.15s;
+}
+.btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+.btn-reroll { font-size: 1.1em; }
