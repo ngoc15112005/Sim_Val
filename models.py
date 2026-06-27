@@ -93,6 +93,7 @@ class TournamentParticipant(db.Model):
     club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
     seed = db.Column(db.Integer, nullable=False)
     region = db.Column(db.String(20))
+    group_label = db.Column(db.String(5))
     final_rank = db.Column(db.Integer)
 
     club = db.relationship('Club', backref='participations')

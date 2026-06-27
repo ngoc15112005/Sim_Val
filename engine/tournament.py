@@ -230,6 +230,8 @@ def _generate_playoffs(tournament, advancing, draw_order=None):
     elif n == 8:
         if tournament.type == 'master':
             _generate_master_quarterfinals(tournament, seeds, draw_order)
+        elif tournament.type == 'champion':
+            _generate_champion_quarterfinals(tournament, seeds)
         else:
             _add_match(tournament, 'upper', 'upper_quarterfinal_1', next_order,
                        seeds[0], seeds[7])
@@ -290,12 +292,85 @@ def _generate_master_quarterfinals(tournament, seeds, draw_order=None):
                    picker, opponent)
 
 
+def _generate_champion_quarterfinals(tournament, seeds):
+    """Champion playoffs: group winners vs runners-up with constraints.
+
+    VCT 2025 rules:
+      1. Each match pairs 1 group winner with 1 group runner-up.
+      2. Teams from same group cannot face each other.
+      3. Teams from same group must be on opposite bracket halves.
+         Top Half = UQ1+UQ2, Bottom Half = UQ3+UQ4.
+
+    Algorithm: randomly assign winners, then place runners on opposite half.
+    """
+    winners = [s for s in seeds if s.seed <= 4]
+    runners = [s for s in seeds if s.seed >= 5]
+
+    if len(winners) != 4 or len(runners) != 4:
+        _generate_playoffs_fallback(tournament, seeds)
+        return
+
+    random.shuffle(winners)
+
+    top_runners = []
+    bottom_runners = []
+
+    for i, w in enumerate(winners):
+        winner_half = 'top' if i < 2 else 'bottom'
+        group = w.group_label
+        try:
+            r = next(r for r in runners if r.group_label == group)
+        except StopIteration:
+            _generate_playoffs_fallback(tournament, seeds)
+            return
+        if winner_half == 'top':
+            bottom_runners.append(r)
+        else:
+            top_runners.append(r)
+
+    random.shuffle(top_runners)
+    random.shuffle(bottom_runners)
+
+    pairs = [
+        (winners[0], top_runners[0]),
+        (winners[1], top_runners[1]),
+        (winners[2], bottom_runners[0]),
+        (winners[3], bottom_runners[1]),
+    ]
+
+    next_order = 100
+    for i, (p1, p2) in enumerate(pairs):
+        _add_match(tournament, 'upper', f'upper_quarterfinal_{i + 1}',
+                   next_order + i, p1, p2)
+
+
+def _generate_playoffs_fallback(tournament, seeds):
+    """Fallback: fixed seeding 1v8, 2v7, 3v6, 4v5."""
+    seeds_sorted = sorted(seeds, key=lambda p: (p.seed, p.club.current_rating))
+    next_order = 100
+    _add_match(tournament, 'upper', 'upper_quarterfinal_1', next_order,
+               seeds_sorted[0], seeds_sorted[7])
+    _add_match(tournament, 'upper', 'upper_quarterfinal_2', next_order + 1,
+               seeds_sorted[1], seeds_sorted[6])
+    _add_match(tournament, 'upper', 'upper_quarterfinal_3', next_order + 2,
+               seeds_sorted[2], seeds_sorted[5])
+    _add_match(tournament, 'upper', 'upper_quarterfinal_4', next_order + 3,
+               seeds_sorted[3], seeds_sorted[4])
+
+
 def _add_match(tournament, round_type, round_name, order, p1=None, p2=None):
+    def _get_id(obj):
+        if obj is None:
+            return None
+        if hasattr(obj, 'club_id'):
+            return obj.club_id
+        return obj.id
+
     m = Match(
         tournament_id=tournament.id, round_type=round_type,
         round_name=round_name, match_order=order,
-        team_a_id=p1.club_id if p1 else None,
-        team_b_id=p2.club_id if p2 else None,
+        team_a_id=_get_id(p1),
+        team_b_id=_get_id(p2),
     )
     db.session.add(m)
     return m
@@ -674,13 +749,15 @@ def _finalize_groups(tournament):
             p = TournamentParticipant.query.filter_by(
                 tournament_id=tournament.id, club_id=wm.winner.id).first()
             if p:
-                p.seed = (grp_num - 1) * 2 + 1
+                p.seed = grp_num
+                p.group_label = chr(64 + grp_num)
                 advancing.append(p)
         if dm and dm.winner:
             p = TournamentParticipant.query.filter_by(
                 tournament_id=tournament.id, club_id=dm.winner.id).first()
             if p:
-                p.seed = (grp_num - 1) * 2 + 2
+                p.seed = grp_num + 4
+                p.group_label = chr(64 + grp_num)
                 advancing.append(p)
 
     for p in tournament.participants:
