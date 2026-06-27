@@ -170,32 +170,35 @@ function onSlotChange(sel) {
 
 function fillAll() {
     const slots = getSlots();
-    // First, clear all
-    clearAllSilent();
 
     for (const [region, count] of Object.entries(slots)) {
         const pool = allClubs.filter(c => c.region_slug === region);
         const shuffled = pool.sort(() => Math.random() - 0.5);
         let selected = [];
 
+        // Collect already selected teams in this region (manual picks preserved)
         for (let i = 1; i <= count; i++) {
-            if (shuffled.length === 0) break;
-            // 70% random + 30% prefer higher rating for lower seed numbers
+            const v = getSelected(region, i);
+            if (v) selected.push(v);
+        }
+
+        for (let i = 1; i <= count; i++) {
+            const sel = document.querySelector(`[data-region="${region}"][data-seed="${i}"]`);
+            if (sel && sel.value) continue; // skip already selected slots
+
+            const remaining = shuffled.filter(c => !selected.includes(c.id));
+            if (remaining.length === 0) break;
+
             let pick;
             if (Math.random() < 0.3 && i <= 2) {
-                // 30% rating: pick from top of remaining pool
-                const remaining = shuffled.filter(c => !selected.includes(c.id));
                 remaining.sort((a, b) => b.current_rating - a.current_rating);
                 pick = remaining[0];
             } else {
-                // 70% random from remaining
-                const remaining = shuffled.filter(c => !selected.includes(c.id));
                 pick = remaining[Math.floor(Math.random() * remaining.length)];
             }
             if (pick) {
                 selected.push(pick.id);
-                const sel = document.querySelector(`[data-region="${region}"][data-seed="${i}"]`);
-                if (sel) sel.value = pick.id;
+                sel.value = pick.id;
             }
         }
     }
