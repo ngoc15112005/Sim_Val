@@ -55,9 +55,38 @@ def generate_bracket(tournament):
         _generate_master_swiss_round1(tournament)
         tournament.status = 'swiss'
     else:
-        _generate_swiss_round1(tournament, tournament.participants)
+        _generate_major_swiss_round1(tournament)
         tournament.status = 'swiss'
 
+    db.session.flush()
+
+
+def _generate_major_swiss_round1(tournament):
+    """Major: seed 1 vs seed 2 from different regions."""
+    participants = list(tournament.participants)
+    seed1 = [p for p in participants if p.regional_seed == 1]
+    seed2 = [p for p in participants if p.regional_seed == 2]
+
+    random.shuffle(seed1)
+    available = list(seed2)
+    random.shuffle(available)
+
+    for i, s1 in enumerate(seed1):
+        picked = None
+        for s2 in available:
+            if s2.region != s1.region:
+                picked = s2
+                break
+        if picked is None:
+            picked = available[0]
+        available.remove(picked)
+
+        m = Match(
+            tournament_id=tournament.id, round_type='swiss',
+            round_name='swiss_round1', match_order=i + 1,
+            team_a_id=s1.club_id, team_b_id=picked.club_id,
+        )
+        db.session.add(m)
     db.session.flush()
 
 
@@ -79,10 +108,35 @@ def _generate_swiss_round1(tournament, participants):
 
 
 def _generate_master_swiss_round1(tournament):
-    """Master: regional_seed=1 auto-qualify playoffs, rest play Swiss."""
+    """Master: regional_seed=2 vs regional_seed=3, different regions."""
     participants = tournament.participants
-    swiss_teams = [p for p in participants if p.regional_seed and p.regional_seed >= 2]
-    _generate_swiss_round1(tournament, swiss_teams)
+    seed2 = [p for p in participants if p.regional_seed == 2]
+    seed3 = [p for p in participants if p.regional_seed == 3]
+
+    random.shuffle(seed2)
+    available = list(seed3)
+    random.shuffle(available)
+
+    match_order = 0
+    for s2 in seed2:
+        # Pick a seed3 from a different region
+        picked = None
+        for s3 in available:
+            if s3.region != s2.region:
+                picked = s3
+                break
+        if picked is None:
+            picked = available[0]
+        available.remove(picked)
+
+        match_order += 1
+        m = Match(
+            tournament_id=tournament.id, round_type='swiss',
+            round_name='swiss_round1', match_order=match_order,
+            team_a_id=s2.club_id, team_b_id=picked.club_id,
+        )
+        db.session.add(m)
+    db.session.flush()
 
 
 def _get_team_swiss_record(tournament, club_id):
