@@ -66,6 +66,39 @@
   </table>
   </div>
 </section>
+
+<section class="card" style="flex:1">
+  <h2>Cac cap dau Swiss</h2>
+  <table class="swiss-table">
+    <thead><tr><th>Round</th><th>Doi A</th><th>Score</th><th>Doi B</th><th></th></tr></thead>
+    <tbody>
+    {% for m in resolved_matches %}
+      {% if m.round_type == 'swiss' %}
+      <tr>
+        <td>{{ m.round_name }}</td>
+        <td>
+          {% if m.logo_a %}<img class="team-logo-sm" src="{{ m.logo_a }}" alt="" onerror="this.style.display='none'">{% endif %}
+          {{ m.team_a }}
+        </td>
+        <td class="w-l-col">{{ m.score_a }}{% if m.status == 'completed' %}-{{ m.score_b }}{% else %} vs {% endif %}</td>
+        <td>
+          {% if m.logo_b %}<img class="team-logo-sm" src="{{ m.logo_b }}" alt="" onerror="this.style.display='none'">{% endif %}
+          {{ m.team_b }}
+        </td>
+        <td class="action-cell">
+          {% if m.status == 'pending' and m.team_a != 'TBD' %}
+          <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
+          <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
+          {% elif m.status == 'completed' %}
+          <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endif %}
 
 {% if tour.status in ('groups',) %}
@@ -80,7 +113,7 @@
       <tr>
         <td>{{ loop.index }}</td>
         <td>{{ m.team_a }} vs {{ m.team_b }}</td>
-        <td>{{ m.score_a }}-{{ m.score_b }}</td>
+        <td class="w-l-col">{{ m.score_a }}{% if m.status == 'completed' %}-{{ m.score_b }}{% else %} vs {% endif %}</td>
         <td class="action-cell">
           {% if m.status == 'pending' and m.team_a != 'TBD' %}
           <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
