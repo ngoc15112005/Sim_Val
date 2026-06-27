@@ -47,6 +47,20 @@ def register_routes(app):
         if len(club_ids) != team_count:
             return jsonify({'error': f'Cần {team_count} đội, nhận {len(club_ids)}'}), 400
 
+        slots = Config.REGION_SLOTS.get(tour_type, {})
+        if slots:
+            region_counts = {}
+            clubs = Club.query.filter(Club.id.in_(club_ids)).all()
+            for c in clubs:
+                slug = c.region.slug if c.region else 'unknown'
+                region_counts[slug] = region_counts.get(slug, 0) + 1
+            for region_slug, limit in slots.items():
+                actual = region_counts.get(region_slug, 0)
+                if actual > limit:
+                    return jsonify({
+                        'error': f'Khu vực {region_slug.upper()} tối đa {limit} đội, hiện có {actual}'
+                    }), 400
+
         try:
             tour = create_tournament(tour_type, name, club_ids)
             generate_bracket(tour)

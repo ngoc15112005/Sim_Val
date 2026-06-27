@@ -74,8 +74,8 @@ async function loadClubs() {
 
 function renderClubs(clubs) {
     const grid = document.getElementById('club-grid');
-    const count = getTeamCount();
-    document.getElementById('slot-max').textContent = count;
+    const slots = getSlots();
+    document.getElementById('slot-max').textContent = getTeamCount();
     document.getElementById('slot-count').textContent = selectedIds.size;
 
     if (clubs.length === 0) {
@@ -92,11 +92,16 @@ function renderClubs(clubs) {
 
     let html = '';
     for (const [region, clubList] of Object.entries(groups)) {
+        const limit = slots[region] || 0;
+        const current = [...selectedIds].filter(sid => {
+            const sc = allClubs.find(c => c.id === sid);
+            return sc && sc.region_slug === region;
+        }).length;
         html += `<div class="region-group">
-          <h3 class="region-title">${region.toUpperCase()}</h3>`;
+          <h3 class="region-title">${region.toUpperCase()} (${current}/${limit})</h3>`;
         for (const c of clubList) {
             const checked = selectedIds.has(c.id) ? 'checked' : '';
-            const disabled = !checked && selectedIds.size >= count ? 'disabled' : '';
+            const disabled = !checked && current >= limit ? 'disabled' : '';
             html += `<label class="club-item ${checked ? 'selected' : ''} ${disabled ? 'dimmed' : ''}">
               <input type="checkbox" value="${c.id}" ${checked} ${disabled}
                      onchange="toggleClub(${c.id}, this)">
@@ -112,7 +117,18 @@ function renderClubs(clubs) {
 
 function toggleClub(id, cb) {
     if (cb.checked) {
-        if (selectedIds.size >= getTeamCount()) { cb.checked = false; return; }
+        const c = allClubs.find(c => c.id === id);
+        const slots = getSlots();
+        const regionLimit = slots[c.region_slug] || 0;
+        const currentInRegion = [...selectedIds].filter(sid => {
+            const sc = allClubs.find(c => c.id === sid);
+            return sc && sc.region_slug === c.region_slug;
+        }).length;
+        if (currentInRegion >= regionLimit) {
+            cb.checked = false;
+            alert(`Khu vuc ${c.region_slug.toUpperCase()} toi da ${regionLimit} doi.`);
+            return;
+        }
         selectedIds.add(id);
     } else {
         selectedIds.delete(id);
@@ -129,14 +145,24 @@ function filterClubs() {
     renderClubs(filtered);
 }
 
+const REGION_SLOTS = {
+    major: { pacific: 2, americas: 2, emea: 2, china: 2 },
+    master: { pacific: 3, americas: 3, emea: 3, china: 3 },
+    champion: { pacific: 4, americas: 4, emea: 4, china: 4 },
+};
+
+function getSlots() { return REGION_SLOTS[tourType] || REGION_SLOTS.major; }
+
 function fillRandom() {
-    const count = getTeamCount();
-    if (selectedIds.size >= count) return;
-    const pool = allClubs.filter(c => !selectedIds.has(c.id));
-    const shuffled = pool.sort(() => Math.random() - 0.5);
-    for (const c of shuffled) {
-        if (selectedIds.size >= count) break;
-        selectedIds.add(c.id);
+    const slots = getSlots();
+    selectedIds.clear();
+
+    for (const [region, limit] of Object.entries(slots)) {
+        const pool = allClubs.filter(c => c.region_slug === region);
+        const shuffled = pool.sort(() => Math.random() - 0.5);
+        for (let i = 0; i < limit && i < shuffled.length; i++) {
+            selectedIds.add(shuffled[i].id);
+        }
     }
     renderClubs(allClubs);
 }
