@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>VALORANT Tournament Simulator</h1>
+  <p>Mo phong giai VCT quoc te: Major (8), Master (12), Champion (16)</p>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Tao giai moi</h2>
+    <form id="create-form">
+      <label>Loai giai:</label>
+      <select id="tour-type">
+        <option value="major">Major (8 doi)</option>
+        <option value="master">Master (12 doi)</option>
+        <option value="champion">Champion (16 doi)</option>
+      </select>
+
+      <label>Ten giai:</label>
+      <input type="text" id="tour-name" placeholder="VD: Major 2026">
+
+      <label>Chon doi (<span id="slot-count">0</span>/<span id="slot-max">8</span>):</label>
+      <input type="text" id="club-search" placeholder="Tim kiem doi..." oninput="filterClubs()">
+
+      <div id="club-grid" class="club-grid">Dang tai...</div>
+
+      <div class="form-actions">
+        <button type="button" id="btn-fill" onclick="fillRandom()">Fill Random</button>
+        <button type="button" id="btn-clear" onclick="clearSelection()">Clear</button>
+        <button type="submit" id="btn-start">Bat dau giai</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Lich su giai</h2>
+    <div id="history-list">
+      {% if tournaments %}
+        <ul>
+        {% for t in tournaments %}
+          <li>
+            <strong>[{{ t.type.upper() }}]</strong> {{ t.name }}
+            <span class="badge {{ t.status }}">{{ t.status }}</span>
+            <a href="/tournament/{{ t.id }}">Xem</a>
+          </li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty">Chua co giai nao.</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allClubs = [];
+let selectedIds = new Set();
+let tourType = 'major';
+
+function getTeamCount() {
+    const map = { major: 8, master: 12, champion: 16 };
+    return map[tourType] || 8;
+}
+
+async function loadClubs() {
+    allClubs = await API.get('/api/clubs');
+    renderClubs(allClubs);
+}
+
+function renderClubs(clubs) {
+    const grid = document.getElementById('club-grid');
+    const count = getTeamCount();
+    document.getElementById('slot-max').textContent = count;
+    document.getElementById('slot-count').textContent = selectedIds.size;
+
+    if (clubs.length === 0) {
+        grid.innerHTML = '<p>Khong tim thay doi nao.</p>';
+        return;
+    }
+
+    const groups = {};
+    for (const c of clubs) {
+        const r = c.region_slug || 'other';
+        groups[r] = groups[r] || [];
+        groups[r].push(c);
+    }
+
+    let html = '';
+    for (const [region, clubList] of Object.entries(groups)) {
+        html += `<div class="region-group">
+          <h3 class="region-title">${region.toUpperCase()}</h3>`;
+        for (const c of clubList) {
+            const checked = selectedIds.has(c.id) ? 'checked' : '';
+            const disabled = !checked && selectedIds.size >= count ? 'disabled' : '';
+            html += `<label class="club-item ${checked ? 'selected' : ''} ${disabled ? 'dimmed' : ''}">
+              <input type="checkbox" value="${c.id}" ${checked} ${disabled}
+                     onchange="toggleClub(${c.id}, this)">
+              <span class="club-code">${c.short_code}</span>
+              <span class="club-name">${c.name}</span>
+              <span class="club-rating">${c.current_rating}</span>
+            </label>`;
+        }
+        html += '</div>';
+    }
+    grid.innerHTML = html;
+}
+
+function toggleClub(id, cb) {
+    if (cb.checked) {
+        if (selectedIds.size >= getTeamCount()) { cb.checked = false; return; }
+        selectedIds.add(id);
+    } else {
+        selectedIds.delete(id);
+    }
+    renderClubs(allClubs);
+}
+
+function filterClubs() {
+    const q = document.getElementById('club-search').value.toLowerCase();
+    if (!q) { renderClubs(allClubs); return; }
+    const filtered = allClubs.filter(c =>
+        c.name.toLowerCase().includes(q) || c.short_code.toLowerCase().includes(q)
+    );
+    renderClubs(filtered);
+}
+
+function fillRandom() {
+    const count = getTeamCount();
+    if (selectedIds.size >= count) return;
+    const pool = allClubs.filter(c => !selectedIds.has(c.id));
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    for (const c of shuffled) {
+        if (selectedIds.size >= count) break;
+        selectedIds.add(c.id);
+    }
+    renderClubs(allClubs);
+}
+
+function clearSelection() {
+    selectedIds.clear();
+    renderClubs(allClubs);
+}
+
+document.getElementById('tour-type').addEventListener('change', (e) => {
+    tourType = e.target.value;
+    selectedIds.clear();
+    renderClubs(allClubs);
+});
+
+document.getElementById('create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const count = getTeamCount();
+    if (selectedIds.size !== count) {
+        alert(`Vui long chon dung ${count} doi.`);
+        return;
+    }
+    const name = document.getElementById('tour-name').value || tourType.toUpperCase() + ' ' + new Date().toISOString().slice(0,10);
+    const btn = document.getElementById('btn-start');
+    btn.disabled = true;
+    btn.textContent = 'Dang tao...';
+    try {
+        const result = await API.post('/api/tournament/start', {
+            type: tourType,
+            name: name,
+            club_ids: Array.from(selectedIds),
+        });
+        if (result.error) { alert(result.error); }
+        else { window.location.href = '/tournament/' + result.id; }
+    } catch (err) {
+        alert('Loi: ' + err.message);
+    }
+    btn.disabled = false;
+    btn.textContent = 'Bat dau giai';
+});
+
+loadClubs();
+</script>
+{% endblock %}
