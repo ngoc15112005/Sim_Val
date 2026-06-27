@@ -231,9 +231,9 @@ function showManual(matchId) {
         const existing = existingMaps[i - 1] || {};
         mapInputs += `<div class="map-input-row">
           <span>Map ${i}:</span>
-          <input type="number" class="map-a" value="${existing.team_a_score || ''}" placeholder="?" min="0" max="25" style="width:50px">
-          <span>-</span>
-          <input type="number" class="map-b" value="${existing.team_b_score || ''}" placeholder="?" min="0" max="25" style="width:50px">
+          <input type="number" class="map-a" value="${existing.team_a_score || ''}" placeholder="?" min="0" max="25">
+          <span class="vs-label">-</span>
+          <input type="number" class="map-b" value="${existing.team_b_score || ''}" placeholder="?" min="0" max="25">
         </div>`;
     }
 

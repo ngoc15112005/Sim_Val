@@ -128,10 +128,17 @@ button.btn-primary:hover { background: #e53e4e; }
 .group-box h4 { font-size: 0.9em; margin-bottom: 6px; }
 
 .map-input-row {
-    display: flex; align-items: center; gap: 6px;
-    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
 }
-.map-input-row span { font-size: 0.85em; color: var(--dim); }
+.map-input-row span { font-size: 0.9em; color: var(--dim); }
+.map-input-row .vs-label { color: var(--accent); font-weight: 700; font-size: 1em; }
+.map-input-row input[type="number"] {
+    width: 60px; padding: 8px 10px; text-align: center;
+    font-size: 1.1em; font-weight: 600;
+}
+#manual-form p { margin-bottom: 12px; font-size: 1.05em; }
+#manual-form strong { color: var(--accent); }
 
 .tour-header {
     display: flex; justify-content: space-between;
