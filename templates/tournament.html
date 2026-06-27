@@ -14,273 +14,239 @@
 
 <div id="tour-data" data-id="{{ tour.id }}"></div>
 
-<div class="two-col">
-  <section class="card">
-    <h2>Bracket</h2>
-    <div id="bracket" class="bracket">Dang tai...</div>
-  </section>
+{% if swiss_standings %}
+<section class="card">
+  <h2>Swiss Stage</h2>
+  <div class="table-scroll">
+  <table class="swiss-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Doi</th>
+        <th class="w-l-col">W-L</th>
+        {% for r in range(1, max_swiss_rounds + 1) %}
+        <th class="r-col">R{{ r }}</th>
+        {% endfor %}
+        <th>Rating</th>
+        <th>TT</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in swiss_standings %}
+      <tr class="{{ 'swiss-advance' if s.advanced else 'swiss-out' }}">
+        <td class="rank">{{ loop.index }}</td>
+        <td>
+          <div class="swiss-team">
+            {% if s.club.logo_url %}
+            <img class="team-logo-sm" src="{{ s.club.logo_url }}" alt="" onerror="this.style.display='none'">
+            {% endif %}
+            <span class="club-code">{{ s.club.short_code }}</span>
+          </div>
+        </td>
+        <td class="w-l-col"><span class="swiss-wl">{{ s.wins }}-{{ s.losses }}</span></td>
+        {% for result in s.results %}
+        <td class="r-col">
+          <span class="swiss-badge {{ 'swiss-win' if result == 'W' else 'swiss-lose' }}">{{ result }}</span>
+        </td>
+        {% endfor %}
+        {% for _ in range(s.results|length, max_swiss_rounds) %}
+        <td class="r-col"><span class="swiss-badge swiss-tbd">—</span></td>
+        {% endfor %}
+        <td>{{ s.rating }}</td>
+        <td>
+          {% if s.advanced %}
+          <span class="status-go">Playoffs</span>
+          {% else %}
+          <span class="status-out" style="color:var(--dim)">Loai</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
 
-  <section>
-    <div class="card">
-      <h2>Participants</h2>
-      <div id="participants">Dang tai...</div>
-    </div>
+{% if tour.status in ('groups',) %}
+<section class="card">
+  <h2>Group Stage</h2>
+  <div class="table-scroll">
+  <table class="swiss-table">
+    <thead><tr><th>#</th><th>Match</th><th>Score</th><th></th></tr></thead>
+    <tbody>
+    {% for m in resolved_matches %}
+      {% if m.round_type == 'group' %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ m.team_a }} vs {{ m.team_b }}</td>
+        <td>{{ m.score_a }}-{{ m.score_b }}</td>
+        <td class="action-cell">
+          {% if m.status == 'pending' and m.team_a != 'TBD' %}
+          <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
+          <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
+          {% elif m.status == 'completed' %}
+          <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
 
-    <div class="card" id="manual-card" style="display:none;">
-      <h2>Nhap tay</h2>
-      <div id="manual-form"></div>
+{% if playoff_rounds and playoff_rounds|length > 0 %}
+<section class="card">
+  <h2>Playoffs</h2>
+
+  <div class="bracket-scroll">
+  <div class="bracket">
+    {% for label, matches in playoff_rounds.items() %}
+    <div class="bracket-round">
+      <div class="round-title">{{ label }}</div>
+      <div class="round-matches">
+      {% for m in matches %}
+        {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
+        <div class="match-box" data-match-id="{{ m.id }}">
+          <div class="match-team {{ 'winner' if display.win_a }}">
+            {% if display.logo_a %}
+            <img class="team-logo-sm" src="{{ display.logo_a }}" alt="" onerror="this.style.display='none'">
+            {% endif %}
+            <span class="team-name">{{ display.team_a }}</span>
+            <span class="team-score {{ 'win' if display.win_a else 'loss' if (display.status == 'completed' and not display.win_a) else '' }}">{{ display.score_a }}</span>
+          </div>
+          <div class="match-team {{ 'winner' if display.win_b }}">
+            {% if display.logo_b %}
+            <img class="team-logo-sm" src="{{ display.logo_b }}" alt="" onerror="this.style.display='none'">
+            {% endif %}
+            <span class="team-name">{{ display.team_b }}</span>
+            <span class="team-score {{ 'win' if display.win_b else 'loss' if (display.status == 'completed' and not display.win_b) else '' }}">{{ display.score_b }}</span>
+          </div>
+          {% if display.maps %}
+          <div class="match-maps">{{ display.maps | join(', ') }}</div>
+          {% endif %}
+          <div class="match-actions">
+            {% if display.status == 'pending' and display.team_a != 'TBD' %}
+            <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
+            <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
+            {% elif display.status == 'completed' %}
+            <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+      </div>
     </div>
-  </section>
-</div>
+    {% endfor %}
+  </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="card" id="manual-card" style="display:none;">
+  <h2>Nhap tay</h2>
+  <div id="manual-form"></div>
+</section>
+
+{% if tour.status == 'finished' %}
+<section class="card">
+  <h2>Bang xep hang</h2>
+  <table class="swiss-table">
+    <thead><tr><th>#</th><th>Doi</th><th>Seed</th><th>Khu vuc</th></tr></thead>
+    <tbody>
+    {% for p in tour.participants | sort(attribute='final_rank') %}
+    <tr>
+      <td>#{{ p.final_rank }}</td>
+      <td>
+        {% if p.club.logo_url %}
+        <img class="team-logo-sm" src="{{ p.club.logo_url }}" alt="" onerror="this.style.display='none'">
+        {% endif %}
+        {{ p.club.short_code }}
+      </td>
+      <td>S{{ p.regional_seed or '?' }}</td>
+      <td>{{ p.region or '?' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-let tourData = null;
-let activeManualMatch = null;
+let tourId = {{ tour.id }};
 
-async function loadTournament() {
-    const id = document.getElementById('tour-data').dataset.id;
-    tourData = await API.get('/api/tournament/' + id);
-    renderParticipants();
-    renderBracket();
-}
-
-function renderParticipants() {
-    const div = document.getElementById('participants');
-    if (!tourData || !tourData.participants) {
-        div.innerHTML = '<p class="empty">Chua co du lieu.</p>';
-        return;
-    }
-    let html = '<table class="data-table"><tr><th>#</th><th>Team</th><th>Rating</th><th>Hang</th></tr>';
-    for (const p of tourData.participants) {
-        const rank = p.final_rank ? '#' + p.final_rank : '-';
-        html += `<tr>
-          <td>${p.seed}</td>
-          <td><strong>${p.club.short_code}</strong> ${p.club.name}</td>
-          <td>${p.club.current_rating}</td>
-          <td>${rank}</td>
-        </tr>`;
-    }
-    html += '</table>';
-    div.innerHTML = html;
-}
-
-function renderBracket() {
-    const div = document.getElementById('bracket');
-    if (!tourData || !tourData.matches) {
-        div.innerHTML = '<p class="empty">Chua co du lieu.</p>';
-        return;
-    }
-
-    const groups = { swiss: [], group: [], upper: [], lower: [], grand: [] };
-
-    for (const m of tourData.matches) {
-        const t = m.round_type;
-        if (groups[t]) groups[t].push(m);
-    }
-
-    let html = '';
-
-    if (tourData.tournament.type === 'champion') {
-        html += renderGroupStage(groups.group);
-    }
-
-    if (groups.swiss.length > 0) {
-        html += '<h3 class="round-title">Swiss Stage</h3>';
-        html += renderMatchTable(groups.swiss);
-    }
-
-    if (groups.upper.length > 0 || groups.lower.length > 0) {
-        html += '<h3 class="round-title">Playoffs</h3>';
-        html += '<h4>Upper Bracket</h4>';
-        html += renderMatchTable(groups.upper);
-        html += '<h4>Lower Bracket</h4>';
-        html += renderMatchTable(groups.lower);
-    }
-
-    if (groups.grand.length > 0) {
-        html += '<h4>Grand Final</h4>';
-        html += renderMatchTable(groups.grand);
-    }
-
-    div.innerHTML = html;
-
-    for (const m of tourData.matches) {
-        if (m.status === 'pending' && m.team_a && m.team_b) {
-            bindMatchButtons(m);
-        }
-    }
-}
-
-function renderMatchTable(matches) {
-    if (!matches || matches.length === 0) return '<p class="empty">Chua co tran nao.</p>';
-
-    let html = '<table class="data-table"><tr><th>#</th><th>Round</th><th>Team A</th><th>Score</th><th>Team B</th><th>Status</th><th>Action</th></tr>';
-    for (const m of matches) {
-        const taName = m.team_a ? m.team_a.short_code : 'TBD';
-        const tbName = m.team_b ? m.team_b.short_code : 'TBD';
-        const score = m.team_a_score != null ? `${m.team_a_score} - ${m.team_b_score}` : 'vs';
-        const status = m.status === 'completed' ? (m.is_manual ? 'manual' : 'done') : 'pending';
-        const statusClass = status;
-        const resultText = m.winner_id ? ` (${m.winner_id === (m.team_a ? m.team_a.id : null) ? taName : tbName} win)` : '';
-
-        const mapDetails = m.maps && m.maps.length > 0
-            ? m.maps.map(mp => `${mp.team_a_score}-${mp.team_b_score}`).join(', ')
-            : '';
-
-        html += `<tr class="match-row ${statusClass}" data-match-id="${m.id}">
-          <td>${m.match_order}</td>
-          <td>${m.round_name}</td>
-          <td class="${m.winner_id === (m.team_a ? m.team_a.id : null) ? 'winner' : ''}">${taName}</td>
-          <td class="score" title="${mapDetails}">${score}${resultText}</td>
-          <td class="${m.winner_id === (m.team_b ? m.team_b.id : null) ? 'winner' : ''}">${tbName}</td>
-          <td><span class="badge-sm ${statusClass}">${status}</span></td>
-          <td class="action-cell" data-mid="${m.id}">
-            ${m.status === 'pending' && m.team_a && m.team_b
-              ? `<button class="btn-sm" onclick="simMatch(${m.id})">Roll</button>
-                 <button class="btn-sm btn-manual" onclick="showManual(${m.id})">Nhap</button>`
-              : m.status === 'completed' ? `<button class="btn-sm btn-edit" onclick="showManual(${m.id})">Sua</button>` : '-'}
-          </td>
-        </tr>`;
-    }
-    html += '</table>';
-    return html;
-}
-
-function renderGroupStage(matches) {
-    if (!matches || matches.length === 0) return '';
-
-    const groupMap = {};
-    for (const m of matches) {
-        const parts = m.round_name.split('_');
-        const grp = parts[0];
-        if (!groupMap[grp]) groupMap[grp] = [];
-        groupMap[grp].push(m);
-    }
-
-    let html = '<h3 class="round-title">Group Stage</h3><div class="groups-container">';
-    for (const [grp, ms] of Object.entries(groupMap)) {
-        html += `<div class="group-box"><h4>${grp.toUpperCase()}</h4>`;
-        html += renderMatchTable(ms);
-        html += '</div>';
-    }
-    html += '</div>';
-    return html;
-}
-
-function bindMatchButtons(m) {
-}
-
-async function simMatch(matchId) {
+async function simMatch(mid) {
     if (!confirm('Roll ket qua tran nay?')) return;
-    const btn = document.querySelector(`.action-cell[data-mid="${matchId}"] button`);
-    if (btn) btn.disabled = true;
-
-    try {
-        const result = await API.post(`/api/tournament/${tourData.tournament.id}/match/${matchId}/sim`, {});
-        if (result.error) { alert(result.error); return; }
-        location.reload();
-    } catch (err) {
-        alert('Loi: ' + err.message);
-    }
+    const r = await API.post('/api/tournament/' + tourId + '/match/' + mid + '/sim', {});
+    if (r.error) { alert(r.error); return; }
+    location.reload();
 }
 
 async function simAll() {
     if (!confirm('Sim toan bo cac tran con lai?')) return;
     const btn = document.getElementById('btn-sim-all');
-    btn.disabled = true;
-    btn.textContent = 'Dang sim...';
-    try {
-        await API.post(`/api/tournament/${tourData.tournament.id}/sim-all`, {});
-        location.reload();
-    } catch (err) {
-        alert('Loi: ' + err.message);
-    }
-    btn.disabled = false;
-    btn.textContent = 'Sim All';
+    btn.disabled = true; btn.textContent = 'Dang sim...';
+    const r = await API.post('/api/tournament/' + tourId + '/sim-all', {});
+    if (r.error) { alert(r.error); } else { location.reload(); }
 }
 
 async function progressTournament() {
-    try {
-        const result = await API.post(`/api/tournament/${tourData.tournament.id}/progress`, {});
-        if (result.error) { alert(result.error); return; }
-        location.reload();
-    } catch (err) {
-        alert('Loi: ' + err.message);
-    }
+    const r = await API.post('/api/tournament/' + tourId + '/progress', {});
+    if (r.error) { alert(r.error); } else { location.reload(); }
 }
 
-function showManual(matchId) {
-    const match = tourData.matches.find(m => m.id === matchId);
-    if (!match) return;
+let activeMatch = null;
 
-    activeManualMatch = match;
+function showManual(mid) {
+    const card = document.getElementById('manual-card');
+    card.style.display = 'block'; card.scrollIntoView({ behavior: 'smooth' });
 
-    const div = document.getElementById('manual-card');
-    div.style.display = 'block';
+    const rows = document.querySelectorAll('.match-box[data-match-id="' + mid + '"] .match-team');
+    let ta = '?', tb = '?';
+    if (rows.length >= 2) {
+        ta = rows[0].querySelector('.team-name').textContent.trim();
+        tb = rows[1].querySelector('.team-name').textContent.trim();
+    }
 
-    const taName = match.team_a ? match.team_a.short_code : 'TBD';
-    const tbName = match.team_b ? match.team_b.short_code : 'TBD';
-
-    const existingMaps = match.maps || [];
-    let mapInputs = '';
-    const maxMaps = match.round_type === 'grand' && tourData.tournament.type === 'champion' ? 5 : 3;
+    let inputs = '';
+    const maxMaps = 3;
     for (let i = 1; i <= maxMaps; i++) {
-        const existing = existingMaps[i - 1] || {};
-        mapInputs += `<div class="map-input-row">
+        inputs += `<div class="map-input-row">
           <span>Map ${i}:</span>
-          <input type="number" class="map-a" value="${existing.team_a_score || ''}" placeholder="?" min="0" max="25">
+          <input type="number" class="map-a" placeholder="?" min="0" max="25">
           <span class="vs-label">-</span>
-          <input type="number" class="map-b" value="${existing.team_b_score || ''}" placeholder="?" min="0" max="25">
+          <input type="number" class="map-b" placeholder="?" min="0" max="25">
         </div>`;
     }
 
     document.getElementById('manual-form').innerHTML = `
-      <p><strong>${taName}</strong> vs <strong>${tbName}</strong></p>
-      ${mapInputs}
+      <p><strong>${ta}</strong> vs <strong>${tb}</strong></p>
+      ${inputs}
       <div class="form-actions">
-        <button onclick="submitManual(${matchId})">Luu</button>
+        <button onclick="submitManual(${mid})">Luu</button>
         <button onclick="document.getElementById('manual-card').style.display='none'">Huy</button>
       </div>
     `;
 }
 
-async function submitManual(matchId) {
-    const mapRows = document.querySelectorAll('.map-input-row');
+async function submitManual(mid) {
+    const rows = document.querySelectorAll('.map-input-row');
     const maps = [];
-    for (const row of mapRows) {
+    for (const row of rows) {
         const a = parseInt(row.querySelector('.map-a').value);
         const b = parseInt(row.querySelector('.map-b').value);
         if (isNaN(a) || isNaN(b)) continue;
-        const winnerId = a > b
-            ? (activeManualMatch.team_a ? activeManualMatch.team_a.id : null)
-            : (activeManualMatch.team_b ? activeManualMatch.team_b.id : null);
-        maps.push({ team_a_score: a, team_b_score: b, winner_id: winnerId });
+        maps.push({ team_a_score: a, team_b_score: b, winner_id: a > b ? null : null });
     }
-
-    if (maps.length === 0) {
-        alert('Vui long nhap it nhat 1 map.');
-        return;
-    }
-
-    const totalWinsA = maps.filter(m => m.winner_id === activeManualMatch.team_a.id).length;
-    const totalWinsB = maps.filter(m => m.winner_id === activeManualMatch.team_b.id).length;
-    if (totalWinsA === totalWinsB) {
-        alert('Ti so map khong the hoa.');
-        return;
-    }
-
-    try {
-        const result = await API.post(`/api/tournament/${tourData.tournament.id}/match/${matchId}/manual`, { maps });
-        if (result.error) { alert(result.error); return; }
-        location.reload();
-    } catch (err) {
-        alert('Loi: ' + err.message);
-    }
+    if (maps.length === 0) { alert('Vui long nhap it nhat 1 map.'); return; }
+    const r = await API.post('/api/tournament/' + tourId + '/match/' + mid + '/manual', { maps });
+    if (r.error) { alert(r.error); } else { location.reload(); }
 }
-
-loadTournament();
 </script>
 {% endblock %}

@@ -182,3 +182,104 @@ li a:hover { text-decoration: underline; }
 .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
 .btn-reroll { font-size: 1.1em; }
 .slot-logo { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
+
+/* === Esports Bracket === */
+.bracket-scroll { overflow-x: auto; padding-bottom: 10px; }
+.bracket {
+    display: flex; gap: 0; min-width: max-content;
+    padding: 20px 0;
+}
+.bracket-round {
+    display: flex; flex-direction: column;
+    justify-content: space-around;
+    min-width: 220px; padding: 0 10px;
+    border-right: 1px solid var(--border);
+}
+.bracket-round:last-child { border-right: none; }
+.bracket-round .round-title {
+    text-align: center; color: var(--accent);
+    font-size: 0.75em; text-transform: uppercase;
+    margin-bottom: 12px; letter-spacing: 0.5px;
+    font-weight: 700;
+}
+.round-matches {
+    display: flex; flex-direction: column;
+    justify-content: space-around; flex: 1;
+}
+
+/* Match box */
+.match-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    margin: 6px 0;
+}
+.match-team {
+    display: flex; align-items: center;
+    padding: 6px 10px; gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.match-team:last-child { border-bottom: none; }
+.match-team.winner {
+    background: linear-gradient(90deg, rgba(34,197,94,0.10), transparent);
+}
+.match-team.winner .team-name { color: var(--green); font-weight: 700; }
+.team-logo-sm { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.match-team .team-name { flex: 1; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team-score {
+    background: var(--bg); padding: 1px 8px; border-radius: 4px;
+    font-weight: 700; font-size: 0.9em; min-width: 24px; text-align: center;
+    flex-shrink: 0;
+}
+.team-score.win { color: var(--green); }
+.team-score.loss { color: var(--dim); }
+
+.match-maps {
+    font-size: 0.7em; color: var(--dim); padding: 2px 10px 4px;
+    text-align: center;
+}
+.match-actions {
+    display: flex; gap: 4px; padding: 4px 8px 6px;
+    justify-content: center;
+}
+
+/* Swiss Table */
+.swiss-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
+.swiss-table thead th {
+    text-align: left; padding: 8px 10px;
+    color: var(--dim); font-weight: 600; font-size: 0.8em;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border);
+}
+.swiss-table tbody td {
+    padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    vertical-align: middle;
+}
+.swiss-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.swiss-table .rank { color: var(--dim); width: 30px; }
+.swiss-table .w-l-col { text-align: center; }
+.swiss-table .r-col { text-align: center; width: 36px; }
+.swiss-advance { border-left: 3px solid var(--green); }
+.swiss-out { border-left: 3px solid transparent; }
+
+.swiss-team {
+    display: flex; align-items: center; gap: 6px;
+}
+.swiss-wl {
+    font-weight: 700; font-size: 0.95em;
+    color: var(--text);
+}
+
+/* Swiss round badges */
+.swiss-badge {
+    display: inline-block; width: 24px; height: 24px;
+    border-radius: 4px; text-align: center; line-height: 24px;
+    font-size: 0.75em; font-weight: 700;
+}
+.swiss-win { background: #1a3a1a; color: var(--green); border: 1px solid #2a5a2a; }
+.swiss-lose { background: #3a1a1a; color: #f87171; border: 1px solid #5a2a2a; }
+.swiss-tbd { background: var(--bg); color: var(--dim); border: 1px solid var(--border); }
+
+.status-go {
+    color: var(--green); font-weight: 600; font-size: 0.8em;
+}
+.table-scroll { overflow-x: auto; }

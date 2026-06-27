@@ -775,3 +775,54 @@ def _finalize_groups(tournament):
     advancing.sort(key=lambda p: p.seed)
     _generate_playoffs(tournament, advancing)
     db.session.flush()
+
+
+def get_swiss_standings(tournament):
+    """Compute Swiss Stage standings with match results history.
+
+    Returns list of dicts:
+      {club, wins, losses, results: ['W','L','W',...], advanced: bool}
+    Sorted by (wins desc, losses asc, rating desc).
+    """
+    swiss_matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='swiss',
+    ).order_by(Match.match_order).all()
+
+    standings = {}
+    for p in tournament.participants:
+        if tournament.type == 'master' and p.regional_seed == 1:
+            continue
+        standings[p.club_id] = {
+            'club': p.club, 'wins': 0, 'losses': 0,
+            'results': [], 'advanced': False, 'rating': p.club.current_rating,
+        }
+
+    # Track results chronologically
+    team_rounds = {}
+    for m in swiss_matches:
+        if m.status != 'completed':
+            continue
+        for cid in [m.team_a_id, m.team_b_id]:
+            team_rounds.setdefault(cid, []).append(m)
+
+    for cid, matches in team_rounds.items():
+        if cid not in standings:
+            continue
+        s = standings[cid]
+        for m in sorted(matches, key=lambda x: x.match_order):
+            if m.winner_id == cid:
+                s['wins'] += 1
+                s['results'].append('W')
+            else:
+                s['losses'] += 1
+                s['results'].append('L')
+
+    # Mark advancing teams
+    cfg = Config.TOURNAMENT_TYPES[tournament.type]
+    advance_count = cfg['advance_count']
+    ranked = sorted(standings.values(), key=lambda x: (-x['wins'], x['losses'], -x['rating']))
+    for i, s in enumerate(ranked):
+        if i < advance_count:
+            s['advanced'] = True
+
+    return ranked

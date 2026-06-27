@@ -1,9 +1,11 @@
 """Flask routes for VALORANT Tournament Simulator."""
 
+from collections import OrderedDict
 from flask import request, jsonify, render_template
 from models import db, Club, Region, Tournament, TournamentParticipant, Match, MatchMap
 from engine.tournament import (
     create_tournament, generate_bracket, progress_tournament, simulate_all_pending,
+    get_swiss_standings,
 )
 from engine.match import simulate_match, resolve_manual_match
 from engine.rating import update_ratings
@@ -160,4 +162,86 @@ def register_routes(app):
     @app.route('/tournament/<int:tour_id>')
     def view_tournament(tour_id):
         tour = Tournament.query.get_or_404(tour_id)
-        return render_template('tournament.html', tour=tour, cfg=Config)
+
+        swiss_standings = None
+        max_swiss_rounds = 0
+        if tour.type in ('major', 'master'):
+            swiss_standings = get_swiss_standings(tour)
+            if swiss_standings:
+                max_swiss_rounds = max(len(s['results']) for s in swiss_standings)
+
+        matches = Match.query.filter_by(tournament_id=tour_id).order_by(Match.match_order).all()
+
+        rounds = OrderedDict()
+        for m in matches:
+            if m.round_type in ('swiss', 'group'):
+                continue
+            label = _round_label(m)
+            rounds.setdefault(label, []).append(m)
+
+        resolved_matches = []
+        for m in matches:
+            resolved_matches.append(_resolve_match_display(m))
+
+        return render_template(
+            'tournament.html',
+            tour=tour, cfg=Config,
+            swiss_standings=swiss_standings,
+            max_swiss_rounds=max_swiss_rounds,
+            playoff_rounds=rounds,
+            resolved_matches=resolved_matches,
+        )
+
+
+def _round_label(m):
+    """Human-readable round label for bracket display."""
+    name = m.round_name
+    if m.round_type == 'upper':
+        if 'quarterfinal' in name:
+            return 'Tứ kết'
+        elif 'semifinal' in name:
+            return 'Bán kết'
+        elif 'final' in name:
+            return 'CK Thắng'
+    elif m.round_type == 'lower':
+        if 'round1' in name:
+            return 'NR Vòng 1'
+        elif 'quarterfinal' in name:
+            return 'NR Vòng 2'
+        elif 'semifinal' in name:
+            return 'NR Vòng 3'
+        elif 'final' in name:
+            return 'CK Thua'
+    elif m.round_type == 'grand':
+        return 'CK Tổng'
+    return name
+
+
+def _resolve_match_display(m):
+    """Resolve a match for Jinja2 display, filling TBD slots."""
+    team_a = m.team_a.short_code if m.team_a else 'TBD'
+    team_b = m.team_b.short_code if m.team_b else 'TBD'
+    logo_a = m.team_a.logo_url if m.team_a else ''
+    logo_b = m.team_b.logo_url if m.team_b else ''
+
+    score_a = m.team_a_score if m.team_a_score is not None else '—'
+    score_b = m.team_b_score if m.team_b_score is not None else '—'
+
+    win_a = m.winner_id == m.team_a_id if m.winner_id and m.team_a else False
+    win_b = m.winner_id == m.team_b_id if m.winner_id and m.team_b else False
+
+    maps = []
+    for mp in m.maps if m.maps else []:
+        maps.append(f'{mp.team_a_score}-{mp.team_b_score}')
+
+    return {
+        'id': m.id, 'round_type': m.round_type, 'round_name': m.round_name,
+        'label': _round_label(m), 'match_order': m.match_order,
+        'team_a': team_a, 'team_b': team_b,
+        'logo_a': logo_a, 'logo_b': logo_b,
+        'score_a': score_a, 'score_b': score_b,
+        'win_a': win_a, 'win_b': win_b,
+        'winner_id': m.winner_id,
+        'status': m.status, 'is_manual': m.is_manual,
+        'maps': maps,
+    }
