@@ -23,6 +23,7 @@ class Club(db.Model):
     region_id = db.Column(db.Integer, db.ForeignKey('regions.id'), nullable=False)
     base_rating = db.Column(db.Integer, default=80)
     current_rating = db.Column(db.Integer, default=80)
+    logo_url = db.Column(db.String(300))
     is_active = db.Column(db.Boolean, default=True)
 
     rating_history = db.relationship('ClubRating', backref='club', lazy=True,
@@ -33,7 +34,7 @@ class Club(db.Model):
             'id': self.id, 'name': self.name, 'short_code': self.short_code,
             'region_id': self.region_id, 'region_slug': self.region.slug if self.region else None,
             'base_rating': self.base_rating, 'current_rating': self.current_rating,
-            'is_active': self.is_active
+            'logo_url': self.logo_url, 'is_active': self.is_active
         }
 
 

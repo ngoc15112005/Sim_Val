@@ -73,6 +73,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .club-item.selected { background: #2a1a1f; border: 1px solid var(--accent); }
 .club-item.dimmed { opacity: 0.4; }
 .club-item input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+.club-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
 .club-code { font-weight: 700; width: 40px; color: var(--accent); }
 .club-name { flex: 1; }
 .club-rating { color: var(--yellow); font-size: 0.85em; width: 30px; text-align: right; }

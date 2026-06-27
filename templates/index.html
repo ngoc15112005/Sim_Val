@@ -105,6 +105,7 @@ function renderClubs(clubs) {
             html += `<label class="club-item ${checked ? 'selected' : ''} ${disabled ? 'dimmed' : ''}">
               <input type="checkbox" value="${c.id}" ${checked} ${disabled}
                      onchange="toggleClub(${c.id}, this)">
+              <img class="club-logo" src="${c.logo_url || ''}" alt="" onerror="this.style.display='none'">
               <span class="club-code">${c.short_code}</span>
               <span class="club-name">${c.name}</span>
               <span class="club-rating">${c.current_rating}</span>
