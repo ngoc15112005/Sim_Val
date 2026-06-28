@@ -1,0 +1,27 @@
+<div class="match-bar status-{{ m.status }}">
+  <div class="match-team-side team-a {% if m.win_a %}winner{% endif %}">
+    {% if m.logo_a %}<img class="team-logo-xs" src="{{ m.logo_a }}" alt="" onerror="this.style.display='none'">{% endif %}
+    <span class="team-name">{{ m.team_a }}</span>
+    <span class="team-score-badge {% if m.win_a %}win{% else %}loss{% endif %}">{{ m.score_a }}</span>
+  </div>
+  <div class="match-vs">vs</div>
+  <div class="match-team-side team-b {% if m.win_b %}winner{% endif %}">
+    <span class="team-score-badge {% if m.win_b %}win{% else %}loss{% endif %}">{{ m.score_b }}</span>
+    <span class="team-name">{{ m.team_b }}</span>
+    {% if m.logo_b %}<img class="team-logo-xs" src="{{ m.logo_b }}" alt="" onerror="this.style.display='none'">{% endif %}
+  </div>
+  <div class="match-actions-mini">
+    {% if m.status == 'pending' and m.team_a != 'TBD' %}
+    <button class="icon-btn" onclick="simMatch({{ m.id }})" title="Roll">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.99.99 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.4 12 10.65l5.96-3.25L12 4.15zM5 8.79v6.86l5 2.81V11.6L5 8.79zm7 9.67l5-2.81V8.79l-5 2.81v6.86z"/></svg>
+    </button>
+    <button class="icon-btn" onclick="showManual({{ m.id }})" title="Nhap tay">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    {% elif m.status == 'completed' %}
+    <button class="icon-btn edit" onclick="showManual({{ m.id }})" title="Sua">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    {% endif %}
+  </div>
+</div>

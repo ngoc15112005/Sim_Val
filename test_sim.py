@@ -1,4 +1,4 @@
-"""Test: check bracket renders for all 3."""
+"""Test: full lifecycle for all 3 tournament types."""
 import sys
 sys.path.insert(0, '.')
 from app import create_app
@@ -33,6 +33,8 @@ with app.app_context():
             ok = r.status_code == 200
             html = r.data.decode('utf-8', errors='replace')
             has_bracket = 'match-box' in html
-            has_swiss = 'Swiss Stage' in html
-            has_vietnamese = 'Tứ kết' in html or 'Bán kết' in html or 'CK Thắng' in html or 'CK Tổng' in html or 'NR Vòng' in html
-            print(f'{ttype:10s}: status={tour.status:10s}  page_ok={ok}  bracket={has_bracket}  vietnamese={has_vietnamese}')
+            has_gsl = 'gsl-container' in html if ttype == 'champion' else True
+            has_vietnamese = 'Tứ kết' in html.encode('latin-1', errors='replace').decode('latin-1') or \
+                             'Bán kết' in html.encode('latin-1', errors='replace').decode('latin-1') or \
+                             'CK Thắng' in html.encode('latin-1', errors='replace').decode('latin-1')
+            print(f'{ttype:10s}: status={tour.status:10s}  page_ok={ok}  bracket={has_bracket}  gsl={has_gsl}  vn={has_vietnamese}')

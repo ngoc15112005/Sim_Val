@@ -283,3 +283,171 @@ li a:hover { text-decoration: underline; }
     color: var(--green); font-weight: 600; font-size: 0.8em;
 }
 .table-scroll { overflow-x: auto; }
+
+/* === GSL Group Stage (Champion) === */
+.gsl-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 12px;
+}
+@media (max-width: 1100px) {
+    .gsl-container { grid-template-columns: 1fr; }
+}
+
+.group-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex; flex-direction: column;
+    gap: 10px;
+}
+.group-card-header {
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px; margin-bottom: 2px;
+}
+.group-label {
+    color: var(--accent);
+    font-weight: 700; font-size: 0.85em;
+    text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* Mini standings table inside group card */
+.group-standings-mini { width: 100%; }
+.group-mini-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.78em;
+}
+.group-mini-table th {
+    text-align: center; padding: 4px 6px;
+    color: var(--dim); font-weight: 600; font-size: 0.85em;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+}
+.group-mini-table th.team-col { text-align: left; }
+.group-mini-table td {
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+}
+.group-mini-table .rank-cell {
+    text-align: center; color: var(--dim); width: 22px;
+    font-weight: 700;
+}
+.group-mini-table .team-cell {
+    display: flex; align-items: center; gap: 5px;
+}
+.group-mini-table .wl-cell {
+    text-align: center; font-weight: 700; width: 36px;
+    font-size: 1.05em;
+}
+.group-mini-table .rd-cell {
+    text-align: center; color: var(--dim); width: 60px;
+    font-size: 0.95em;
+}
+.group-mini-table .status-cell {
+    text-align: center; font-size: 0.9em; width: 64px;
+}
+.group-mini-table .club-code {
+    font-weight: 600;
+}
+.team-logo-xs {
+    width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
+}
+
+/* Status row coloring */
+.status-qualified { background: rgba(34, 197, 94, 0.08); }
+.status-eliminated { opacity: 0.55; }
+.status-text.qualified {
+    color: var(--green); font-weight: 700; font-size: 0.95em;
+}
+.status-text.eliminated {
+    color: var(--dim); font-size: 0.85em;
+}
+.status-text.pending { color: var(--dim); }
+
+.empty-row {
+    text-align: center; color: var(--dim); font-style: italic;
+    padding: 12px 6px !important;
+}
+
+/* GSL match flow section */
+.group-matches-flow {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 4px;
+}
+.gsl-stage {
+    display: flex; flex-direction: column; gap: 4px;
+}
+.stage-label {
+    font-size: 0.7em; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 4px 2px 2px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+/* Match bar component */
+.match-bar {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    position: relative;
+}
+.match-bar.status-pending { border-style: dashed; opacity: 0.85; }
+
+.match-team-side {
+    display: flex; align-items: center; gap: 5px;
+    flex: 1; min-width: 0;
+}
+.match-team-side.team-b { flex-direction: row-reverse; }
+
+.match-team-side.winner .team-name {
+    color: var(--green); font-weight: 700;
+}
+.match-team-side .team-name {
+    font-size: 0.78em; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.team-score-badge {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 0.78em; font-weight: 700;
+    min-width: 24px; text-align: center;
+    flex-shrink: 0;
+}
+.team-score-badge.win { color: var(--green); border-color: #2a5a2a; }
+.team-score-badge.loss { color: var(--dim); }
+
+.match-vs {
+    font-size: 0.7em; color: var(--dim);
+    font-weight: 700; padding: 0 4px;
+    flex-shrink: 0;
+}
+
+.match-actions-mini {
+    display: flex; gap: 3px;
+    flex-shrink: 0; margin-left: 4px;
+}
+.icon-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--dim);
+    padding: 4px 6px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+}
+.icon-btn:hover {
+    color: var(--accent); border-color: var(--accent);
+}
+.icon-btn.edit:hover { color: var(--blue); border-color: var(--blue); }

@@ -242,6 +242,164 @@ def resolve_match_display(m):
     }
 
 
+def get_groups_data(tournament):
+    """Build GSL Group Stage data for Champion tournament.
+
+    Returns dict:
+      {
+        'A': {
+          'standings': [{rank, club, wins, losses, round_diff, status}, ...],
+          'matches': {
+            'opening': [match_display_dict, ...],
+            'winners': [...],
+            'elimination': [...],
+            'decider': [...],
+          }
+        },
+        'B': {...}, 'C': {...}, 'D': {...}
+      }
+    """
+    # Get all group matches grouped by group_label
+    group_matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='group',
+    ).order_by(Match.match_order).all()
+
+    # Group by group_label
+    by_group = {}
+    for m in group_matches:
+        # round_name format: 'groupA_opening1', 'groupB_winners_match', etc.
+        parts = m.round_name.split('_')
+        if len(parts) < 2:
+            continue
+        grp = parts[0].replace('group', '')
+        if grp not in ('A', 'B', 'C', 'D'):
+            continue
+        # Stage: opening1, opening2, winners_match, elimination_match, decider_match
+        stage = '_'.join(parts[1:])
+
+        if grp not in by_group:
+            by_group[grp] = {'standings': [], 'matches': {}}
+        if stage not in by_group[grp]['matches']:
+            by_group[grp]['matches'][stage] = []
+        by_group[grp]['matches'][stage].append(m)
+
+    # For each group, compute standings and build display dicts
+    result = {}
+    for grp, data in by_group.items():
+        standings = _compute_group_standings(tournament, grp)
+        data['standings'] = standings
+
+        # Build display dicts for matches
+        display_matches = {}
+        for stage, matches in data['matches'].items():
+            display_matches[stage] = [resolve_match_display(m) for m in matches]
+        data['matches'] = display_matches
+
+        result[grp] = data
+
+    # Ensure all 4 groups are in result (in case some haven't started)
+    for grp in ('A', 'B', 'C', 'D'):
+        if grp not in result:
+            result[grp] = {'standings': [], 'matches': {}}
+
+    return result
+
+
+def _compute_group_standings(tournament, group_label):
+    """Compute standings for one group: rank, club, wins, losses, round_diff, status.
+
+    status: 'qualified' (top 2), 'eliminated' (bottom 2), 'pending' (no matches)
+    """
+    # Get all matches for this group
+    grp_matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='group',
+    ).all()
+    grp_matches = [m for m in grp_matches
+                   if m.round_name.split('_')[0] == f'group{group_label}']
+
+    # Get participants in this group
+    participants = TournamentParticipant.query.filter_by(
+        tournament_id=tournament.id, group_label=group_label,
+    ).order_by(TournamentParticipant.id).all()
+
+    # Compute W-L and round diff for each
+    records = {}
+    for p in participants:
+        if p.club_id is None:
+            continue
+        rec = {'wins': 0, 'losses': 0, 'round_for': 0, 'round_against': 0}
+        records[p.club_id] = rec
+
+    for m in grp_matches:
+        if m.status != 'completed' or m.team_a_score is None:
+            continue
+        if m.team_a_id in records:
+            records[m.team_a_id]['round_for'] += m.team_a_score
+            records[m.team_a_id]['round_against'] += m.team_b_score
+            if m.winner_id == m.team_a_id:
+                records[m.team_a_id]['wins'] += 1
+            else:
+                records[m.team_a_id]['losses'] += 1
+        if m.team_b_id in records:
+            records[m.team_b_id]['round_for'] += m.team_b_score
+            records[m.team_b_id]['round_against'] += m.team_a_score
+            if m.winner_id == m.team_b_id:
+                records[m.team_b_id]['wins'] += 1
+            else:
+                records[m.team_b_id]['losses'] += 1
+
+    # Build standings list
+    standings = []
+    for p in participants:
+        rec = records.get(p.club_id)
+        if rec is None:
+            continue
+        # Determine status based on which matches have been played
+        all_done = all(m.status == 'completed' for m in grp_matches)
+        decider_done = any(
+            m.status == 'completed' and 'decider' in m.round_name
+            for m in grp_matches
+        )
+
+        # If group is fully done, top 2 qualified, rest eliminated
+        if decider_done:
+            sorted_records = sorted(records.items(), key=lambda x: (-x[1]['wins'], x[1]['losses']))
+            team_rank = next(
+                (idx + 1 for idx, (cid, _) in enumerate(sorted_records) if cid == p.club_id),
+                99
+            )
+            status = 'qualified' if team_rank <= 2 else 'eliminated'
+        else:
+            # No matches played yet or only opening done
+            status = 'pending'
+
+        standings.append({
+            'rank': 0,  # filled in after sort
+            'club': p.club,
+            'wins': rec['wins'],
+            'losses': rec['losses'],
+            'round_for': rec['round_for'],
+            'round_against': rec['round_against'],
+            'round_diff': rec['round_for'] - rec['round_against'],
+            'round_record': f"{rec['round_for']}-{rec['round_against']}",
+            'status': status,
+        })
+
+    # Sort: wins desc, losses asc, round_diff desc
+    standings.sort(key=lambda s: (-s['wins'], s['losses'], -s['round_diff']))
+    for i, s in enumerate(standings):
+        s['rank'] = i + 1
+        # Update status based on final rank
+        if s['status'] == 'qualified' or s['status'] == 'eliminated':
+            pass  # keep
+        elif s['rank'] <= 2:
+            s['status'] = 'qualified'  # projected
+        else:
+            s['status'] = 'eliminated'  # projected
+
+    return standings
+
+
 def get_group_matches(tournament):
     """Return GSL group match templates for Champion."""
     return champion.get_gsl_matches(None, 'A')  # Just for template reference

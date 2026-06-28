@@ -101,32 +101,100 @@
 </section>
 {% endif %}
 
-{% if tour.status in ('groups',) %}
+{% if groups_data %}
 <section class="card">
   <h2>Group Stage</h2>
-  <div class="table-scroll">
-  <table class="swiss-table">
-    <thead><tr><th>#</th><th>Match</th><th>Score</th><th></th></tr></thead>
-    <tbody>
-    {% for m in resolved_matches %}
-      {% if m.round_type == 'group' %}
-      <tr>
-        <td>{{ loop.index }}</td>
-        <td>{{ m.team_a }} vs {{ m.team_b }}</td>
-        <td class="w-l-col">{{ m.score_a }}{% if m.status == 'completed' %}-{{ m.score_b }}{% else %} vs {% endif %}</td>
-        <td class="action-cell">
-          {% if m.status == 'pending' and m.team_a != 'TBD' %}
-          <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
-          <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
-          {% elif m.status == 'completed' %}
-          <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
-          {% endif %}
-        </td>
-      </tr>
-      {% endif %}
+  <div class="gsl-container">
+    {% for group_label, group_info in groups_data.items() %}
+    <div class="group-card" data-group="{{ group_label }}">
+      <div class="group-card-header">
+        <span class="group-label">GROUP {{ group_label }}</span>
+      </div>
+
+      <div class="group-standings-mini">
+        <table class="group-mini-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="team-col">Doi</th>
+              <th class="wl-col">W-L</th>
+              <th class="rd-col">Rounds</th>
+              <th>TT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in group_info.standings %}
+            <tr class="status-{{ s.status }}">
+              <td class="rank-cell">{{ s.rank }}</td>
+              <td class="team-cell">
+                {% if s.club.logo_url %}
+                <img class="team-logo-sm" src="{{ s.club.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% endif %}
+                <span class="club-code">{{ s.club.short_code }}</span>
+              </td>
+              <td class="wl-cell">{{ s.wins }}-{{ s.losses }}</td>
+              <td class="rd-cell">{{ s.round_record }}</td>
+              <td class="status-cell">
+                {% if s.status == 'qualified' %}
+                <span class="status-text qualified">Playoffs</span>
+                {% elif s.status == 'eliminated' %}
+                <span class="status-text eliminated">Loai</span>
+                {% else %}
+                <span class="status-text pending">--</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not group_info.standings %}
+            <tr><td colspan="5" class="empty-row">Chua co tran nao</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="group-matches-flow">
+        {% set opening = group_info.matches.get('opening1', []) + group_info.matches.get('opening2', []) %}
+        {% if opening %}
+        <div class="gsl-stage">
+          <div class="stage-label">Opening Matches</div>
+          {% for m in opening %}
+          {% include 'tournament/_match_bar.html' %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% set wm = group_info.matches.get('winners_match', []) %}
+        {% if wm %}
+        <div class="gsl-stage">
+          <div class="stage-label">Winners Match</div>
+          {% for m in wm %}
+          {% include 'tournament/_match_bar.html' %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% set em = group_info.matches.get('elimination_match', []) %}
+        {% if em %}
+        <div class="gsl-stage">
+          <div class="stage-label">Elimination Match</div>
+          {% for m in em %}
+          {% include 'tournament/_match_bar.html' %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% set dm = group_info.matches.get('decider_match', []) %}
+        {% if dm %}
+        <div class="gsl-stage">
+          <div class="stage-label">Decider Match</div>
+          {% for m in dm %}
+          {% include 'tournament/_match_bar.html' %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
     {% endfor %}
-    </tbody>
-  </table>
   </div>
 </section>
 {% endif %}
