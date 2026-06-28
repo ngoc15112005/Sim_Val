@@ -241,52 +241,77 @@
 </section>
 {% endif %}
 
-{% if playoff_rounds and playoff_rounds|length > 0 %}
-<section class="card">
+{% if playoff_rounds and (playoff_rounds.upper or playoff_rounds.lower or playoff_rounds.grand) %}
+{% set has_upper = playoff_rounds.upper|length > 0 %}
+{% set has_lower = playoff_rounds.lower|length > 0 %}
+{% set has_grand = playoff_rounds.grand|length > 0 %}
+{% if has_upper or has_lower or has_grand %}
+<section class="card bracket-card">
   <h2>Playoffs</h2>
 
-  <div class="bracket-scroll">
-  <div class="bracket">
-    {% for label, matches in playoff_rounds.items() %}
-    <div class="bracket-round">
-      <div class="round-title">{{ label }}</div>
-      <div class="round-matches">
-      {% for m in matches %}
-        {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
-        <div class="match-box" data-match-id="{{ m.id }}">
-          <div class="match-team {{ 'winner' if display.win_a }}">
-            {% if display.logo_a %}
-            <img class="team-logo-sm" src="{{ display.logo_a }}" alt="" onerror="this.style.display='none'">
-            {% endif %}
-            <span class="team-name">{{ display.team_a }}</span>
-            <span class="team-score {{ 'win' if display.win_a else 'loss' if (display.status == 'completed' and not display.win_a) else '' }}">{{ display.score_a }}</span>
-          </div>
-          <div class="match-team {{ 'winner' if display.win_b }}">
-            {% if display.logo_b %}
-            <img class="team-logo-sm" src="{{ display.logo_b }}" alt="" onerror="this.style.display='none'">
-            {% endif %}
-            <span class="team-name">{{ display.team_b }}</span>
-            <span class="team-score {{ 'win' if display.win_b else 'loss' if (display.status == 'completed' and not display.win_b) else '' }}">{{ display.score_b }}</span>
-          </div>
-          {% if display.maps %}
-          <div class="match-maps">{{ display.maps | join(', ') }}</div>
-          {% endif %}
-          <div class="match-actions">
-            {% if display.status == 'pending' and display.team_a != 'TBD' %}
-            <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
-            <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
-            {% elif display.status == 'completed' %}
-            <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
-            {% endif %}
+  <div class="playoff-tree">
+    {% if has_upper %}
+    <div class="upper-bracket">
+      <div class="bracket-label">Nhanh Thang</div>
+      <div class="bracket-rounds">
+        {% for round_name, matches in playoff_rounds.upper.items() %}
+        {% set total = matches|length %}
+        <div class="bracket-column">
+          <div class="round-header">{{ _match_short_label(matches[0]) if matches else '' }}</div>
+          <div class="round-matches">
+            {% for m in matches %}
+            {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
+            {% set pos = '' %}
+            {% if loop.first and total > 1 %}first-in-column{% endif %}
+            {% if loop.last and total > 1 %}last-in-column{% endif %}
+            {% if not loop.first and not loop.last and total > 2 %}middle-in-column{% endif %}
+            <div class="match-box-wrapper">
+              {% include 'tournament/_match_box.html' %}
+            </div>
+            {% endfor %}
           </div>
         </div>
-      {% endfor %}
+        {% endfor %}
       </div>
     </div>
-    {% endfor %}
-  </div>
+    {% endif %}
+
+    {% if has_grand %}
+    <div class="grand-final-column">
+      <div class="round-header">CK Tong</div>
+      <div class="round-matches">
+        {% for m in playoff_rounds.grand %}
+        {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
+        {% include 'tournament/_match_box.html' %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if has_lower %}
+    <div class="lower-bracket">
+      <div class="bracket-label">Nhanh Thua</div>
+      <div class="bracket-rounds">
+        {% for round_name, matches in playoff_rounds.lower.items() %}
+        {% set total = matches|length %}
+        <div class="bracket-column">
+          <div class="round-header">{{ _match_short_label(matches[0]) if matches else '' }}</div>
+          <div class="round-matches">
+            {% for m in matches %}
+            {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
+            <div class="match-box-wrapper">
+              {% include 'tournament/_match_box.html' %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 </section>
+{% endif %}
 {% endif %}
 
 <section class="card" id="manual-card" style="display:none;">

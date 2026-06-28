@@ -17,6 +17,11 @@ def create_app():
     from routes import register_routes
     register_routes(app)
 
+    # Register Jinja2 globals (pure helper functions callable from templates)
+    from services.bracket_service import _match_label, _match_short_label
+    app.jinja_env.globals['_match_label'] = _match_label
+    app.jinja_env.globals['_match_short_label'] = _match_short_label
+
     return app
 
 

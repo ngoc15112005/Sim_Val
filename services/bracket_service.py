@@ -352,18 +352,78 @@ def get_final_standings(tournament):
 
 
 def group_playoff_rounds(tournament):
-    """Group playoff matches into ordered rounds for bracket display."""
+    """Group playoff matches into rounds for bracket display.
+
+    Returns:
+      {
+        'upper': {round_name: [match, ...]},
+        'lower': {round_name: [match, ...]},
+        'grand': [match, ...],
+      }
+
+    'upper' = Upper Bracket rounds (sorted by bracket sequence).
+    'lower' = Lower Bracket rounds (sorted by bracket sequence).
+    'grand' = Grand Final match(es) (usually 1 match).
+    Each value is an ordered dict of round_name -> list of matches.
+    """
     from collections import OrderedDict
 
     all_matches = Match.query.filter_by(
         tournament_id=tournament.id,
     ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).order_by(Match.match_order).all()
 
-    rounds = OrderedDict()
+    bracket = {
+        'upper': OrderedDict(),
+        'lower': OrderedDict(),
+        'grand': [],
+    }
+
+    # Define round order for each bracket
+    upper_order = [
+        'upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4',
+        'upper_semifinal_1', 'upper_semifinal_2',
+        'upper_final',
+    ]
+    lower_order = [
+        'lower_round1_1', 'lower_round1_2',
+        'lower_quarterfinal_1', 'lower_quarterfinal_2',
+        'lower_semifinal',
+        'lower_final',
+    ]
+
     for m in all_matches:
         label = _match_label(m)
-        rounds.setdefault(label, []).append(m)
-    return rounds
+        if m.round_type == 'upper':
+            if m.round_name not in bracket['upper']:
+                bracket['upper'][m.round_name] = []
+            bracket['upper'][m.round_name].append(m)
+        elif m.round_type == 'lower':
+            if m.round_name not in bracket['lower']:
+                bracket['lower'][m.round_name] = []
+            bracket['lower'][m.round_name].append(m)
+        elif m.round_type == 'grand':
+            bracket['grand'].append(m)
+
+    # Re-order keys in upper/lower according to bracket sequence
+    ordered_upper = OrderedDict()
+    for k in upper_order:
+        if k in bracket['upper']:
+            ordered_upper[k] = bracket['upper'][k]
+    for k, v in bracket['upper'].items():
+        if k not in ordered_upper:
+            ordered_upper[k] = v
+    bracket['upper'] = ordered_upper
+
+    ordered_lower = OrderedDict()
+    for k in lower_order:
+        if k in bracket['lower']:
+            ordered_lower[k] = bracket['lower'][k]
+    for k, v in bracket['lower'].items():
+        if k not in ordered_lower:
+            ordered_lower[k] = v
+    bracket['lower'] = ordered_lower
+
+    return bracket
 
 
 def _match_label(m):
@@ -388,6 +448,19 @@ def _match_label(m):
     elif m.round_type == 'grand':
         return 'CK Tổng'
     return name
+
+
+def _match_short_label(m):
+    """Short round label for column header (no 'CK' prefix)."""
+    if m.round_type == 'grand':
+        return 'CK Tổng'
+    full = _match_label(m)
+    # Strip "CK " prefix for column headers
+    if full.startswith('CK '):
+        return full[3:]
+    if full.startswith('NR '):
+        return full[3:]
+    return full
 
 
 def resolve_match_display(m):

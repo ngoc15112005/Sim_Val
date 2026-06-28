@@ -183,64 +183,284 @@ li a:hover { text-decoration: underline; }
 .btn-reroll { font-size: 1.1em; }
 .slot-logo { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
 
-/* === Esports Bracket === */
-.bracket-scroll { overflow-x: auto; padding-bottom: 10px; }
-.bracket {
-    display: flex; gap: 0; min-width: max-content;
-    padding: 20px 0;
-}
-.bracket-round {
-    display: flex; flex-direction: column;
-    justify-content: space-around;
-    min-width: 220px; padding: 0 10px;
-    border-right: 1px solid var(--border);
-}
-.bracket-round:last-child { border-right: none; }
-.bracket-round .round-title {
-    text-align: center; color: var(--accent);
-    font-size: 0.75em; text-transform: uppercase;
-    margin-bottom: 12px; letter-spacing: 0.5px;
-    font-weight: 700;
-}
-.round-matches {
-    display: flex; flex-direction: column;
-    justify-content: space-around; flex: 1;
+/* === Playoffs Bracket (Liquipedia Tree Layout) === */
+.bracket-card { padding: 16px 20px; }
+
+.playoff-tree {
+    --bracket-col-width: 220px;
+    --bracket-col-gap: 40px;
+    --upper-height: 560px;
+    --lower-height: 720px;
+    --connector-color: rgba(140, 150, 170, 0.5);
+    --connector-thickness: 1.5px;
+
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+    padding: 16px 0 24px;
+    overflow-x: auto;
+    overflow-y: visible;
 }
 
-/* Match box */
-.match-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 8px; overflow: hidden;
-    margin: 6px 0;
+.upper-bracket, .lower-bracket {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
 }
-.match-team {
-    display: flex; align-items: center;
-    padding: 6px 10px; gap: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.match-team:last-child { border-bottom: none; }
-.match-team.winner {
-    background: linear-gradient(90deg, rgba(34,197,94,0.10), transparent);
-}
-.match-team.winner .team-name { color: var(--green); font-weight: 700; }
-.team-logo-sm { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
-.match-team .team-name { flex: 1; font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.team-score {
-    background: var(--bg); padding: 1px 8px; border-radius: 4px;
-    font-weight: 700; font-size: 0.9em; min-width: 24px; text-align: center;
-    flex-shrink: 0;
-}
-.team-score.win { color: var(--green); }
-.team-score.loss { color: var(--dim); }
 
-.match-maps {
-    font-size: 0.7em; color: var(--dim); padding: 2px 10px 4px;
-    text-align: center;
+.upper-bracket { height: var(--upper-height); }
+.lower-bracket { height: var(--lower-height); }
+
+.upper-bracket .bracket-rounds,
+.lower-bracket .bracket-rounds {
+    display: flex;
+    flex-direction: row;
+    gap: var(--bracket-col-gap);
+    align-items: stretch;
 }
-.match-actions {
-    display: flex; gap: 4px; padding: 4px 8px 6px;
+
+.grand-final-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    margin-left: 32px;
+    padding: 0 16px;
+    min-width: 240px;
+    align-self: center;
 }
+
+.upper-bracket, .lower-bracket {
+    align-items: center;
+}
+
+.bracket-label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    color: var(--accent);
+    font-size: 0.7em; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 2px;
+    padding: 12px 0;
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    border-radius: 4px;
+    text-align: center;
+    flex-shrink: 0;
+    align-self: center;
+    min-height: 80px;
+    margin-right: 12px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.bracket-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: var(--bracket-col-width);
+    flex-shrink: 0;
+    height: 100%;
+    padding: 0 8px;
+}
+
+.round-header {
+    color: var(--accent);
+    font-size: 0.7em; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center;
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.round-matches {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    flex: 1;
+    gap: 8px;
+    min-height: 0;
+}
+
+/* === Match Box (compact for Playoffs bracket) === */
+.match-box {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s, transform 0.15s;
+}
+
+.match-box:hover { border-color: var(--accent); }
+
+.match-box .match-team-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    min-height: 26px;
+}
+
+.match-box .match-team-row.winner {
+    background: rgba(34, 197, 94, 0.10);
+}
+.match-box .match-team-row.winner .team-name {
+    color: var(--green); font-weight: 700;
+}
+
+.match-box .team-logo-sm {
+    width: 18px; height: 18px;
+    object-fit: contain; flex-shrink: 0;
+}
+
+.match-box .team-name {
+    font-size: 0.82em; font-weight: 500;
+    white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.team-score-box {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 0.85em; font-weight: 700;
+    min-width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+.team-score-box.win { color: var(--green); border-color: rgba(34, 197, 94, 0.3); }
+.team-score-box.loss { color: var(--dim); }
+
+/* Map details (hidden by default, shown on hover) */
+.match-maps-detail {
+    grid-column: 1;
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease, padding 0.2s ease;
+    padding: 0 4px;
+}
+.match-box:hover .match-maps-detail {
+    max-height: 60px;
+    padding: 4px 4px 2px;
+}
+.map-pill {
+    font-size: 0.7em;
+    background: var(--bg);
+    color: var(--dim);
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+}
+
+/* Edit button (subtle, hover-only) */
+.match-edit-btn {
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 22px; height: 22px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--dim);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    padding: 0;
+}
+.match-box:hover .match-edit-btn { opacity: 1; }
+.match-edit-btn:hover { color: var(--blue); border-color: var(--blue); }
+
+.match-roll-btn {
+    position: absolute;
+    bottom: 2px; right: 2px;
+    background: rgba(255, 70, 85, 0.85);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 0.7em; font-weight: 600;
+    padding: 2px 6px;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+}
+.match-box:hover .match-roll-btn { opacity: 1; }
+.match-roll-btn:hover { background: var(--accent); }
+
+.match-box.status-pending { border-style: dashed; }
+.match-box.status-completed { border-style: solid; }
+.match-box.round-grand_final { border-width: 2px; border-color: #fbbf24; }
+.match-box.round-grand_final::before {
+    content: 'GRAND FINAL';
+    position: absolute;
+    top: -10px; left: 50%; transform: translateX(-50%);
+    background: #fbbf24; color: #000;
+    padding: 1px 8px;
+    font-size: 0.65em; font-weight: 800; letter-spacing: 0.5px;
+    border-radius: 3px;
+}
+
+/* === Bracket connector lines (Liquipedia style) === */
+.bracket-column { position: relative; }
+.match-box { position: relative; }
+
+/* Horizontal line from right edge to next column (excluding last column in each bracket) */
+.bracket-column:not(:last-child) .match-box::after {
+    content: '';
+    position: absolute;
+    right: -22px;
+    top: 50%;
+    width: 22px;
+    height: var(--connector-thickness);
+    background: var(--connector-color);
+    transform: translateY(-50%);
+}
+
+/* Vertical line connecting two matches in the same column that feed into the same next match */
+.bracket-column:not(:last-child) .match-box::before {
+    content: '';
+    position: absolute;
+    right: -22px;
+    width: var(--connector-thickness);
+    background: var(--connector-color);
+    top: 50%; bottom: 50%;
+    height: 0;
+}
+.bracket-column:not(:last-child) .match-box-wrapper.first-in-column .match-box::before {
+    top: 50%; bottom: -10px;
+    height: calc(50% - 10px);
+}
+.bracket-column:not(:last-child) .match-box-wrapper.last-in-column .match-box::before {
+    top: -10px; bottom: 50%;
+    height: calc(50% - 10px);
+}
+.bracket-column:not(:last-child) .match-box-wrapper.middle-in-column .match-box::before {
+    top: -10px; bottom: -10px;
+    height: 20px;
+}
+
+@media (max-width: 900px) {
+    .playoff-tree { font-size: 0.85em; }
+    .bracket-column { width: 180px; }
+    .grand-final-column { margin-left: 16px; min-width: 200px; }
+}
+
 
 /* Swiss Table */
 .swiss-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
