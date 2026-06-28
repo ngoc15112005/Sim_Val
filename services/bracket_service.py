@@ -55,8 +55,11 @@ def generate_swiss_matches(tournament, current_round):
 
     team_dicts = [_team_to_dict(p) for p in swiss_teams]
 
-    completed = [_match_to_dict(m) for m in tournament.matches
-                 if m.round_type == 'swiss' and m.status == 'completed']
+    # Direct query to avoid relationship caching
+    matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='swiss',
+    ).all()
+    completed = [_match_to_dict(m) for m in matches if m.status == 'completed']
 
     if ttype == 'master':
         pairs = master.generate_swiss_pairings(team_dicts, current_round, completed)
