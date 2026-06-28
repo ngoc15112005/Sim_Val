@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg: #0f1117;
     --surface: #1a1d27;
     --border: #2a2d3a;
@@ -783,49 +783,6 @@ li a:hover { text-decoration: underline; }
     display: flex; flex-direction: column; gap: 4px;
 }
 
-.swiss-round-matches {
-    padding: 6px;
-    display: flex; flex-direction: column; gap: 4px;
-}
-
-/* === Bracket connector lines (Liquipedia style) === */
-.bracket {
-    --connector-color: rgba(120, 130, 150, 0.4);
-}
-.bracket-round {
-    position: relative;
-    padding-right: 24px;
-}
-.bracket-round:last-child { padding-right: 10px; }
-
-/* Horizontal line from right edge of each match to the next round */
-.bracket-round:not(:last-child) .match-box::after {
-    content: '';
-    position: absolute;
-    right: -18px;
-    top: 50%;
-    width: 18px;
-    height: 1px;
-    background: var(--connector-color);
-}
-
-/* Vertical connector between two matches in same round that feed into the same next match */
-.bracket-round:not(:last-child) .match-box::before {
-    content: '';
-    position: absolute;
-    right: -18px;
-    width: 1px;
-    background: var(--connector-color);
-}
-.bracket-round:not(:last-child) .match-box:first-child::before {
-    top: 50%; bottom: -6px;
-}
-.bracket-round:not(:last-child) .match-box:last-child::before {
-    top: -6px; bottom: 50%;
-}
-.bracket-round:not(:last-child) .match-box:not(:first-child):not(:last-child)::before {
-    top: -6px; bottom: -6px;
-}
 
 /* === Breadcrumb === */
 .breadcrumb {
