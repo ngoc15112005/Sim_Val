@@ -92,7 +92,7 @@ class TournamentParticipant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
     club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
-    seed = db.Column(db.Integer, nullable=False)
+    seed = db.Column(db.Integer)
     regional_seed = db.Column(db.Integer)
     region = db.Column(db.String(20))
     group_label = db.Column(db.String(5))

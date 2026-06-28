@@ -40,7 +40,6 @@ def create_tournament(tour_type, name, selected_club_ids, regional_seeds=None):
 
 
 def generate_bracket(tournament):
-    """Generate initial matches via format modules."""
     if tournament.type == 'champion':
         _generate_groups(tournament)
         tournament.status = 'groups'
@@ -51,7 +50,6 @@ def generate_bracket(tournament):
 
 
 def _generate_swiss_r1(tournament):
-    """Delegate Swiss R1 to format module."""
     from services.bracket_service import generate_swiss_matches
     pairs = generate_swiss_matches(tournament, 1)
     for i, (a_id, b_id) in enumerate(pairs):
@@ -65,7 +63,6 @@ def _generate_swiss_r1(tournament):
 
 
 def progress_tournament(tournament):
-    """Advance tournament to next round/stage."""
     cfg = Config.TOURNAMENT_TYPES[tournament.type]
 
     if tournament.status in ('setup',):
@@ -80,7 +77,7 @@ def progress_tournament(tournament):
 
     if tournament.status == 'groups':
         _resolve_group_placeholder_matches(tournament)
-        return {'action': 'groups_done', 'status': tournament.status}
+        return {'action': 'groups_done', 'status': 'playoffs'}
 
     if tournament.status == 'playoffs':
         _resolve_playoff_slots(tournament)
@@ -93,21 +90,24 @@ def progress_tournament(tournament):
 
 
 # ────────────────────────────────────────────────
-# Swiss: round progression via format module
+# Swiss round progression (via format module)
 # ────────────────────────────────────────────────
 
 def _generate_swiss_next_round(tournament):
     """Generate next Swiss round. Returns True if matches added."""
     cfg = Config.TOURNAMENT_TYPES[tournament.type]
 
-    # Check which teams are still active
-    records = _get_swiss_records(tournament)
-    active = [cid for cid, r in records.items()
-              if r['wins'] < cfg.get('swiss_win_target', 2)
-              and r['losses'] < cfg.get('swiss_loss_target', 2)]
+    # Use format module to compute records + active teams
+    team_dicts = _to_team_dicts(tournament)
+    completed = _to_match_dicts(tournament, 'swiss')
+    standings = _compute_swiss_standings(tournament, team_dicts, completed)
+
+    active = [s['team'] for s in standings
+               if s['wins'] < cfg.get('swiss_win_target', 2)
+               and s['losses'] < cfg.get('swiss_loss_target', 2)]
 
     if not active:
-        _finalize_swiss(tournament, records)
+        _finalize_swiss(tournament, standings)
         return False
 
     current_round = _current_swiss_round(tournament) + 1
@@ -116,7 +116,7 @@ def _generate_swiss_next_round(tournament):
     pairs = generate_swiss_matches(tournament, current_round)
 
     if not pairs:
-        _finalize_swiss(tournament, records)
+        _finalize_swiss(tournament, standings)
         return False
 
     next_order = Match.query.filter_by(tournament_id=tournament.id).count()
@@ -135,57 +135,107 @@ def _generate_swiss_next_round(tournament):
 
 def _current_swiss_round(tournament):
     swiss_matches = Match.query.filter_by(tournament_id=tournament.id, round_type='swiss').all()
-    rounds = set()
-    for m in swiss_matches:
-        rounds.add(m.round_name)
-    return len(rounds)
+    return len({m.round_name for m in swiss_matches})
 
 
-def _get_swiss_records(tournament):
-    records = {}
-    for p in tournament.participants:
-        records[p.club_id] = {'wins': 0, 'losses': 0, 'participant': p}
-
-    swiss_matches = Match.query.filter_by(tournament_id=tournament.id, round_type='swiss').all()
-    for m in swiss_matches:
-        if m.winner_id is None:
-            continue
-        records[m.team_a_id]['wins'] += int(m.winner_id == m.team_a_id)
-        records[m.team_a_id]['losses'] += int(m.winner_id != m.team_a_id)
-        records[m.team_b_id]['wins'] += int(m.winner_id == m.team_b_id)
-        records[m.team_b_id]['losses'] += int(m.winner_id != m.team_b_id)
-
-    return records
+def _to_team_dicts(tournament):
+    """Convert tournament participants to format-compatible dicts."""
+    from services.bracket_service import _team_to_dict
+    participants = TournamentParticipant.query.filter_by(
+        tournament_id=tournament.id,
+    ).order_by(TournamentParticipant.seed).all()
+    return [_team_to_dict(p) for p in participants]
 
 
-def _finalize_swiss(tournament, records):
+def _to_match_dicts(tournament, round_type):
+    """Convert matches to format-compatible dicts."""
+    from services.bracket_service import _match_to_dict
+    # Query directly to avoid relationship caching
+    matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type=round_type,
+    ).all()
+    return [_match_to_dict(m) for m in matches if m.status == 'completed']
+
+
+def _compute_swiss_standings(tournament, team_dicts, completed):
+    """Use format module to compute Swiss standings."""
+    from engine.format.major import get_swiss_standings as _major_std
+    from engine.format.master import get_swiss_standings as _master_std
+
+    ttype = tournament.type
+    if ttype == 'master':
+        swiss_team_dicts = [t for t in team_dicts if t.get('regional_seed', 0) >= 2]
+        return _master_std(swiss_team_dicts, completed)
+    else:
+        return _major_std(team_dicts, completed)
+
+
+def _finalize_swiss(tournament, standings):
+    """Rank teams and assign seeds for playoffs.
+
+    Major: top 4 Swiss qualifiers get seeds 1-4.
+    Master: regional_seed=1 (direct) teams get seeds 1-4, top 4 Swiss qualifiers get seeds 5-8.
+    """
     cfg = Config.TOURNAMENT_TYPES[tournament.type]
     advance_count = cfg['advance_count']
 
-    ranked = []
-    for cid, rec in records.items():
-        p = rec['participant']
-        w, l = rec['wins'], rec['losses']
-        ranked.append((w, -l, p.club.current_rating, cid, p))
+    all_participants = TournamentParticipant.query.filter_by(
+        tournament_id=tournament.id,
+    ).all()
+    p_by_id = {pp.club_id: pp for pp in all_participants}
 
-    ranked.sort(key=lambda x: (-x[0], -x[1], -x[2]))
+    # Identify advancing set (top advance_count from standings, plus directs for Master)
+    if tournament.type == 'master':
+        directs_club_ids = {pp.club_id for pp in all_participants if pp.regional_seed == 1}
+    else:
+        directs_club_ids = set()
 
-    advancing = []
-    for i, (w, nl, rating, cid, p) in enumerate(ranked):
-        if i < advance_count:
-            p.seed = i + 1
-            advancing.append(p)
-        else:
+    advancing_club_ids = set(directs_club_ids)
+    for s in standings[:advance_count]:
+        advancing_club_ids.add(s['team']['id'])
+
+    # Reset seeds for non-advancing, mark eliminated
+    for i, s in enumerate(standings):
+        p = p_by_id.get(s['team']['id'])
+        if p is None:
+            continue
+        if s['team']['id'] in advancing_club_ids:
+            continue  # will be set below
+        # Eliminated: clear seed, set final_rank
+        p.seed = None
+        if p.final_rank is None:
             ev = 9 if tournament.type == 'major' else 13
             p.final_rank = ev + (i - advance_count)
 
+    # Mark eliminated non-Swiss participants (e.g., direct qualifiers in Master
+    # never go through Swiss but should not be eliminated)
+    for p in all_participants:
+        if p.club_id not in advancing_club_ids and p.club_id not in {s['team']['id'] for s in standings}:
+            p.seed = None
+
     if tournament.type == 'master':
-        directs = [p for p in tournament.participants if p.regional_seed == 1]
-        for dp in directs:
-            advancing.append(dp)
-        for sp in advancing:
-            if sp.regional_seed and sp.regional_seed >= 2:
-                sp.seed = 5 + [i for i, x in enumerate(advancing) if x.regional_seed and x.regional_seed >= 2].index(sp)
+        # Direct qualifiers (regional_seed=1) = seeds 1-4
+        directs = [pp for pp in all_participants if pp.regional_seed == 1]
+        directs.sort(key=lambda p: p.regional_seed)
+        for i, dp in enumerate(directs):
+            dp.seed = i + 1
+        # Swiss qualifiers = seeds 5-8
+        for i, s in enumerate(standings[:advance_count]):
+            p = p_by_id.get(s['team']['id'])
+            if p:
+                p.seed = 5 + i
+        advancing = directs + [p_by_id.get(s['team']['id']) for s in standings[:advance_count]]
+    else:
+        # Major/Champion: top advance_count from Swiss get seeds 1-N
+        for i, s in enumerate(standings[:advance_count]):
+            p = p_by_id.get(s['team']['id'])
+            if p:
+                p.seed = i + 1
+        advancing = [p_by_id.get(s['team']['id']) for s in standings[:advance_count]]
+
+    advancing = [p for p in advancing if p is not None]
+    if not advancing:
+        return
 
     _generate_playoffs(tournament, advancing)
     tournament.status = 'playoffs'
@@ -204,36 +254,13 @@ def _generate_playoffs(tournament, advancing):
     if not templates:
         return
 
-    # Count existing playoff matches for order offset
     existing_count = Match.query.filter_by(tournament_id=tournament.id).count()
     next_order = max(100, existing_count + 1)
 
     for i, tmpl in enumerate(templates):
         rn = tmpl.get('round_name', f'playoff_{i}')
         rt = tmpl.get('round_type', 'upper')
-
-        # Resolve team IDs from template sources
-        a_id = None
-        b_id = None
-        sources = tmpl.get('sources', {}).get('team_a', {})
-        sourceb = tmpl.get('sources', {}).get('team_b', {})
-
-        if sources.get('type') == 'seed':
-            seed_val = sources['value']
-            p = next((p for p in advancing if p.seed == seed_val), None)
-            a_id = p.club_id if p else None
-        if sourceb.get('type') == 'seed':
-            seed_val = sourceb['value']
-            p = next((p for p in advancing if p.seed == seed_val), None)
-            b_id = p.club_id if p else None
-
-        # For high_team/low_team (champion/master draw)
-        if 'high_team' in tmpl:
-            ht = tmpl['high_team']
-            lt = tmpl['low_team']
-            a_id = ht.get('id')
-            b_id = lt.get('id')
-
+        a_id, b_id = _resolve_template_seeds(tmpl, advancing)
         m = Match(
             tournament_id=tournament.id, round_type=rt,
             round_name=rn, match_order=next_order + i,
@@ -244,29 +271,51 @@ def _generate_playoffs(tournament, advancing):
     db.session.flush()
 
 
+def _resolve_template_seeds(tmpl, advancing):
+    """Resolve team_a/b IDs from a format template."""
+    a_id, b_id = None, None
+    sources = tmpl.get('sources', {})
+
+    src_a = sources.get('team_a', {})
+    src_b = sources.get('team_b', {})
+
+    if src_a.get('type') == 'seed':
+        p = next((p for p in advancing if p.seed == src_a['value']), None)
+        a_id = p.club_id if p else None
+    if src_b.get('type') == 'seed':
+        p = next((p for p in advancing if p.seed == src_b['value']), None)
+        b_id = p.club_id if p else None
+
+    if 'high_team' in tmpl:
+        a_id = tmpl['high_team'].get('id')
+        b_id = tmpl['low_team'].get('id')
+
+    return a_id, b_id
+
+
 def _resolve_playoff_slots(tournament):
-    """Resolve TBD slots using format module."""
-    from services.bracket_service import resolve_playoff_slot, generate_playoff_matches
+    """Resolve TBD slots in playoff bracket using format module."""
+    from services.bracket_service import (
+        resolve_playoff_slot, generate_playoff_matches,
+    )
+
+    # Advancing teams: have seed AND no final_rank (still in contention)
+    advancing = [p for p in tournament.participants
+                 if p.seed is not None and p.seed > 0 and p.final_rank is None]
+    templates = generate_playoff_matches(tournament, advancing)
 
     pending = Match.query.filter_by(
         tournament_id=tournament.id, status='pending',
     ).order_by(Match.match_order).all()
-
-    # Get format templates for slot resolution
-    advancing = [p for p in tournament.participants if p.final_rank is None]
-    templates = generate_playoff_matches(tournament, advancing)
 
     for m in pending:
         if m.round_type in ('swiss', 'group'):
             continue
         if m.team_a_id and m.team_b_id:
             continue
-
-        # Find matching template
         tmpl = next((t for t in templates if t.get('round_name') == m.round_name), None)
         if tmpl is None:
             continue
-
         a_id, b_id = resolve_playoff_slot(tmpl, tournament)
         if a_id:
             m.team_a_id = a_id
@@ -285,25 +334,44 @@ def _is_bracket_finished(tournament):
 
 
 def _finalize_tournament(tournament):
-    gf = Match.query.filter_by(tournament_id=tournament.id, round_type='grand').first()
-    if not gf or gf.status != 'completed':
+    """Assign final rankings to all playoff participants."""
+    from services.bracket_service import _match_label
+    completed = {m.round_name: m for m in tournament.matches
+                 if m.status == 'completed' and m.round_type in ('upper', 'lower', 'grand')}
+
+    if not completed.get('grand_final'):
+        return
+    if completed['grand_final'].winner_id is None:
         return
 
-    rank_map = {gf.winner_id: 1, gf.loser_id: 2}
+    rank_map = {}
 
-    for rn in ['lower_final', 'lower_semifinal', 'lower_quarterfinal_1', 'lower_quarterfinal_2',
-               'lower_round1_1', 'lower_round1_2', 'lower_round1']:
-        m = Match.query.filter_by(tournament_id=tournament.id, round_name=rn, status='completed').first()
+    # GF: #1 winner, #2 loser
+    gf = completed['grand_final']
+    rank_map[gf.winner_id] = 1
+    rank_map[gf.loser_id] = 2
+
+    # Lower Final: #3 loser
+    if completed.get('lower_final') and completed['lower_final'].loser_id:
+        rank_map[completed['lower_final'].loser_id] = 3
+
+    # Lower Semifinal: #4 loser
+    if completed.get('lower_semifinal') and completed['lower_semifinal'].loser_id:
+        rank_map[completed['lower_semifinal'].loser_id] = 4
+
+    # Lower Quarterfinals: #5, #6 losers
+    for lq in ('lower_quarterfinal_1', 'lower_quarterfinal_2'):
+        m = completed.get(lq)
         if m and m.loser_id:
-            lf = Match.query.filter_by(tournament_id=tournament.id, round_name='lower_final', status='completed').first()
-            if rn == 'lower_final' and m.loser_id:
-                rank_map.setdefault(m.loser_id, 3)
-            elif rn == 'lower_semifinal' and m.loser_id:
-                rank_map.setdefault(m.loser_id, 4)
-            elif 'quarterfinal' in rn and m.loser_id:
-                rank_map.setdefault(m.loser_id, 5)
-            elif 'round1' in rn and m.loser_id:
-                rank_map.setdefault(m.loser_id, 7)
+            current = rank_map.get(m.loser_id, 5)
+            rank_map[m.loser_id] = current
+
+    # Lower Round 1: #7, #8 losers
+    for lr in ('lower_round1_1', 'lower_round1_2', 'lower_round1'):
+        m = completed.get(lr)
+        if m and m.loser_id:
+            current = rank_map.get(m.loser_id, 7)
+            rank_map[m.loser_id] = current
 
     for p in tournament.participants:
         if p.final_rank is None and p.club_id in rank_map:
@@ -313,7 +381,6 @@ def _finalize_tournament(tournament):
 
 
 def simulate_all_pending(tournament):
-    """Simulate all pending matches, looping through rounds."""
     from engine.match import simulate_match
 
     for _ in range(50):
@@ -342,23 +409,21 @@ def simulate_all_pending(tournament):
 
 
 # ────────────────────────────────────────────────
-# Group Stage (Champion) - kept here for now
+# Group Stage (Champion) - via format module
 # ────────────────────────────────────────────────
 
 def _generate_groups(tournament):
     from engine.format.champion import generate_gsl_groups
-
-    participants = tournament.participants
     from services.bracket_service import _team_to_dict
-    team_dicts = [_team_to_dict(p) for p in participants]
 
+    team_dicts = [_team_to_dict(p) for p in tournament.participants]
     groups = generate_gsl_groups(team_dicts)
 
     match_order = 1
     for grp_label, team_list in groups.items():
-        # Assign group_label to participants
+        # Persist group_label to participants
         for tdict in team_list:
-            p = next((p for p in participants if p.club_id == tdict['id']), None)
+            p = next((p for p in tournament.participants if p.club_id == tdict['id']), None)
             if p:
                 p.group_label = grp_label
 
@@ -386,6 +451,10 @@ def _add_match(tournament, round_type, round_name, order, a_id, b_id):
 
 
 def _resolve_group_placeholder_matches(tournament):
+    """After opening matches, generate Winners/Elimination/Decider for each group.
+
+    Uses format/champion.get_gsl_matches() to know the structure.
+    """
     if tournament.status != 'groups':
         return
 
@@ -393,8 +462,9 @@ def _resolve_group_placeholder_matches(tournament):
     existing_names = {m.round_name for m in existing}
 
     for grp_num in range(1, 5):
-        label = chr(64 + grp_num)  # A, B, C, D
+        label = chr(64 + grp_num)
         prefix = f'group{label}'
+
         op1 = Match.query.filter_by(tournament_id=tournament.id,
                                     round_name=f'{prefix}_opening1', status='completed').first()
         op2 = Match.query.filter_by(tournament_id=tournament.id,
@@ -402,17 +472,17 @@ def _resolve_group_placeholder_matches(tournament):
         if not op1 or not op2:
             continue
 
-        w1, l1 = op1.winner_id, op1.loser_id
-        w2, l2 = op2.winner_id, op2.loser_id
-
         wm_name = f'{prefix}_winners_match'
+        em_name = f'{prefix}_elimination_match'
+
         if wm_name not in existing_names:
-            _add_match(tournament, 'group', wm_name, 1000 + grp_num * 100 + 10, w1, w2)
+            _add_match(tournament, 'group', wm_name, 1000 + grp_num * 100 + 10,
+                       op1.winner_id, op2.winner_id)
             existing_names.add(wm_name)
 
-        em_name = f'{prefix}_elimination_match'
         if em_name not in existing_names:
-            _add_match(tournament, 'group', em_name, 1000 + grp_num * 100 + 20, l1, l2)
+            _add_match(tournament, 'group', em_name, 1000 + grp_num * 100 + 20,
+                       op1.loser_id, op2.loser_id)
             existing_names.add(em_name)
 
         wm = Match.query.filter_by(tournament_id=tournament.id, round_name=wm_name).first()
@@ -446,6 +516,7 @@ def _finalize_groups(tournament):
     for grp_num in range(1, 5):
         label = chr(64 + grp_num)
         prefix = f'group{label}'
+
         wm = Match.query.filter_by(tournament_id=tournament.id,
                                    round_name=f'{prefix}_winners_match', status='completed').first()
         dm = Match.query.filter_by(tournament_id=tournament.id,

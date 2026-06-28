@@ -57,7 +57,7 @@
           {% if s.advanced %}
           <span class="status-go">Playoffs</span>
           {% else %}
-          <span class="status-out" style="color:var(--dim)">Loai</span>
+          <span class="status-out" style="color:var(--dim)">Loại</span>
           {% endif %}
         </td>
       </tr>
@@ -190,9 +190,9 @@
   <table class="swiss-table">
     <thead><tr><th>#</th><th>Doi</th><th>Seed</th><th>Khu vuc</th></tr></thead>
     <tbody>
-    {% for p in tour.participants | sort(attribute='final_rank') %}
+    {% for p in sorted_participants %}
     <tr>
-      <td>#{{ p.final_rank }}</td>
+      <td>{% if p.final_rank %}#{{ p.final_rank }}{% else %}-{% endif %}</td>
       <td>
         {% if p.club.logo_url %}
         <img class="team-logo-sm" src="{{ p.club.logo_url }}" alt="" onerror="this.style.display='none'">

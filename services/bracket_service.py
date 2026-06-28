@@ -105,8 +105,10 @@ def generate_playoff_matches(tournament, advancing_participants):
 def resolve_playoff_slot(match_template, tournament):
     """Resolve TBD bracket slot to actual team IDs using completed matches."""
     ttype = tournament.type
-    completed = [_match_to_dict(m) for m in tournament.matches
-                 if m.status == 'completed' and m.round_type not in ('swiss', 'group')]
+    matches = Match.query.filter_by(
+        tournament_id=tournament.id,
+    ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).all()
+    completed = [_match_to_dict(m) for m in matches if m.status == 'completed']
 
     if ttype == 'major':
         return major.resolve_slot(match_template, completed)
@@ -134,8 +136,10 @@ def get_swiss_standings(tournament):
         swiss_teams = list(participants)
 
     team_dicts = [_team_to_dict(p) for p in swiss_teams]
-    completed = [_match_to_dict(m) for m in tournament.matches
-                 if m.round_type == 'swiss' and m.status == 'completed']
+    matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='swiss',
+    ).all()
+    completed = [_match_to_dict(m) for m in matches if m.status == 'completed']
 
     if ttype == 'master':
         base = master.get_swiss_standings(team_dicts, completed)
@@ -159,6 +163,7 @@ def get_swiss_standings(tournament):
 
 
 def _get_per_round_results(tournament, club_id):
+    """Get per-round W/L results for a club_id, in chronological order."""
     results = []
     swiss_matches = Match.query.filter_by(
         tournament_id=tournament.id, round_type='swiss',
@@ -166,9 +171,7 @@ def _get_per_round_results(tournament, club_id):
     for m in swiss_matches:
         if m.status != 'completed':
             continue
-        if m.team_a_id == club_id:
-            results.append('W' if m.winner_id == club_id else 'L')
-        elif m.team_b_id == club_id:
+        if m.team_a_id == club_id or m.team_b_id == club_id:
             results.append('W' if m.winner_id == club_id else 'L')
     return results
 
@@ -181,7 +184,6 @@ def group_playoff_rounds(tournament):
         tournament_id=tournament.id,
     ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).order_by(Match.match_order).all()
 
-    # Build ordered labels
     rounds = OrderedDict()
     for m in all_matches:
         label = _match_label(m)
@@ -190,26 +192,26 @@ def group_playoff_rounds(tournament):
 
 
 def _match_label(m):
-    """Human-readable round label for bracket display."""
+    """Human-readable round label for bracket display (Vietnamese)."""
     name = m.round_name
     if m.round_type == 'upper':
         if 'quarterfinal' in name:
-            return 'Tu ket'
+            return 'Tứ kết'
         elif 'semifinal' in name:
-            return 'Ban ket'
+            return 'Bán kết'
         elif 'final' in name:
-            return 'CK Thang'
+            return 'CK Thắng'
     elif m.round_type == 'lower':
         if 'round1' in name:
-            return 'NR Vong 1'
+            return 'NR Vòng 1'
         elif 'quarterfinal' in name:
-            return 'NR Vong 2'
+            return 'NR Vòng 2'
         elif 'semifinal' in name:
-            return 'NR Vong 3'
+            return 'NR Vòng 3'
         elif 'final' in name:
             return 'CK Thua'
     elif m.round_type == 'grand':
-        return 'CK Tong'
+        return 'CK Tổng'
     return name
 
 

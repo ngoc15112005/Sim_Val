@@ -175,6 +175,15 @@ def register_routes(app):
         resolved_matches = [resolve_match_display(m) for m in matches]
         playoff_rounds = group_playoff_rounds(tour)
 
+        # Sort participants: with rank first (by rank asc), then without rank (by seed asc)
+        participants = sorted(
+            tour.participants,
+            key=lambda p: (
+                p.final_rank if p.final_rank is not None else 999,
+                p.seed if p.seed is not None else 999,
+            ),
+        )
+
         return render_template(
             'tournament.html',
             tour=tour, cfg=Config,
@@ -182,4 +191,5 @@ def register_routes(app):
             max_swiss_rounds=max_swiss_rounds,
             playoff_rounds=playoff_rounds,
             resolved_matches=resolved_matches,
+            sorted_participants=participants,
         )
