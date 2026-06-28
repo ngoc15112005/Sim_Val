@@ -9,7 +9,7 @@ from engine.match import simulate_match, resolve_manual_match
 from engine.rating import update_ratings
 from services.bracket_service import (
     get_swiss_standings, group_playoff_rounds, resolve_match_display,
-    get_groups_data, get_swiss_data,
+    get_groups_data, get_swiss_data, get_final_standings,
 )
 from config import Config
 
@@ -177,6 +177,8 @@ def register_routes(app):
         if tour.type == 'champion':
             groups_data = get_groups_data(tour)
 
+        final_standings = get_final_standings(tour) if tour.status == 'finished' else None
+
         # Sort participants: with rank first (by rank asc), then without rank (by seed asc)
         participants = sorted(
             tour.participants,
@@ -194,4 +196,5 @@ def register_routes(app):
             resolved_matches=resolved_matches,
             sorted_participants=participants,
             groups_data=groups_data,
+            final_standings=final_standings,
         )

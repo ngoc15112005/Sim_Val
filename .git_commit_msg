@@ -1,25 +1,42 @@
-Fix: prevent premature Swiss round generation
+UI polish: bracket connectors, final standings podium, header redesign
 
-Bug: When manually inputting 1 R1 match, system immediately generated
-R2 (and even potentially finalized Swiss). Same issue for group stage.
+Backend (bracket_service.py):
+- get_final_standings(): compute full standings sorted by rank
+  - Status labels: Vo dich / A runner-up / Hang ba / Hang tu / Top 5-8 / #9+
+  - Status classes: champion / runner-up / third / fourth / ranked / eliminated
+  - W-L stats aggregated from all matches (per club)
+- Rank 1 always gets Vo dich regardless of tournament type
 
-Cause: _generate_swiss_next_round computed active teams from records and
-generated next round whenever active > 0, regardless of whether the
-current round was fully complete.
+Frontend (routes.py):
+- Pass final_standings to template (only when status=finished)
 
-Fix: _is_current_round_complete() checks if all matches in current round
-are completed. _generate_swiss_next_round now:
-  - Returns False early if current round is not fully complete
-  - progress_tournament returns 'waiting' action when R1 partial
-  - Returns 'swiss_done' only when current round is complete AND no new
-    round is generated
+Template (tournament.html):
+- Breadcrumb: Home / {tour_name}
+- Header 2-row layout:
+  - Row 1: tour-type badge + title + status badge + action buttons
+  - Row 2: info chips (team count, format details)
+- Final Standings card with 2 parts:
+  - Podium top 3 (2nd, 1st, 3rd order) - champion card with gold border
+  - Full standings table with rank medals (gold/silver/bronze)
 
-Same fix applied to _resolve_group_placeholder_matches via
-_is_groups_complete() check in progress_tournament.
+CSS (~190 lines):
+- Bracket connector lines (::before, ::after pseudo-elements)
+  - Horizontal line from right edge of each match
+  - Vertical line between consecutive matches
+  - Use CSS vars for color
+- Breadcrumb: subtle divider style
+- Tour header: 2-row flex, action buttons (primary/secondary/ghost)
+- Status badges: large colored badges
+- Tour type badges: color-coded (major=blue, master=purple, champion=orange)
+- Info chips: pill style for format details
+- Podium: 3-col grid (2nd, 1st, 3rd order)
+  - Champion card: gold border + glow effect
+  - Rank colors: gold/silver/bronze for top 3
+  - Podium bar (color bar under card)
+- Full standings table: rank medals (circle badges), status pills
+- Mobile responsive (podium stacks vertically on small screens)
 
-Tested:
-  - Major manual flow: R1 done 1/4 -> waiting, 2/4 -> waiting, 3/4 -> waiting, 4/4 -> swiss_next
-  - R2 same pattern
-  - R3 finalizes after both matches done
-  - Rankings correct: 4 advance, 4 eliminated with #9-12
-  - Sim All still works for all 3 tournament types
+Fixes:
+- Jinja2 set variable scoping in for loop - use namespace
+- Major rank 1 now correctly shows Vo dich (was previously #1)
+- All format details extracted to info chips

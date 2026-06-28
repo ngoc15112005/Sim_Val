@@ -2,13 +2,44 @@
 {% block title %}{{ tour.name }}{% endblock %}
 {% block content %}
 
+<nav class="breadcrumb">
+  <a href="/">Home</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">{{ tour.name }}</span>
+</nav>
+
 <div class="tour-header">
-  <h1>[{{ tour.type.upper() }}] {{ tour.name }}</h1>
-  <div class="tour-actions">
-    <span class="badge {{ tour.status }}">{{ tour.status }}</span>
-    <button id="btn-progress" onclick="progressTournament()">Proceed</button>
-    <button id="btn-sim-all" onclick="simAll()" class="btn-primary">Sim All</button>
-    <button onclick="location.reload()">Refresh</button>
+  <div class="tour-header-main">
+    <div class="tour-title">
+      <span class="tour-type-badge tour-type-{{ tour.type }}">{{ tour.type|upper }}</span>
+      <h1>{{ tour.name }}</h1>
+    </div>
+    <div class="tour-actions">
+      <span class="status-badge-large status-{{ tour.status }}">{{ tour.status }}</span>
+      <button id="btn-progress" onclick="progressTournament()" class="btn-secondary" title="Proceed next stage">
+        <span class="btn-icon">&#9654;</span>Proceed
+      </button>
+      <button id="btn-sim-all" onclick="simAll()" class="btn-primary" title="Simulate all pending">
+        <span class="btn-icon">&#9889;</span>Sim All
+      </button>
+      <button onclick="location.reload()" class="btn-ghost" title="Refresh">&#x21bb;</button>
+    </div>
+  </div>
+  <div class="tour-info">
+    {% if tour.type == 'major' %}
+    <span class="info-chip"><strong>8</strong> doi</span>
+    <span class="info-chip"><strong>2/2</strong> Swiss (2 thang advance)</span>
+    <span class="info-chip"><strong>4</strong> Playoffs (Double Elim)</span>
+    {% elif tour.type == 'master' %}
+    <span class="info-chip"><strong>12</strong> doi</span>
+    <span class="info-chip"><strong>4</strong> Direct qualifiers</span>
+    <span class="info-chip"><strong>8</strong> Swiss</span>
+    <span class="info-chip"><strong>8</strong> Playoffs (Double Elim)</span>
+    {% elif tour.type == 'champion' %}
+    <span class="info-chip"><strong>16</strong> doi</span>
+    <span class="info-chip"><strong>4</strong> Groups GSL</span>
+    <span class="info-chip"><strong>8</strong> Playoffs (Double Elim)</span>
+    {% endif %}
   </div>
 </div>
 
@@ -263,7 +294,108 @@
   <div id="manual-form"></div>
 </section>
 
-{% if tour.status == 'finished' %}
+{% if final_standings %}
+<section class="card final-standings-card">
+  <h2>Bang xep hang cuoi cung</h2>
+  <div class="podium">
+    {% if first is not defined or first is none %}
+      {% set ns = namespace(first=none, second=none, third=none) %}
+      {% for s in final_standings %}
+        {% if s.rank == 1 %}{% set ns.first = s %}{% endif %}
+        {% if s.rank == 2 %}{% set ns.second = s %}{% endif %}
+        {% if s.rank == 3 %}{% set ns.third = s %}{% endif %}
+      {% endfor %}
+    {% endif %}
+    {% if ns.second %}
+    <div class="podium-col second">
+      <div class="podium-card status-{{ ns.second.status_class }}">
+        <div class="podium-rank">2</div>
+        <div class="podium-team">
+          {% if ns.second.club.logo_url %}<img class="team-logo-md" src="{{ ns.second.club.logo_url }}" alt="" onerror="this.style.display='none'">{% endif %}
+          <div class="podium-info">
+            <span class="club-code-lg">{{ ns.second.club.short_code }}</span>
+            <span class="podium-name">{{ ns.second.club.name }}</span>
+          </div>
+        </div>
+        <div class="podium-meta">
+          <span class="podium-wl">{{ ns.second.wins }}-{{ ns.second.losses }}</span>
+        </div>
+      </div>
+      <div class="podium-bar bar-second">2nd</div>
+    </div>
+    {% endif %}
+    {% if ns.first %}
+    <div class="podium-col first">
+      <div class="podium-card status-{{ ns.first.status_class }} champion-card">
+        <div class="podium-rank">1</div>
+        <div class="podium-team">
+          {% if ns.first.club.logo_url %}<img class="team-logo-md" src="{{ ns.first.club.logo_url }}" alt="" onerror="this.style.display='none'">{% endif %}
+          <div class="podium-info">
+            <span class="club-code-lg">{{ ns.first.club.short_code }}</span>
+            <span class="podium-name">{{ ns.first.club.name }}</span>
+          </div>
+        </div>
+        <div class="podium-meta">
+          <span class="podium-wl">{{ ns.first.wins }}-{{ ns.first.losses }}</span>
+          <span class="champion-badge">VO DICH</span>
+        </div>
+      </div>
+      <div class="podium-bar bar-first">CHAMPION</div>
+    </div>
+    {% endif %}
+    {% if ns.third %}
+    <div class="podium-col third">
+      <div class="podium-card status-{{ ns.third.status_class }}">
+        <div class="podium-rank">3</div>
+        <div class="podium-team">
+          {% if ns.third.club.logo_url %}<img class="team-logo-md" src="{{ ns.third.club.logo_url }}" alt="" onerror="this.style.display='none'">{% endif %}
+          <div class="podium-info">
+            <span class="club-code-lg">{{ ns.third.club.short_code }}</span>
+            <span class="podium-name">{{ ns.third.club.name }}</span>
+          </div>
+        </div>
+        <div class="podium-meta">
+          <span class="podium-wl">{{ ns.third.wins }}-{{ ns.third.losses }}</span>
+        </div>
+      </div>
+      <div class="podium-bar bar-third">3rd</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="full-standings">
+    <h3 class="standings-subhead">Tat ca doi</h3>
+    <table class="standings-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Doi</th>
+          <th>Khu vuc</th>
+          <th>W-L</th>
+          <th>Trang thai</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in final_standings %}
+        <tr class="rank-{{ s.rank }} status-{{ s.status_class }}">
+          <td class="rank-cell">{% if s.rank == 1 %}<span class="rank-medal gold">1</span>{% elif s.rank == 2 %}<span class="rank-medal silver">2</span>{% elif s.rank == 3 %}<span class="rank-medal bronze">3</span>{% else %}#{{ s.rank }}{% endif %}</td>
+          <td>
+            <div class="standings-team">
+              {% if s.club.logo_url %}<img class="team-logo-sm" src="{{ s.club.logo_url }}" alt="" onerror="this.style.display='none'">{% endif %}
+              <span class="club-code">{{ s.club.short_code }}</span>
+              <span class="team-name-small">{{ s.club.name }}</span>
+            </div>
+          </td>
+          <td>{{ s.region|upper if s.region else '?' }}</td>
+          <td><strong>{{ s.wins }}-{{ s.losses }}</strong></td>
+          <td><span class="status-pill status-{{ s.status_class }}">{{ s.status_label }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% elif tour.status == 'finished' %}
 <section class="card">
   <h2>Bang xep hang</h2>
   <table class="swiss-table">
