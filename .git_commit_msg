@@ -1,0 +1,25 @@
+Fix: prevent premature Swiss round generation
+
+Bug: When manually inputting 1 R1 match, system immediately generated
+R2 (and even potentially finalized Swiss). Same issue for group stage.
+
+Cause: _generate_swiss_next_round computed active teams from records and
+generated next round whenever active > 0, regardless of whether the
+current round was fully complete.
+
+Fix: _is_current_round_complete() checks if all matches in current round
+are completed. _generate_swiss_next_round now:
+  - Returns False early if current round is not fully complete
+  - progress_tournament returns 'waiting' action when R1 partial
+  - Returns 'swiss_done' only when current round is complete AND no new
+    round is generated
+
+Same fix applied to _resolve_group_placeholder_matches via
+_is_groups_complete() check in progress_tournament.
+
+Tested:
+  - Major manual flow: R1 done 1/4 -> waiting, 2/4 -> waiting, 3/4 -> waiting, 4/4 -> swiss_next
+  - R2 same pattern
+  - R3 finalizes after both matches done
+  - Rankings correct: 4 advance, 4 eliminated with #9-12
+  - Sim All still works for all 3 tournament types

@@ -73,10 +73,17 @@ def progress_tournament(tournament):
         generated = _generate_swiss_next_round(tournament)
         if generated:
             return {'action': 'swiss_next'}
+        # Round not yet fully completed — wait for more results
+        if not _is_current_round_complete(tournament):
+            return {'action': 'waiting'}
+        # Round complete but no new round was generated (finalize)
         return {'action': 'swiss_done', 'status': 'playoffs'}
 
     if tournament.status == 'groups':
         _resolve_group_placeholder_matches(tournament)
+        # Only transition to playoffs when all group matches (including deciders) are done
+        if not _is_groups_complete(tournament):
+            return {'action': 'waiting'}
         return {'action': 'groups_done', 'status': 'playoffs'}
 
     if tournament.status == 'playoffs':
@@ -97,6 +104,24 @@ def _generate_swiss_next_round(tournament):
     """Generate next Swiss round. Returns True if matches added."""
     cfg = Config.TOURNAMENT_TYPES[tournament.type]
 
+    current_round = _current_swiss_round(tournament)
+    if current_round == 0:
+        return False
+
+    # Check if the current round is fully completed.
+    # If not, do NOT advance — wait for more manual/simulated results.
+    current_round_name = f'swiss_round{current_round}'
+    current_round_matches = Match.query.filter_by(
+        tournament_id=tournament.id,
+        round_type='swiss',
+        round_name=current_round_name,
+    ).all()
+    if not current_round_matches:
+        return False
+    if any(m.status != 'completed' for m in current_round_matches):
+        # Current round not yet complete — do not advance
+        return False
+
     # Use format module to compute records + active teams
     team_dicts = _to_team_dicts(tournament)
     completed = _to_match_dicts(tournament, 'swiss')
@@ -110,10 +135,10 @@ def _generate_swiss_next_round(tournament):
         _finalize_swiss(tournament, standings)
         return False
 
-    current_round = _current_swiss_round(tournament) + 1
+    next_round = current_round + 1
 
     from services.bracket_service import generate_swiss_matches
-    pairs = generate_swiss_matches(tournament, current_round)
+    pairs = generate_swiss_matches(tournament, next_round)
 
     if not pairs:
         _finalize_swiss(tournament, standings)
@@ -124,7 +149,7 @@ def _generate_swiss_next_round(tournament):
         next_order += 1
         m = Match(
             tournament_id=tournament.id, round_type='swiss',
-            round_name=f'swiss_round{current_round}', match_order=next_order,
+            round_name=f'swiss_round{next_round}', match_order=next_order,
             team_a_id=a_id, team_b_id=b_id,
         )
         db.session.add(m)
@@ -136,6 +161,31 @@ def _generate_swiss_next_round(tournament):
 def _current_swiss_round(tournament):
     swiss_matches = Match.query.filter_by(tournament_id=tournament.id, round_type='swiss').all()
     return len({m.round_name for m in swiss_matches})
+
+
+def _is_groups_complete(tournament):
+    """Check if all group-stage matches (opening, winners, elim, decider) are completed."""
+    pending = Match.query.filter_by(
+        tournament_id=tournament.id,
+        round_type='group',
+        status='pending',
+    ).count()
+    return pending == 0
+
+
+def _is_current_round_complete(tournament):
+    """Check if all matches in the current (latest) Swiss round are completed."""
+    current_round = _current_swiss_round(tournament)
+    if current_round == 0:
+        return True
+    current_round_name = f'swiss_round{current_round}'
+    pending = Match.query.filter_by(
+        tournament_id=tournament.id,
+        round_type='swiss',
+        round_name=current_round_name,
+        status='pending',
+    ).count()
+    return pending == 0
 
 
 def _to_team_dicts(tournament):
