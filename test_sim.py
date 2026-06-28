@@ -1,9 +1,10 @@
-"""Test: full lifecycle for all 3 tournament types."""
+"""Test: render Swiss UI for Major and Master."""
 import sys
 sys.path.insert(0, '.')
 from app import create_app
 from models import db, Club, ClubRating, MatchMap, Match, TournamentParticipant, Tournament
 from engine.tournament import create_tournament, generate_bracket, simulate_all_pending
+from services.bracket_service import get_swiss_data
 
 app = create_app()
 with app.app_context():
@@ -15,7 +16,7 @@ with app.app_context():
     for c in Club.query.all():
         pools.setdefault(c.region.slug, []).append(c)
 
-    for ttype, slots in [('major', 2), ('master', 3), ('champion', 4)]:
+    for ttype, slots in [('major', 2), ('master', 3)]:
         cids, rseeds = [], []
         for region in ['pacific', 'americas', 'emea', 'china']:
             sorted_c = sorted(pools[region], key=lambda c: c.current_rating, reverse=True)
@@ -28,13 +29,37 @@ with app.app_context():
         simulate_all_pending(tour)
         db.session.commit()
 
+        # Test get_swiss_data
+        swiss_data = get_swiss_data(tour)
+        print(f'\n=== {ttype.upper()} ===')
+        print(f'  Standings: {len(swiss_data["standings"])} teams')
+        for s in swiss_data['standings'][:3]:
+            print(f'    #{s["club"].short_code:5s} {s["wins"]}-{s["losses"]} results={s["results"]} adv={s["advanced"]}')
+        print(f'  Rounds: {list(swiss_data["rounds"].keys())}')
+        for rn, rd in swiss_data['rounds'].items():
+            print(f'    {rn} ({rd["label"]}): {len(rd["matches"])} matches')
+        print(f'  Direct qualifiers: {len(swiss_data["direct_qualifiers"])}')
+        for dq in swiss_data['direct_qualifiers']:
+            print(f'    S{dq["regional_seed"]} {dq["club"].short_code}')
+
+        # Test page render
         with app.test_client() as client:
             r = client.get(f'/tournament/{tour.id}')
-            ok = r.status_code == 200
-            html = r.data.decode('utf-8', errors='replace')
-            has_bracket = 'match-box' in html
-            has_gsl = 'gsl-container' in html if ttype == 'champion' else True
-            has_vietnamese = 'Tứ kết' in html.encode('latin-1', errors='replace').decode('latin-1') or \
-                             'Bán kết' in html.encode('latin-1', errors='replace').decode('latin-1') or \
-                             'CK Thắng' in html.encode('latin-1', errors='replace').decode('latin-1')
-            print(f'{ttype:10s}: status={tour.status:10s}  page_ok={ok}  bracket={has_bracket}  gsl={has_gsl}  vn={has_vietnamese}')
+            print(f'  Page: {r.status_code}')
+            if r.status_code == 200:
+                html = r.data.decode('utf-8', errors='replace')
+                checks = [
+                    ('swiss-standings-table', 'standings table'),
+                    ('swiss-round-block', 'round blocks'),
+                    ('swiss-round-header', 'round headers'),
+                    ('Vòng 1', 'Round 1 label'),
+                    ('Vòng 2', 'Round 2 label'),
+                    ('Vòng 3', 'Round 3 label'),
+                ]
+                if ttype == 'master':
+                    checks.append(('direct-qualifiers-card', 'direct qualifiers card'))
+                    checks.append(('Auto-Advanced', 'auto-advanced label'))
+                    checks.append(('dq-team', 'dq team item'))
+                for needle, label in checks:
+                    found = needle in html.encode('latin-1', errors='replace').decode('latin-1')
+                    print(f'    {label}: {found}')

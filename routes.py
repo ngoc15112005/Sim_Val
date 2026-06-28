@@ -9,7 +9,7 @@ from engine.match import simulate_match, resolve_manual_match
 from engine.rating import update_ratings
 from services.bracket_service import (
     get_swiss_standings, group_playoff_rounds, resolve_match_display,
-    get_groups_data,
+    get_groups_data, get_swiss_data,
 )
 from config import Config
 
@@ -165,12 +165,9 @@ def register_routes(app):
     def view_tournament(tour_id):
         tour = Tournament.query.get_or_404(tour_id)
 
-        swiss_standings = None
-        max_swiss_rounds = 0
+        swiss_data = None
         if tour.type in ('major', 'master'):
-            swiss_standings = get_swiss_standings(tour)
-            if swiss_standings:
-                max_swiss_rounds = max(len(s['results']) for s in swiss_standings)
+            swiss_data = get_swiss_data(tour)
 
         matches = Match.query.filter_by(tournament_id=tour_id).order_by(Match.match_order).all()
         resolved_matches = [resolve_match_display(m) for m in matches]
@@ -192,8 +189,7 @@ def register_routes(app):
         return render_template(
             'tournament.html',
             tour=tour, cfg=Config,
-            swiss_standings=swiss_standings,
-            max_swiss_rounds=max_swiss_rounds,
+            swiss_data=swiss_data,
             playoff_rounds=playoff_rounds,
             resolved_matches=resolved_matches,
             sorted_participants=participants,

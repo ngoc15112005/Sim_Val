@@ -355,9 +355,7 @@ li a:hover { text-decoration: underline; }
 }
 .team-logo-xs {
     width: 16px; height: 16px; object-fit: contain; flex-shrink: 0;
-}
-
-/* Status row coloring */
+}/* Status row coloring */
 .status-qualified { background: rgba(34, 197, 94, 0.08); }
 .status-eliminated { opacity: 0.55; }
 .status-text.qualified {
@@ -451,3 +449,116 @@ li a:hover { text-decoration: underline; }
     color: var(--accent); border-color: var(--accent);
 }
 .icon-btn.edit:hover { color: var(--blue); border-color: var(--blue); }
+
+/* === Direct Qualifiers (Master) === */
+.direct-qualifiers-card {
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.04) 0%, transparent 100%);
+    border-left: 3px solid var(--green);
+}
+.dq-header {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+.dq-label {
+    color: var(--green); font-weight: 700; font-size: 0.95em;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.dq-sublabel {
+    color: var(--dim); font-size: 0.8em;
+}
+.dq-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+@media (max-width: 700px) {
+    .dq-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.dq-team {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.dq-team-info {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+}
+.dq-team-info .club-code {
+    color: var(--green); font-weight: 700; font-size: 0.95em;
+}
+.dq-team-info .dq-team-name {
+    color: var(--dim); font-size: 0.75em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dq-seed-badge {
+    background: var(--green);
+    color: #000;
+    font-weight: 700; font-size: 0.75em;
+    padding: 2px 8px; border-radius: 3px;
+    flex-shrink: 0;
+}
+
+/* === Swiss Stage vertical layout (Major / Master) === */
+.swiss-subhead {
+    color: var(--accent);
+    font-size: 0.85em; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 700;
+    margin: 4px 0 8px;
+}
+.swiss-standings-section { margin-bottom: 18px; }
+
+/* Swiss standings table */
+.swiss-standings-table {
+    width: 100%; border-collapse: collapse; font-size: 0.85em;
+}
+.swiss-standings-table thead th {
+    text-align: center; padding: 8px 10px;
+    color: var(--dim); font-weight: 600; font-size: 0.8em;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border);
+}
+.swiss-standings-table thead th.team-col { text-align: left; }
+.swiss-standings-table tbody td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+}
+.swiss-standings-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.swiss-standings-table .rank-cell {
+    text-align: center; color: var(--dim); font-weight: 700; width: 30px;
+}
+.swiss-standings-table .wl-cell {
+    text-align: center; font-weight: 700; font-size: 1em;
+}
+.swiss-standings-table .r-col { text-align: center; width: 60px; }
+.swiss-standings-table .rating-cell {
+    text-align: center; color: var(--dim); width: 50px;
+}
+.swiss-standings-table .status-cell {
+    text-align: center; font-weight: 600; font-size: 0.9em;
+    width: 80px;
+}
+.swiss-standings-table tr.status-qualified { background: rgba(34, 197, 94, 0.08); }
+.swiss-standings-table tr.status-eliminated { opacity: 0.6; }
+
+/* Swiss matches by round */
+.swiss-matches-section { margin-top: 12px; }
+.swiss-round-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+.swiss-round-header {
+    background: var(--surface);
+    color: var(--accent);
+    font-size: 0.8em; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+.swiss-round-matches {
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 4px;
+}

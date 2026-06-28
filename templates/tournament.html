@@ -14,90 +14,101 @@
 
 <div id="tour-data" data-id="{{ tour.id }}"></div>
 
-{% if swiss_standings %}
-<section class="card">
-  <h2>Swiss Stage</h2>
-  <div class="table-scroll">
-  <table class="swiss-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Doi</th>
-        <th class="w-l-col">W-L</th>
-        {% for r in range(1, max_swiss_rounds + 1) %}
-        <th class="r-col">R{{ r }}</th>
-        {% endfor %}
-        <th>Rating</th>
-        <th>TT</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in swiss_standings %}
-      <tr class="{{ 'swiss-advance' if s.advanced else 'swiss-out' }}">
-        <td class="rank">{{ loop.index }}</td>
-        <td>
-          <div class="swiss-team">
-            {% if s.club.logo_url %}
-            <img class="team-logo-sm" src="{{ s.club.logo_url }}" alt="" onerror="this.style.display='none'">
-            {% endif %}
-            <span class="club-code">{{ s.club.short_code }}</span>
-          </div>
-        </td>
-        <td class="w-l-col"><span class="swiss-wl">{{ s.wins }}-{{ s.losses }}</span></td>
-        {% for result in s.results %}
-        <td class="r-col">
-          <span class="swiss-badge {{ 'swiss-win' if result == 'W' else 'swiss-lose' }}">{{ result }}</span>
-        </td>
-        {% endfor %}
-        {% for _ in range(s.results|length, max_swiss_rounds) %}
-        <td class="r-col"><span class="swiss-badge swiss-tbd">—</span></td>
-        {% endfor %}
-        <td>{{ s.rating }}</td>
-        <td>
-          {% if s.advanced %}
-          <span class="status-go">Playoffs</span>
-          {% else %}
-          <span class="status-out" style="color:var(--dim)">Loại</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% if swiss_data %}
+{% if swiss_data.direct_qualifiers %}
+<section class="card direct-qualifiers-card">
+  <div class="dq-header">
+    <span class="dq-label">Auto-Advanced (Direct Qualifiers)</span>
+    <span class="dq-sublabel">4 teams skip Swiss, seed 1-4</span>
+  </div>
+  <div class="dq-grid">
+    {% for dq in swiss_data.direct_qualifiers %}
+    <div class="dq-team">
+      {% if dq.club.logo_url %}
+      <img class="team-logo-sm" src="{{ dq.club.logo_url }}" alt="" onerror="this.style.display='none'">
+      {% endif %}
+      <div class="dq-team-info">
+        <span class="club-code">{{ dq.club.short_code }}</span>
+        <span class="dq-team-name">{{ dq.club.name }}</span>
+      </div>
+      <span class="dq-seed-badge">S{{ dq.regional_seed }}</span>
+    </div>
+    {% endfor %}
   </div>
 </section>
+{% endif %}
 
-<section class="card" style="flex:1">
-  <h2>Cac cap dau Swiss</h2>
-  <table class="swiss-table">
-    <thead><tr><th>Round</th><th>Doi A</th><th>Score</th><th>Doi B</th><th></th></tr></thead>
-    <tbody>
-    {% for m in resolved_matches %}
-      {% if m.round_type == 'swiss' %}
-      <tr>
-        <td>{{ m.round_name }}</td>
-        <td>
-          {% if m.logo_a %}<img class="team-logo-sm" src="{{ m.logo_a }}" alt="" onerror="this.style.display='none'">{% endif %}
-          {{ m.team_a }}
-        </td>
-        <td class="w-l-col">{{ m.score_a }}{% if m.status == 'completed' %}-{{ m.score_b }}{% else %} vs {% endif %}</td>
-        <td>
-          {% if m.logo_b %}<img class="team-logo-sm" src="{{ m.logo_b }}" alt="" onerror="this.style.display='none'">{% endif %}
-          {{ m.team_b }}
-        </td>
-        <td class="action-cell">
-          {% if m.status == 'pending' and m.team_a != 'TBD' %}
-          <button class="btn-sm" onclick="simMatch({{ m.id }})">Roll</button>
-          <button class="btn-sm btn-manual" onclick="showManual({{ m.id }})">Nhap</button>
-          {% elif m.status == 'completed' %}
-          <button class="btn-sm btn-edit" onclick="showManual({{ m.id }})">Sua</button>
-          {% endif %}
-        </td>
-      </tr>
-      {% endif %}
+<section class="card">
+  <h2>Swiss Stage</h2>
+
+  <div class="swiss-standings-section">
+    <h3 class="swiss-subhead">Bang xep hang</h3>
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th class="team-col">Doi</th>
+            <th class="wl-col">W-L</th>
+            {% for round_name, round_data in swiss_data.rounds.items() %}
+            <th class="r-col">{{ round_data.label }}</th>
+            {% endfor %}
+            <th>Rating</th>
+            <th>TT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in swiss_data.standings %}
+          <tr class="status-{% if s.advanced %}qualified{% else %}eliminated{% endif %}">
+            <td class="rank-cell">{{ loop.index }}</td>
+            <td>
+              <div class="swiss-team">
+                {% if s.club.logo_url %}
+                <img class="team-logo-sm" src="{{ s.club.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% endif %}
+                <span class="club-code">{{ s.club.short_code }}</span>
+              </div>
+            </td>
+            <td class="wl-cell">{{ s.wins }}-{{ s.losses }}</td>
+            {% for result in s.results %}
+            <td class="r-col">
+              <span class="swiss-badge {{ 'swiss-win' if result == 'W' else 'swiss-lose' }}">{{ result }}</span>
+            </td>
+            {% endfor %}
+            {% for _ in range(s.results|length, swiss_data.rounds|length) %}
+            <td class="r-col"><span class="swiss-badge swiss-tbd">--</span></td>
+            {% endfor %}
+            <td class="rating-cell">{{ s.rating }}</td>
+            <td class="status-cell">
+              {% if s.advanced %}
+              <span class="status-text qualified">Playoffs</span>
+              {% else %}
+              <span class="status-text eliminated">Loại</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="swiss-matches-section">
+    <h3 class="swiss-subhead">Cac tran dau</h3>
+    {% for round_name, round_data in swiss_data.rounds.items() %}
+    <div class="swiss-round-block">
+      <div class="swiss-round-header">{{ round_data.label }}</div>
+      <div class="swiss-round-matches">
+        {% for m in round_data.matches %}
+        {% include 'tournament/_match_bar.html' %}
+        {% endfor %}
+        {% if not round_data.matches %}
+        <div class="empty-row">Chua co tran nao</div>
+        {% endif %}
+      </div>
+    </div>
     {% endfor %}
-    </tbody>
-  </table>
+  </div>
 </section>
 {% endif %}
 

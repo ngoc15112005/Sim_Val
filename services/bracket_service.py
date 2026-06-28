@@ -179,6 +179,77 @@ def _get_per_round_results(tournament, club_id):
     return results
 
 
+def get_swiss_data(tournament):
+    """Build Swiss Stage data for Major/Master.
+
+    Returns dict:
+      {
+        'standings': [...],   # full-width standings table data
+        'rounds': {            # matches grouped by round, ordered
+          'swiss_round1': {'label': 'Round 1', 'matches': [match_display, ...]},
+          ...
+        },
+        'direct_qualifiers': [...],  # Master only: 4 teams that skip Swiss
+      }
+    """
+    ttype = tournament.type
+    if ttype not in ('major', 'master'):
+        return None
+
+    # Identify Swiss participants
+    all_participants = TournamentParticipant.query.filter_by(
+        tournament_id=tournament.id,
+    ).order_by(TournamentParticipant.seed).all()
+
+    if ttype == 'master':
+        swiss_participants = [p for p in all_participants
+                              if p.regional_seed and p.regional_seed >= 2]
+        direct_participants = [p for p in all_participants
+                               if p.regional_seed == 1]
+    else:
+        swiss_participants = list(all_participants)
+        direct_participants = []
+
+    # Standings (reuse existing function)
+    standings = get_swiss_standings(tournament)
+
+    # Group matches by round
+    swiss_matches = Match.query.filter_by(
+        tournament_id=tournament.id, round_type='swiss',
+    ).order_by(Match.match_order).all()
+
+    rounds = OrderedDict()
+    for m in swiss_matches:
+        rn = m.round_name
+        if rn not in rounds:
+            # Extract round number from "swiss_round1" / "swiss_round2" etc
+            num = ''.join(c for c in rn if c.isdigit())
+            rounds[rn] = {
+                'round_name': rn,
+                'label': f'Vòng {num}' if num else rn,
+                'matches': [],
+            }
+        rounds[rn]['matches'].append(resolve_match_display(m))
+
+    # Direct qualifiers display (Master only)
+    direct_qualifiers = []
+    if ttype == 'master':
+        for p in direct_participants:
+            direct_qualifiers.append({
+                'club': p.club,
+                'regional_seed': p.regional_seed,
+                'rating': p.club.current_rating,
+            })
+        # Sort by regional_seed
+        direct_qualifiers.sort(key=lambda d: d['regional_seed'])
+
+    return {
+        'standings': standings,
+        'rounds': rounds,
+        'direct_qualifiers': direct_qualifiers,
+    }
+
+
 def group_playoff_rounds(tournament):
     """Group playoff matches into ordered rounds for bracket display."""
     from collections import OrderedDict
