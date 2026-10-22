@@ -119,7 +119,7 @@ def sync_teams_only():
                 continue
             for name, code, rating, logo_file in club_list:
                 if code not in existing_codes:
-                    logo = logo_file if (not logo_file or logo_file.startswith('http')) else (LOGO_BASE + logo_file)
+                    logo = get_club_logo(code, logo_file)
                     club = Club(
                         name=name, short_code=code,
                         region_id=region_id,
@@ -150,7 +150,7 @@ def seed():
         for slug, club_list in CLUBS.items():
             region_id = region_map[slug]
             for name, code, rating, logo_file in club_list:
-                logo = logo_file if (not logo_file or logo_file.startswith('http')) else (LOGO_BASE + logo_file)
+                logo = get_club_logo(code, logo_file)
                 club = Club(
                     name=name, short_code=code,
                     region_id=region_id,

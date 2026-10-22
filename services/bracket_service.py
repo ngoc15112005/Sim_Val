@@ -410,12 +410,12 @@ def group_playoff_rounds(tournament):
 
         bracket['labels'] = {
             'upper_quarterfinals': 'UB Quarterfinals',
-            'upper_semifinals': 'Upper Bracket Semifinals',
-            'upper_final': 'Upper Bracket Final',
-            'lower_round1': 'Lower Bracket Round 1',
-            'lower_quarterfinals': 'Lower Bracket Quarterfinals',
-            'lower_semifinals': 'Lower Bracket Semifinals',
-            'lower_final': 'Lower Bracket Final',
+            'upper_semifinals': 'UB Semifinals',
+            'upper_final': 'Upper Final',
+            'lower_round1': 'Lower Round 1',
+            'lower_quarterfinals': 'LB Quarterfinals',
+            'lower_semifinals': 'LB Semifinals',
+            'lower_final': 'Lower Final',
             'grand_final': 'Grand Final',
         }
     else:
@@ -440,9 +440,9 @@ def group_playoff_rounds(tournament):
 
         bracket['labels'] = {
             'upper_semifinals': 'UB Semifinals',
-            'upper_final': 'Upper Bracket Final',
-            'lower_semifinals': 'Lower Bracket Semifinals',
-            'lower_final': 'Lower Bracket Final',
+            'upper_final': 'Upper Final',
+            'lower_semifinals': 'LB Semifinals',
+            'lower_final': 'Lower Final',
             'grand_final': 'Grand Final',
         }
 

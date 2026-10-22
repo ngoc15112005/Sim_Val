@@ -4,6 +4,7 @@ from flask import request, jsonify, render_template
 from models import db, Club, Region, Tournament, TournamentParticipant, Match, MatchMap
 from engine.tournament import (
     create_tournament, generate_bracket, progress_tournament, simulate_all_pending,
+    simulate_round,
 )
 from engine.match import simulate_match, resolve_manual_match
 from engine.rating import update_ratings
@@ -125,6 +126,29 @@ def register_routes(app):
             progress_tournament(Tournament.query.get(tour_id))
             db.session.commit()
             return jsonify({'match': match.to_dict()})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/tournament/<int:tour_id>/sim-round', methods=['POST'])
+    def api_sim_round(tour_id):
+        tour = Tournament.query.get_or_404(tour_id)
+        data = request.get_json() or {}
+        round_name = data.get('round_name')
+        group_label = data.get('group')
+        stage = data.get('stage')
+        match_ids = data.get('match_ids')
+
+        try:
+            res = simulate_round(
+                tour,
+                round_name=round_name,
+                group_label=group_label,
+                stage=stage,
+                match_ids=match_ids,
+            )
+            db.session.commit()
+            return jsonify(res)
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500

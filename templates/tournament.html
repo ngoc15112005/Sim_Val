@@ -128,7 +128,15 @@
     <h3 class="swiss-subhead">Các trận đấu</h3>
     {% for round_name, round_data in swiss_data.rounds.items() %}
     <div class="swiss-round-block">
-      <div class="swiss-round-header">{{ round_data.label }}</div>
+      <div class="swiss-round-header">
+        <span>{{ round_data.label }}</span>
+        {% set pending_count = round_data.matches | selectattr('status', 'equalto', 'pending') | list | length %}
+        {% if pending_count > 0 %}
+        <button type="button" class="btn-sim-section" onclick="simSwissRound('{{ round_name }}', this)" title="Mô phỏng các trận chưa đấu vòng này">
+          <span class="btn-icon">⚡</span>Sim vòng này ({{ pending_count }})
+        </button>
+        {% endif %}
+      </div>
       <div class="swiss-round-matches">
         {% for m in round_data.matches %}
         {% include 'tournament/_match_bar.html' %}
@@ -148,9 +156,18 @@
   <h2>Group Stage</h2>
   <div class="gsl-container">
     {% for group_label, group_info in groups_data.items() %}
+    {% set dm_list = group_info.matches.get('decider_match', []) %}
+    {% set is_group_done = dm_list and dm_list[0].status == 'completed' %}
     <div class="group-card" data-group="{{ group_label }}">
       <div class="group-card-header">
         <span class="group-label">GROUP {{ group_label }}</span>
+        {% if not is_group_done %}
+        <button type="button" class="btn-sim-section" onclick="simGroup('{{ group_label }}', this)" title="Mô phỏng toàn bộ bảng {{ group_label }}">
+          <span class="btn-icon">⚡</span>Sim bảng {{ group_label }}
+        </button>
+        {% else %}
+        <span class="group-done-badge">✓ Xong</span>
+        {% endif %}
       </div>
 
       <div class="group-standings-mini">
@@ -197,8 +214,16 @@
       <div class="group-matches-flow">
         {% set opening = group_info.matches.get('opening1', []) + group_info.matches.get('opening2', []) %}
         {% if opening %}
+        {% set op_pending = opening | selectattr('status', 'equalto', 'pending') | selectattr('team_a', 'ne', 'TBD') | list | length %}
         <div class="gsl-stage">
-          <div class="stage-label">Opening Matches</div>
+          <div class="stage-header">
+            <span class="stage-label">Opening Matches</span>
+            {% if op_pending > 0 %}
+            <button type="button" class="btn-sim-substage" onclick="simGroupStage('{{ group_label }}', 'opening', this)" title="Mô phỏng các trận Opening chưa đấu">
+              ⚡ Sim vòng này ({{ op_pending }})
+            </button>
+            {% endif %}
+          </div>
           {% for m in opening %}
           {% include 'tournament/_match_bar.html' %}
           {% endfor %}
@@ -207,8 +232,16 @@
 
         {% set wm = group_info.matches.get('winners_match', []) %}
         {% if wm %}
+        {% set wm_pending = wm | selectattr('status', 'equalto', 'pending') | selectattr('team_a', 'ne', 'TBD') | list | length %}
         <div class="gsl-stage">
-          <div class="stage-label">Winners Match</div>
+          <div class="stage-header">
+            <span class="stage-label">Winners Match</span>
+            {% if wm_pending > 0 %}
+            <button type="button" class="btn-sim-substage" onclick="simGroupStage('{{ group_label }}', 'winners', this)" title="Mô phỏng trận Winners">
+              ⚡ Sim trận này
+            </button>
+            {% endif %}
+          </div>
           {% for m in wm %}
           {% include 'tournament/_match_bar.html' %}
           {% endfor %}
@@ -217,8 +250,16 @@
 
         {% set em = group_info.matches.get('elimination_match', []) %}
         {% if em %}
+        {% set em_pending = em | selectattr('status', 'equalto', 'pending') | selectattr('team_a', 'ne', 'TBD') | list | length %}
         <div class="gsl-stage">
-          <div class="stage-label">Elimination Match</div>
+          <div class="stage-header">
+            <span class="stage-label">Elimination Match</span>
+            {% if em_pending > 0 %}
+            <button type="button" class="btn-sim-substage" onclick="simGroupStage('{{ group_label }}', 'elimination', this)" title="Mô phỏng trận Elimination">
+              ⚡ Sim trận này
+            </button>
+            {% endif %}
+          </div>
           {% for m in em %}
           {% include 'tournament/_match_bar.html' %}
           {% endfor %}
@@ -227,8 +268,16 @@
 
         {% set dm = group_info.matches.get('decider_match', []) %}
         {% if dm %}
+        {% set dm_pending = dm | selectattr('status', 'equalto', 'pending') | selectattr('team_a', 'ne', 'TBD') | list | length %}
         <div class="gsl-stage">
-          <div class="stage-label">Decider Match</div>
+          <div class="stage-header">
+            <span class="stage-label">Decider Match</span>
+            {% if dm_pending > 0 %}
+            <button type="button" class="btn-sim-substage" onclick="simGroupStage('{{ group_label }}', 'decider', this)" title="Mô phỏng trận Decider">
+              ⚡ Sim trận này
+            </button>
+            {% endif %}
+          </div>
           {% for m in dm %}
           {% include 'tournament/_match_bar.html' %}
           {% endfor %}
@@ -257,7 +306,13 @@
       <div class="bracket-rounds">
         {% for round_key, matches in playoff_rounds.upper.items() %}
         <div class="bracket-column" data-col="{{ round_key }}">
-          <div class="round-header">{{ playoff_rounds.labels.get(round_key, round_key) }}</div>
+          <div class="round-header">
+            <span>{{ playoff_rounds.labels.get(round_key, round_key) }}</span>
+            {% set col_pending = matches | selectattr('status', 'equalto', 'pending') | selectattr('team_a_id') | selectattr('team_b_id') | list | length %}
+            {% if col_pending > 0 %}
+            <button type="button" class="btn-sim-bracket-col" onclick="simPlayoffColumn('{{ round_key }}', this)" title="Mô phỏng các trận vòng này">⚡ Sim ({{ col_pending }})</button>
+            {% endif %}
+          </div>
           <div class="round-matches">
             {% for m in matches %}
             {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
@@ -271,7 +326,13 @@
 
         {% if has_grand %}
         <div class="bracket-column grand-final-column" data-col="grand_final">
-          <div class="round-header">Grand Final</div>
+          <div class="round-header">
+            <span>Grand Final</span>
+            {% set gf_pending = playoff_rounds.grand | selectattr('status', 'equalto', 'pending') | selectattr('team_a_id') | selectattr('team_b_id') | list | length %}
+            {% if gf_pending > 0 %}
+            <button type="button" class="btn-sim-bracket-col" onclick="simPlayoffColumn('grand_final', this)" title="Mô phỏng Grand Final">⚡ Sim</button>
+            {% endif %}
+          </div>
           <div class="round-matches">
             {% for m in playoff_rounds.grand %}
             {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
@@ -291,7 +352,13 @@
       <div class="bracket-rounds">
         {% for round_key, matches in playoff_rounds.lower.items() %}
         <div class="bracket-column" data-col="{{ round_key }}">
-          <div class="round-header">{{ playoff_rounds.labels.get(round_key, round_key) }}</div>
+          <div class="round-header">
+            <span>{{ playoff_rounds.labels.get(round_key, round_key) }}</span>
+            {% set col_pending = matches | selectattr('status', 'equalto', 'pending') | selectattr('team_a_id') | selectattr('team_b_id') | list | length %}
+            {% if col_pending > 0 %}
+            <button type="button" class="btn-sim-bracket-col" onclick="simPlayoffColumn('{{ round_key }}', this)" title="Mô phỏng các trận vòng này">⚡ Sim ({{ col_pending }})</button>
+            {% endif %}
+          </div>
           <div class="round-matches">
             {% for m in matches %}
             {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
@@ -445,6 +512,55 @@
 {% block scripts %}
 <script>
 let tourId = {{ tour.id }};
+
+async function simSwissRound(roundName, btn) {
+    if (!confirm('Mô phỏng các trận còn lại của vòng này?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang sim...'; }
+    const r = await API.post('/api/tournament/' + tourId + '/sim-round', { round_name: roundName });
+    if (r.error) {
+        alert(r.error);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Sim vòng này'; }
+    } else {
+        location.reload();
+    }
+}
+
+async function simGroup(groupLabel, btn) {
+    if (!confirm('Mô phỏng toàn bộ bảng ' + groupLabel + '?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang sim...'; }
+    const r = await API.post('/api/tournament/' + tourId + '/sim-round', { group: groupLabel });
+    if (r.error) {
+        alert(r.error);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Sim bảng ' + groupLabel; }
+    } else {
+        location.reload();
+    }
+}
+
+async function simGroupStage(groupLabel, stage, btn) {
+    if (!confirm('Mô phỏng vòng này của bảng ' + groupLabel + '?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang sim...'; }
+    const r = await API.post('/api/tournament/' + tourId + '/sim-round', { group: groupLabel, stage: stage });
+    if (r.error) {
+        alert(r.error);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Sim'; }
+    } else {
+        location.reload();
+    }
+}
+
+async function simPlayoffColumn(roundKey, btn) {
+    if (!confirm('Mô phỏng các trận sẵn sàng của vòng này?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang sim...'; }
+    const r = await API.post('/api/tournament/' + tourId + '/sim-round', { round_name: roundKey });
+    if (r.error) {
+        alert(r.error);
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Sim'; }
+    } else {
+        location.reload();
+    }
+}
+
 
 async function simMatch(mid) {
     if (!confirm('Roll kết quả trận này?')) return;

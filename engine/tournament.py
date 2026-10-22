@@ -471,6 +471,138 @@ def simulate_all_pending(tournament):
 
 
 # ────────────────────────────────────────────────
+
+def simulate_round(tournament, round_name=None, group_label=None, stage=None, match_ids=None):
+    """Selectively simulate matches without touching completed or manual matches."""
+    from engine.match import simulate_match
+    from engine.rating import update_ratings
+    from models import ClubRating
+
+    simulated_total = 0
+
+    if group_label and not stage:
+        # Simulate entire group iteratively
+        prefix = f'group{group_label.upper()}_'
+        for _ in range(10):
+            pending = Match.query.filter(
+                Match.tournament_id == tournament.id,
+                Match.round_type == 'group',
+                Match.round_name.startswith(prefix),
+                Match.status == 'pending',
+                Match.team_a_id.isnot(None),
+                Match.team_b_id.isnot(None),
+            ).order_by(Match.match_order).all()
+
+            if not pending:
+                break
+
+            for m in pending:
+                simulate_match(m)
+                simulated_total += 1
+
+            db.session.flush()
+            _resolve_group_placeholder_matches(tournament)
+            db.session.flush()
+
+        progress_tournament(tournament)
+        db.session.flush()
+
+    elif group_label and stage:
+        # Simulate specific stage inside a group
+        prefix = f'group{group_label.upper()}_'
+        target_names = []
+        if stage == 'opening':
+            target_names = [f'{prefix}opening1', f'{prefix}opening2']
+        elif stage == 'winners':
+            target_names = [f'{prefix}winners_match']
+        elif stage == 'elimination':
+            target_names = [f'{prefix}elimination_match']
+        elif stage == 'decider':
+            target_names = [f'{prefix}decider_match']
+        else:
+            target_names = [f'{prefix}{stage}']
+
+        pending = Match.query.filter(
+            Match.tournament_id == tournament.id,
+            Match.round_name.in_(target_names),
+            Match.status == 'pending',
+            Match.team_a_id.isnot(None),
+            Match.team_b_id.isnot(None),
+        ).order_by(Match.match_order).all()
+
+        for m in pending:
+            simulate_match(m)
+            simulated_total += 1
+
+        db.session.flush()
+        _resolve_group_placeholder_matches(tournament)
+        progress_tournament(tournament)
+        db.session.flush()
+
+    elif round_name:
+        # Playoff columns or Swiss rounds
+        target_names = []
+        if round_name == 'upper_quarterfinals':
+            target_names = [f'upper_quarterfinal_{i}' for i in range(1, 5)]
+        elif round_name == 'upper_semifinals':
+            target_names = ['upper_semifinal_1', 'upper_semifinal_2']
+        elif round_name == 'lower_round1':
+            target_names = ['lower_round1_1', 'lower_round1_2', 'lower_round1']
+        elif round_name == 'lower_quarterfinals':
+            target_names = ['lower_quarterfinal_1', 'lower_quarterfinal_2']
+        elif round_name == 'lower_semifinals':
+            target_names = ['lower_semifinal', 'lower_semifinals']
+        elif round_name == 'upper_final':
+            target_names = ['upper_final']
+        elif round_name == 'lower_final':
+            target_names = ['lower_final']
+        elif round_name == 'grand_final':
+            target_names = ['grand_final']
+        else:
+            target_names = [round_name]
+
+        pending = Match.query.filter(
+            Match.tournament_id == tournament.id,
+            Match.round_name.in_(target_names),
+            Match.status == 'pending',
+            Match.team_a_id.isnot(None),
+            Match.team_b_id.isnot(None),
+        ).order_by(Match.match_order).all()
+
+        for m in pending:
+            simulate_match(m)
+            simulated_total += 1
+
+        db.session.flush()
+        progress_tournament(tournament)
+        db.session.flush()
+
+    elif match_ids:
+        pending = Match.query.filter(
+            Match.tournament_id == tournament.id,
+            Match.id.in_(match_ids),
+            Match.status == 'pending',
+            Match.team_a_id.isnot(None),
+            Match.team_b_id.isnot(None),
+        ).order_by(Match.match_order).all()
+
+        for m in pending:
+            simulate_match(m)
+            simulated_total += 1
+
+        db.session.flush()
+        progress_tournament(tournament)
+        db.session.flush()
+
+    if tournament.status == 'finished':
+        if not ClubRating.query.filter_by(tournament_id=tournament.id).first():
+            update_ratings(tournament)
+            db.session.flush()
+
+    return {'simulated_count': simulated_total, 'status': tournament.status}
+
+
+# ────────────────────────────────────────────────
 # Group Stage (Champion) - via format module
 # ────────────────────────────────────────────────
 
