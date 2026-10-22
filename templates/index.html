@@ -168,12 +168,29 @@ function onSlotChange(sel) {
     renderSlots();
 }
 
+// Weighted random selection based on power rating for tournament seeding/qualification
+function pickWeightedClub(clubs, seed) {
+    if (!clubs || clubs.length === 0) return null;
+    // For Seed 1: top ratings heavily favored (exponent 2.8)
+    // For Seed 2: top/mid ratings favored (exponent 2.0)
+    // For Seed 3 & 4: mild weighting (exponent 1.2), allowing dark horses/underdogs to qualify
+    const exp = seed === 1 ? 2.8 : (seed === 2 ? 2.0 : 1.2);
+    const minRating = 50;
+    const weights = clubs.map(c => Math.pow(Math.max((c.current_rating || c.base_rating || 75) - minRating, 2), exp));
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    let rand = Math.random() * totalWeight;
+    for (let idx = 0; idx < clubs.length; idx++) {
+        rand -= weights[idx];
+        if (rand <= 0) return clubs[idx];
+    }
+    return clubs[clubs.length - 1];
+}
+
 function fillAll() {
     const slots = getSlots();
 
     for (const [region, count] of Object.entries(slots)) {
         const pool = allClubs.filter(c => c.region_slug === region);
-        const shuffled = pool.sort(() => Math.random() - 0.5);
         let selected = [];
 
         // Collect already selected teams in this region (manual picks preserved)
@@ -186,16 +203,10 @@ function fillAll() {
             const sel = document.querySelector(`[data-region="${region}"][data-seed="${i}"]`);
             if (sel && sel.value) continue; // skip already selected slots
 
-            const remaining = shuffled.filter(c => !selected.includes(c.id));
+            const remaining = pool.filter(c => !selected.includes(c.id));
             if (remaining.length === 0) break;
 
-            let pick;
-            if (Math.random() < 0.3 && i <= 2) {
-                remaining.sort((a, b) => b.current_rating - a.current_rating);
-                pick = remaining[0];
-            } else {
-                pick = remaining[Math.floor(Math.random() * remaining.length)];
-            }
+            const pick = pickWeightedClub(remaining, i);
             if (pick) {
                 selected.push(pick.id);
                 sel.value = pick.id;
@@ -224,7 +235,7 @@ function rerollSlot(btn) {
 
     const available = pool.filter(c => !usedInRegion.includes(c.id));
     if (available.length === 0) return;
-    const pick = available[Math.floor(Math.random() * available.length)];
+    const pick = pickWeightedClub(available, seedNum);
     sel.value = pick.id;
     onSlotChange(sel);
 }
