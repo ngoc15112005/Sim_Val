@@ -1,4 +1,4 @@
-"""Match simulation with weighted random outcomes and regional meta DNA."""
+"""Match simulation with weighted random outcomes, regional meta DNA, and power-based map scores."""
 
 import random
 from models import db, Match, MatchMap
@@ -44,7 +44,8 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
 
     Philosophy:
     - In-tournament 'Cỏ lúa bằng nhau': Base probability starts at 0.50 (50%).
-      Base rating differences only give a minimal edge (±2% to ±3% max).
+      Power rating does NOT affect win/loss probability at all.
+      (Power rating is only used for pre-tournament seeding and map score generation).
     - Seed 1 Curse: Teams entering playoffs directly without warm-up suffer 'Cold Start' (-4%).
     - Warm-up / Momentum: Teams playing multiple matches from Swiss/lower bracket gain momentum (+3%).
     - Regional DNA: Buffs/debuffs applied in cross-region matches (Americas buff, EMEA choke in finals,
@@ -53,11 +54,7 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
     """
     prob_a = 0.50
 
-    # 1. 'Cỏ lúa bằng nhau' - Rating difference has very compressed influence (max ~±3%)
-    rating_diff = rating_a - rating_b
-    prob_a += (rating_diff / 50.0) * 0.03
-
-    # 2. Context from match (Tournament, Seeds, Rounds, Regions)
+    # Context from match (Tournament, Seeds, Rounds, Regions)
     if match:
         tour = match.tournament
         tour_type = tour.type if tour else None
@@ -131,32 +128,38 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
     return max(0.18, min(0.82, prob_a))
 
 
-def _gen_map_score(our_rating, their_rating, is_bo5=False):
-    """Generate a realistic Valorant map score.
+def _gen_map_score(winner_rating, loser_rating, is_bo5=False):
+    """Generate map score based on power rating difference.
 
-    Reflects the 'cỏ lúa bằng nhau' philosophy with predominantly close games,
-    overtimes, and rare blowouts.
+    Philosophy:
+    - Who wins the map is decided by the game engine (equal ground, regional meta, seed curse).
+    - Once the winner is determined, the SCORE itself strongly reflects the power rating difference:
+      * Massive favorite won (diff >= 25): Complete stomp (13-2, 13-3, 13-4, 13-5, 13-6).
+      * Clear favorite won (15 <= diff < 25): Solid blowout (13-4, 13-5, 13-6, 13-7, 13-8).
+      * Moderate favorite won (8 <= diff < 15): Decisive control (13-6, 13-7, 13-8, 13-9, 13-10).
+      * Slight favorite won (2 <= diff < 8): Standard competitive win (13-8, 13-9, 13-10, 13-11).
+      * Even match (-5 <= diff < 2): Close battle (13-9, 13-10, 13-11, 14-12, 15-13).
+      * Underdog won (-15 <= diff < -5): Tough, clutch upset (13-10, 13-11, 14-12, 15-13).
+      * Massive underdog won (diff < -15): Intense thriller / overtime epic (13-11, 14-12, 15-13, 16-14, 17-15).
     """
-    roll = random.random()
+    diff = winner_rating - loser_rating
 
-    # 45% close / overtime games (13-11, 13-10, 14-12, 15-13, 16-14)
-    # 40% standard games (13-9, 13-8, 13-7)
-    # 15% dominant map (13-6, 13-5, 13-4, 13-3)
-    if roll < 0.45:
-        score_pool = [
-            (13, 11), (13, 10), (14, 12), (15, 13), (16, 14), (13, 11), (13, 10),
-        ]
-    elif roll < 0.85:
-        score_pool = [
-            (13, 9), (13, 8), (13, 7), (13, 9), (13, 8),
-        ]
+    if diff >= 25:
+        score_pool = [(13, 2), (13, 3), (13, 4), (13, 5), (13, 6)]
+    elif diff >= 15:
+        score_pool = [(13, 4), (13, 5), (13, 6), (13, 7), (13, 8)]
+    elif diff >= 8:
+        score_pool = [(13, 6), (13, 7), (13, 8), (13, 9), (13, 10)]
+    elif diff >= 2:
+        score_pool = [(13, 8), (13, 9), (13, 10), (13, 11)]
+    elif diff >= -5:
+        score_pool = [(13, 9), (13, 10), (13, 11), (14, 12), (15, 13)]
+    elif diff >= -15:
+        score_pool = [(13, 10), (13, 11), (14, 12), (15, 13)]
     else:
-        score_pool = [
-            (13, 6), (13, 5), (13, 4), (13, 3),
-        ]
+        score_pool = [(13, 11), (14, 12), (15, 13), (16, 14), (17, 15)]
 
-    our_score, their_score = random.choice(score_pool)
-    return our_score, their_score
+    return random.choice(score_pool)
 
 
 def simulate_match(match, streak_a=0, streak_b=0):
@@ -172,9 +175,11 @@ def simulate_match(match, streak_a=0, streak_b=0):
     if match.team_a_score is not None:
         return match.winner_id, [m.to_dict() for m in match.maps]
 
-    rating_a = match.team_a.current_rating
-    rating_b = match.team_b.current_rating
+    # Power rating ban đầu dùng để quyết định tỷ số ván đấu (map score)
+    rating_a = match.team_a.base_rating if match.team_a.base_rating else match.team_a.current_rating
+    rating_b = match.team_b.base_rating if match.team_b.base_rating else match.team_b.current_rating
 
+    # Tỉ lệ thắng thuần túy theo gameplay (cỏ lúa bằng nhau, vùng miền, seed curse)
     win_rate_a = _calc_win_rate(rating_a, rating_b, streak_a, streak_b, match=match)
 
     is_bo5 = False
@@ -194,6 +199,7 @@ def simulate_match(match, streak_a=0, streak_b=0):
 
         roll = random.random()
         if roll < win_rate_a:
+            # Team A thắng ván này: rating_a là winner, rating_b là loser
             our_score, their_score = _gen_map_score(rating_a, rating_b, is_bo5)
             wins_a += 1
             maps_data.append({
@@ -203,6 +209,7 @@ def simulate_match(match, streak_a=0, streak_b=0):
                 'winner_id': match.team_a_id,
             })
         else:
+            # Team B thắng ván này: rating_b là winner, rating_a là loser
             their_score, our_score = _gen_map_score(rating_b, rating_a, is_bo5)
             wins_b += 1
             maps_data.append({
