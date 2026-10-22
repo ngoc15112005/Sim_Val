@@ -352,19 +352,16 @@ def get_final_standings(tournament):
 
 
 def group_playoff_rounds(tournament):
-    """Group playoff matches into rounds for bracket display.
+    """Group playoff matches into actual Liquipedia-style round columns.
 
     Returns:
       {
-        'upper': {round_name: [match, ...]},
-        'lower': {round_name: [match, ...]},
-        'grand': [match, ...],
+        'is_8team': bool,
+        'upper': OrderedDict(round_key -> [matches...]),
+        'lower': OrderedDict(round_key -> [matches...]),
+        'grand': [grand_final_match],
+        'labels': {round_key: 'Header Label', ...},
       }
-
-    'upper' = Upper Bracket rounds (sorted by bracket sequence).
-    'lower' = Lower Bracket rounds (sorted by bracket sequence).
-    'grand' = Grand Final match(es) (usually 1 match).
-    Each value is an ordered dict of round_name -> list of matches.
     """
     from collections import OrderedDict
 
@@ -372,95 +369,113 @@ def group_playoff_rounds(tournament):
         tournament_id=tournament.id,
     ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).order_by(Match.match_order).all()
 
+    match_by_name = {m.round_name: m for m in all_matches}
+    has_8team = any('quarterfinal' in m.round_name for m in all_matches if m.round_type == 'upper')
+
     bracket = {
+        'is_8team': has_8team,
         'upper': OrderedDict(),
         'lower': OrderedDict(),
         'grand': [],
+        'labels': {},
     }
 
-    # Define round order for each bracket
-    upper_order = [
-        'upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4',
-        'upper_semifinal_1', 'upper_semifinal_2',
-        'upper_final',
-    ]
-    lower_order = [
-        'lower_round1_1', 'lower_round1_2',
-        'lower_quarterfinal_1', 'lower_quarterfinal_2',
-        'lower_semifinal',
-        'lower_final',
-    ]
+    if has_8team:
+        # Upper bracket:
+        # Quarterfinals order: 1, 4, 2, 3 so (1,4) feed US1 and (2,3) feed US2
+        uq_names = ['upper_quarterfinal_1', 'upper_quarterfinal_4', 'upper_quarterfinal_2', 'upper_quarterfinal_3']
+        uq = [match_by_name[k] for k in uq_names if k in match_by_name]
+        if uq:
+            bracket['upper']['upper_quarterfinals'] = uq
 
-    for m in all_matches:
-        label = _match_label(m)
-        if m.round_type == 'upper':
-            if m.round_name not in bracket['upper']:
-                bracket['upper'][m.round_name] = []
-            bracket['upper'][m.round_name].append(m)
-        elif m.round_type == 'lower':
-            if m.round_name not in bracket['lower']:
-                bracket['lower'][m.round_name] = []
-            bracket['lower'][m.round_name].append(m)
-        elif m.round_type == 'grand':
-            bracket['grand'].append(m)
+        us_names = ['upper_semifinal_1', 'upper_semifinal_2']
+        us = [match_by_name[k] for k in us_names if k in match_by_name]
+        if us:
+            bracket['upper']['upper_semifinals'] = us
 
-    # Re-order keys in upper/lower according to bracket sequence
-    ordered_upper = OrderedDict()
-    for k in upper_order:
-        if k in bracket['upper']:
-            ordered_upper[k] = bracket['upper'][k]
-    for k, v in bracket['upper'].items():
-        if k not in ordered_upper:
-            ordered_upper[k] = v
-    bracket['upper'] = ordered_upper
+        if 'upper_final' in match_by_name:
+            bracket['upper']['upper_final'] = [match_by_name['upper_final']]
 
-    ordered_lower = OrderedDict()
-    for k in lower_order:
-        if k in bracket['lower']:
-            ordered_lower[k] = bracket['lower'][k]
-    for k, v in bracket['lower'].items():
-        if k not in ordered_lower:
-            ordered_lower[k] = v
-    bracket['lower'] = ordered_lower
+        # Lower bracket:
+        lr1_names = ['lower_round1_1', 'lower_round1_2']
+        lr1 = [match_by_name[k] for k in lr1_names if k in match_by_name]
+        if lr1:
+            bracket['lower']['lower_round1'] = lr1
+
+        lq_names = ['lower_quarterfinal_1', 'lower_quarterfinal_2']
+        lq = [match_by_name[k] for k in lq_names if k in match_by_name]
+        if lq:
+            bracket['lower']['lower_quarterfinals'] = lq
+
+        if 'lower_semifinal' in match_by_name:
+            bracket['lower']['lower_semifinals'] = [match_by_name['lower_semifinal']]
+
+        if 'lower_final' in match_by_name:
+            bracket['lower']['lower_final'] = [match_by_name['lower_final']]
+
+        if 'grand_final' in match_by_name:
+            bracket['grand'] = [match_by_name['grand_final']]
+
+        bracket['labels'] = {
+            'upper_quarterfinals': 'UB Quarterfinals',
+            'upper_semifinals': 'Upper Bracket Semifinals',
+            'upper_final': 'Upper Bracket Final',
+            'lower_round1': 'Lower Bracket Round 1',
+            'lower_quarterfinals': 'Lower Bracket Quarterfinals',
+            'lower_semifinals': 'Lower Bracket Semifinals',
+            'lower_final': 'Lower Bracket Final',
+            'grand_final': 'Grand Final',
+        }
+    else:
+        # 4-team (Major)
+        us_names = ['upper_semifinal_1', 'upper_semifinal_2']
+        us = [match_by_name[k] for k in us_names if k in match_by_name]
+        if us:
+            bracket['upper']['upper_semifinals'] = us
+
+        if 'upper_final' in match_by_name:
+            bracket['upper']['upper_final'] = [match_by_name['upper_final']]
+
+        lr1 = [match_by_name[k] for k in ['lower_round1', 'lower_semifinals', 'lower_semifinal'] if k in match_by_name]
+        if lr1:
+            bracket['lower']['lower_semifinals'] = lr1
+
+        if 'lower_final' in match_by_name:
+            bracket['lower']['lower_final'] = [match_by_name['lower_final']]
+
+        if 'grand_final' in match_by_name:
+            bracket['grand'] = [match_by_name['grand_final']]
+
+        bracket['labels'] = {
+            'upper_semifinals': 'UB Semifinals',
+            'upper_final': 'Upper Bracket Final',
+            'lower_semifinals': 'Lower Bracket Semifinals',
+            'lower_final': 'Lower Bracket Final',
+            'grand_final': 'Grand Final',
+        }
 
     return bracket
 
 
 def _match_label(m):
-    """Human-readable round label for bracket display (Vietnamese)."""
-    name = m.round_name
-    if m.round_type == 'upper':
-        if 'quarterfinal' in name:
-            return 'Tứ kết'
-        elif 'semifinal' in name:
-            return 'Bán kết'
-        elif 'final' in name:
-            return 'CK Thắng'
-    elif m.round_type == 'lower':
-        if 'round1' in name:
-            return 'NR Vòng 1'
-        elif 'quarterfinal' in name:
-            return 'NR Vòng 2'
-        elif 'semifinal' in name:
-            return 'NR Vòng 3'
-        elif 'final' in name:
-            return 'CK Thua'
-    elif m.round_type == 'grand':
-        return 'CK Tổng'
+    """Human-readable round label for bracket display (Liquipedia style)."""
+    name = m.round_name if hasattr(m, 'round_name') else str(m)
+    if 'quarterfinal' in name:
+        return 'UB Quarterfinals' if 'upper' in name else 'Lower Bracket Quarterfinals'
+    elif 'semifinal' in name:
+        return 'Upper Bracket Semifinals' if 'upper' in name else 'Lower Bracket Semifinals'
+    elif 'round1' in name:
+        return 'Lower Bracket Round 1'
+    elif 'final' in name:
+        if 'grand' in name:
+            return 'Grand Final'
+        return 'Upper Bracket Final' if 'upper' in name else 'Lower Bracket Final'
     return name
 
 
 def _match_short_label(m):
-    """Short round label for column header (no 'CK' prefix)."""
-    if m.round_type == 'grand':
-        return 'CK Tổng'
-    full = _match_label(m)
-    # Strip "CK " prefix for column headers
-    if full.startswith('CK '):
-        return full[3:]
-    if full.startswith('NR '):
-        return full[3:]
-    return full
+    """Short round label for column header (Liquipedia style)."""
+    return _match_label(m)
 
 
 def resolve_match_display(m):
