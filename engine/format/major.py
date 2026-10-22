@@ -252,12 +252,12 @@ def resolve_slot(match_template, completed_matches):
 def get_playoff_rounds():
     """Return ordered list of round names for display."""
     return [
-        ('upper_semifinal_1', 'Ban ket'),
-        ('upper_semifinal_2', 'Ban ket'),
-        ('upper_final', 'CK Thang'),
-        ('lower_round1', 'NR Vong 1'),
+        ('upper_semifinal_1', 'Bán kết'),
+        ('upper_semifinal_2', 'Bán kết'),
+        ('upper_final', 'CK Thắng'),
+        ('lower_round1', 'NR Vòng 1'),
         ('lower_final', 'CK Thua'),
-        ('grand_final', 'CK Tong'),
+        ('grand_final', 'CK Tổng'),
     ]
 
 

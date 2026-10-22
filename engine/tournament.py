@@ -13,7 +13,7 @@ def create_tournament(tour_type, name, selected_club_ids, regional_seeds=None):
     team_count = cfg['team_count']
 
     if len(selected_club_ids) != team_count:
-        raise ValueError(f'{tour_type} can dung {team_count} doi, nhan {len(selected_club_ids)}')
+        raise ValueError(f'{tour_type} cần đúng {team_count} đội, nhận {len(selected_club_ids)}')
 
     clubs = Club.query.filter(Club.id.in_(selected_club_ids)).all()
     if len(clubs) != team_count:
@@ -254,7 +254,7 @@ def _finalize_swiss(tournament, standings):
         # Eliminated: clear seed, set final_rank
         p.seed = None
         if p.final_rank is None:
-            ev = 9 if tournament.type == 'major' else 13
+            ev = 5 if tournament.type == 'major' else 9
             p.final_rank = ev + (i - advance_count)
 
     # Mark eliminated non-Swiss participants (e.g., direct qualifiers in Master
@@ -386,7 +386,8 @@ def _is_bracket_finished(tournament):
 def _finalize_tournament(tournament):
     """Assign final rankings to all playoff participants."""
     from services.bracket_service import _match_label
-    completed = {m.round_name: m for m in tournament.matches
+    matches = Match.query.filter_by(tournament_id=tournament.id).all()
+    completed = {m.round_name: m for m in matches
                  if m.status == 'completed' and m.round_type in ('upper', 'lower', 'grand')}
 
     if not completed.get('grand_final'):
@@ -405,26 +406,37 @@ def _finalize_tournament(tournament):
     if completed.get('lower_final') and completed['lower_final'].loser_id:
         rank_map[completed['lower_final'].loser_id] = 3
 
-    # Lower Semifinal: #4 loser
-    if completed.get('lower_semifinal') and completed['lower_semifinal'].loser_id:
-        rank_map[completed['lower_semifinal'].loser_id] = 4
+    if tournament.type == 'major':
+        # In Major (4-team playoff): lower_round1 loser is #4
+        if completed.get('lower_round1') and completed['lower_round1'].loser_id:
+            rank_map[completed['lower_round1'].loser_id] = 4
+    else:
+        # In Master & Champion (8-team playoff):
+        # Lower Semifinal: #4 loser
+        if completed.get('lower_semifinal') and completed['lower_semifinal'].loser_id:
+            rank_map[completed['lower_semifinal'].loser_id] = 4
 
-    # Lower Quarterfinals: #5, #6 losers
-    for lq in ('lower_quarterfinal_1', 'lower_quarterfinal_2'):
-        m = completed.get(lq)
-        if m and m.loser_id:
-            current = rank_map.get(m.loser_id, 5)
-            rank_map[m.loser_id] = current
+        # Lower Quarterfinals: #5, #6 losers
+        lq_losers = []
+        for lq in ('lower_quarterfinal_1', 'lower_quarterfinal_2'):
+            m = completed.get(lq)
+            if m and m.loser_id and m.loser_id not in rank_map:
+                lq_losers.append(m.loser_id)
+        for idx, cid in enumerate(lq_losers):
+            rank_map[cid] = 5 + idx
 
-    # Lower Round 1: #7, #8 losers
-    for lr in ('lower_round1_1', 'lower_round1_2', 'lower_round1'):
-        m = completed.get(lr)
-        if m and m.loser_id:
-            current = rank_map.get(m.loser_id, 7)
-            rank_map[m.loser_id] = current
+        # Lower Round 1: #7, #8 losers
+        lr_losers = []
+        for lr in ('lower_round1_1', 'lower_round1_2'):
+            m = completed.get(lr)
+            if m and m.loser_id and m.loser_id not in rank_map:
+                lr_losers.append(m.loser_id)
+        for idx, cid in enumerate(lr_losers):
+            rank_map[cid] = 7 + idx
 
-    for p in tournament.participants:
-        if p.final_rank is None and p.club_id in rank_map:
+    participants = TournamentParticipant.query.filter_by(tournament_id=tournament.id).all()
+    for p in participants:
+        if p.club_id in rank_map:
             p.final_rank = rank_map[p.club_id]
 
     db.session.flush()
@@ -587,9 +599,38 @@ def _finalize_groups(tournament):
                 p.group_label = label
                 advancing.append(p)
 
+    # Decider match losers (finished 1-2 in groups): Ranks 9, 10, 11, 12
+    # Elimination match losers (finished 0-2 in groups): Ranks 13, 14, 15, 16
+    decider_losers = []
+    elim_losers = []
+    for grp_num in range(1, 5):
+        label = chr(64 + grp_num)
+        prefix = f'group{label}'
+        dm = Match.query.filter_by(tournament_id=tournament.id,
+                                   round_name=f'{prefix}_decider_match', status='completed').first()
+        em = Match.query.filter_by(tournament_id=tournament.id,
+                                   round_name=f'{prefix}_elimination_match', status='completed').first()
+        if dm and dm.loser_id:
+            decider_losers.append(dm.loser_id)
+        if em and em.loser_id:
+            elim_losers.append(em.loser_id)
+
+    for idx, cid in enumerate(decider_losers):
+        p = TournamentParticipant.query.filter_by(tournament_id=tournament.id, club_id=cid).first()
+        if p:
+            p.final_rank = 9 + idx
+            p.seed = None
+
+    for idx, cid in enumerate(elim_losers):
+        p = TournamentParticipant.query.filter_by(tournament_id=tournament.id, club_id=cid).first()
+        if p:
+            p.final_rank = 13 + idx
+            p.seed = None
+
     for p in tournament.participants:
         if p not in advancing and p.final_rank is None:
-            p.final_rank = 13
+            p.final_rank = 16
+            p.seed = None
 
     advancing.sort(key=lambda p: p.seed)
     _generate_playoffs(tournament, advancing)

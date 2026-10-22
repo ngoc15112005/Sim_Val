@@ -3,7 +3,7 @@
 {% block content %}
 
 <nav class="breadcrumb">
-  <a href="/">Home</a>
+  <a href="/">Trang chủ</a>
   <span class="bc-sep">/</span>
   <span class="bc-current">{{ tour.name }}</span>
 </nav>
@@ -27,16 +27,16 @@
   </div>
   <div class="tour-info">
     {% if tour.type == 'major' %}
-    <span class="info-chip"><strong>8</strong> doi</span>
-    <span class="info-chip"><strong>2/2</strong> Swiss (2 thang advance)</span>
+    <span class="info-chip"><strong>8</strong> đội</span>
+    <span class="info-chip"><strong>2/2</strong> Swiss (2 thắng đi tiếp)</span>
     <span class="info-chip"><strong>4</strong> Playoffs (Double Elim)</span>
     {% elif tour.type == 'master' %}
-    <span class="info-chip"><strong>12</strong> doi</span>
+    <span class="info-chip"><strong>12</strong> đội</span>
     <span class="info-chip"><strong>4</strong> Direct qualifiers</span>
     <span class="info-chip"><strong>8</strong> Swiss</span>
     <span class="info-chip"><strong>8</strong> Playoffs (Double Elim)</span>
     {% elif tour.type == 'champion' %}
-    <span class="info-chip"><strong>16</strong> doi</span>
+    <span class="info-chip"><strong>16</strong> đội</span>
     <span class="info-chip"><strong>4</strong> Groups GSL</span>
     <span class="info-chip"><strong>8</strong> Playoffs (Double Elim)</span>
     {% endif %}
@@ -73,13 +73,13 @@
   <h2>Swiss Stage</h2>
 
   <div class="swiss-standings-section">
-    <h3 class="swiss-subhead">Bang xep hang</h3>
+    <h3 class="swiss-subhead">Bảng xếp hạng</h3>
     <div class="table-scroll">
       <table class="swiss-standings-table">
         <thead>
           <tr>
             <th>#</th>
-            <th class="team-col">Doi</th>
+            <th class="team-col">Đội</th>
             <th class="wl-col">W-L</th>
             {% for round_name, round_data in swiss_data.rounds.items() %}
             <th class="r-col">{{ round_data.label }}</th>
@@ -125,7 +125,7 @@
   </div>
 
   <div class="swiss-matches-section">
-    <h3 class="swiss-subhead">Cac tran dau</h3>
+    <h3 class="swiss-subhead">Các trận đấu</h3>
     {% for round_name, round_data in swiss_data.rounds.items() %}
     <div class="swiss-round-block">
       <div class="swiss-round-header">{{ round_data.label }}</div>
@@ -134,7 +134,7 @@
         {% include 'tournament/_match_bar.html' %}
         {% endfor %}
         {% if not round_data.matches %}
-        <div class="empty-row">Chua co tran nao</div>
+        <div class="empty-row">Chưa có trận nào</div>
         {% endif %}
       </div>
     </div>
@@ -158,7 +158,7 @@
           <thead>
             <tr>
               <th>#</th>
-              <th class="team-col">Doi</th>
+              <th class="team-col">Đội</th>
               <th class="wl-col">W-L</th>
               <th class="rd-col">Rounds</th>
               <th>TT</th>
@@ -180,7 +180,7 @@
                 {% if s.status == 'qualified' %}
                 <span class="status-text qualified">Playoffs</span>
                 {% elif s.status == 'eliminated' %}
-                <span class="status-text eliminated">Loai</span>
+                <span class="status-text eliminated">Loại</span>
                 {% else %}
                 <span class="status-text pending">--</span>
                 {% endif %}
@@ -188,7 +188,7 @@
             </tr>
             {% endfor %}
             {% if not group_info.standings %}
-            <tr><td colspan="5" class="empty-row">Chua co tran nao</td></tr>
+            <tr><td colspan="5" class="empty-row">Chưa có trận nào</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -311,13 +311,13 @@
 {% endif %}
 
 <section class="card" id="manual-card" style="display:none;">
-  <h2>Nhap tay</h2>
+  <h2>Nhập tay</h2>
   <div id="manual-form"></div>
 </section>
 
 {% if final_standings %}
 <section class="card final-standings-card">
-  <h2>Bang xep hang cuoi cung</h2>
+  <h2>🏆 Bảng xếp hạng cuối cùng</h2>
   <div class="podium">
     {% if first is not defined or first is none %}
       {% set ns = namespace(first=none, second=none, third=none) %}
@@ -358,7 +358,7 @@
         </div>
         <div class="podium-meta">
           <span class="podium-wl">{{ ns.first.wins }}-{{ ns.first.losses }}</span>
-          <span class="champion-badge">VO DICH</span>
+          <span class="champion-badge">VÔ ĐỊCH</span>
         </div>
       </div>
       <div class="podium-bar bar-first">CHAMPION</div>
@@ -385,15 +385,15 @@
   </div>
 
   <div class="full-standings">
-    <h3 class="standings-subhead">Tat ca doi</h3>
+    <h3 class="standings-subhead">📋 Tất cả đội tuyển</h3>
     <table class="standings-table">
       <thead>
         <tr>
           <th>#</th>
-          <th>Doi</th>
-          <th>Khu vuc</th>
+          <th>Đội</th>
+          <th>Khu vực</th>
           <th>W-L</th>
-          <th>Trang thai</th>
+          <th>Trạng thái</th>
         </tr>
       </thead>
       <tbody>
@@ -407,7 +407,7 @@
               <span class="team-name-small">{{ s.club.name }}</span>
             </div>
           </td>
-          <td>{{ s.region|upper if s.region else '?' }}</td>
+          <td><span class="region-badge region-{{ s.region }}">{{ s.region|upper if s.region else '?' }}</span></td>
           <td><strong>{{ s.wins }}-{{ s.losses }}</strong></td>
           <td><span class="status-pill status-{{ s.status_class }}">{{ s.status_label }}</span></td>
         </tr>
@@ -418,9 +418,9 @@
 </section>
 {% elif tour.status == 'finished' %}
 <section class="card">
-  <h2>Bang xep hang</h2>
+  <h2>Bảng xếp hạng</h2>
   <table class="swiss-table">
-    <thead><tr><th>#</th><th>Doi</th><th>Seed</th><th>Khu vuc</th></tr></thead>
+    <thead><tr><th>#</th><th>Đội</th><th>Seed</th><th>Khu vực</th></tr></thead>
     <tbody>
     {% for p in sorted_participants %}
     <tr>
@@ -447,16 +447,16 @@
 let tourId = {{ tour.id }};
 
 async function simMatch(mid) {
-    if (!confirm('Roll ket qua tran nay?')) return;
+    if (!confirm('Roll kết quả trận này?')) return;
     const r = await API.post('/api/tournament/' + tourId + '/match/' + mid + '/sim', {});
     if (r.error) { alert(r.error); return; }
     location.reload();
 }
 
 async function simAll() {
-    if (!confirm('Sim toan bo cac tran con lai?')) return;
+    if (!confirm('Mô phỏng toàn bộ các trận còn lại?')) return;
     const btn = document.getElementById('btn-sim-all');
-    btn.disabled = true; btn.textContent = 'Dang sim...';
+    btn.disabled = true; btn.textContent = 'Đang mô phỏng...';
     const r = await API.post('/api/tournament/' + tourId + '/sim-all', {});
     if (r.error) { alert(r.error); } else { location.reload(); }
 }
@@ -494,8 +494,8 @@ function showManual(mid) {
       <p><strong>${ta}</strong> vs <strong>${tb}</strong></p>
       ${inputs}
       <div class="form-actions">
-        <button onclick="submitManual(${mid})">Luu</button>
-        <button onclick="document.getElementById('manual-card').style.display='none'">Huy</button>
+        <button onclick="submitManual(${mid})">Lưu</button>
+        <button onclick="document.getElementById('manual-card').style.display='none'">Hủy</button>
       </div>
     `;
 }
@@ -509,7 +509,7 @@ async function submitManual(mid) {
         if (isNaN(a) || isNaN(b)) continue;
         maps.push({ team_a_score: a, team_b_score: b, winner_id: a > b ? null : null });
     }
-    if (maps.length === 0) { alert('Vui long nhap it nhat 1 map.'); return; }
+    if (maps.length === 0) { alert('Vui lòng nhập ít nhất 1 map.'); return; }
     const r = await API.post('/api/tournament/' + tourId + '/match/' + mid + '/manual', { maps });
     if (r.error) { alert(r.error); } else { location.reload(); }
 }
@@ -569,15 +569,24 @@ function drawBracketLines() {
         }
     }
 
-    function drawLtoGrand(boxLF, boxGF) {
-        if (!boxLF || !boxGF) return;
-        const startX = boxLF.right;
-        const turnX = startX + 24;
-        const yLF = Math.round(boxLF.midY);
+    function drawPlayoffGrand(boxUF, boxLF, boxGF) {
+        if (!boxGF) return;
+        const endX = boxGF.left;
         const yGF = Math.round(boxGF.midY);
-        const targetX = boxGF.right;
 
-        paths += `<path d="M ${startX} ${yLF} H ${turnX} V ${yGF} H ${targetX}" class="bracket-line bracket-line-grand" />`;
+        if (boxUF && boxLF) {
+            const startX = Math.max(boxUF.right, boxLF.right);
+            const midX = Math.round((startX + endX) / 2);
+            const yUF = Math.round(boxUF.midY);
+            const yLF = Math.round(boxLF.midY);
+            paths += `<path d="M ${boxUF.right} ${yUF} H ${midX} V ${yLF} H ${boxLF.right} M ${midX} ${yGF} H ${endX}" class="bracket-line bracket-line-grand" />`;
+        } else if (boxUF) {
+            drawStraight(boxUF, boxGF);
+        } else if (boxLF) {
+            const midX = Math.round((boxLF.right + endX) / 2);
+            const yLF = Math.round(boxLF.midY);
+            paths += `<path d="M ${boxLF.right} ${yLF} H ${midX} V ${yGF} H ${endX}" class="bracket-line bracket-line-grand" />`;
+        }
     }
 
     const is8Team = tree.classList.contains('is-8team');
@@ -602,13 +611,13 @@ function drawBracketLines() {
         drawFork(uq1, uq4, us1);
         drawFork(uq2, uq3, us2);
         drawFork(us1, us2, uf);
-        drawStraight(uf, gf);
 
         drawStraight(lr1_1, lq1);
         drawStraight(lr1_2, lq2);
         drawFork(lq1, lq2, ls);
         drawStraight(ls, lf);
-        drawLtoGrand(lf, gf);
+
+        drawPlayoffGrand(uf, lf, gf);
     } else {
         const us1 = getBox('upper_semifinal_1');
         const us2 = getBox('upper_semifinal_2');
@@ -619,9 +628,8 @@ function drawBracketLines() {
         const lf = getBox('lower_final');
 
         drawFork(us1, us2, uf);
-        drawStraight(uf, gf);
         drawStraight(ls, lf);
-        drawLtoGrand(lf, gf);
+        drawPlayoffGrand(uf, lf, gf);
     }
 
     svg.innerHTML = paths;

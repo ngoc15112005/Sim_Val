@@ -850,15 +850,18 @@ li a:hover { text-decoration: underline; }
 
 .match-box.status-pending { border-style: dashed; }
 .match-box.status-completed { border-style: solid; }
-.match-box.round-grand_final { border-width: 2px; border-color: #fbbf24; }
-.match-box.round-grand_final::before {
-    content: 'GRAND FINAL';
-    position: absolute;
-    top: -10px; left: 50%; transform: translateX(-50%);
-    background: #fbbf24; color: #000;
-    padding: 1px 8px;
-    font-size: 0.65em; font-weight: 800; letter-spacing: 0.5px;
-    border-radius: 3px;
+.grand-final-column .round-header {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.22) 0%, rgba(217, 119, 6, 0.15) 100%);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.6);
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.25);
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+.match-box.round-grand_final {
+    border-width: 2px;
+    border-color: #fbbf24;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(251, 191, 36, 0.15);
 }
 
 /* === Bracket connector lines (Liquipedia style) === */
@@ -1339,137 +1342,361 @@ li a:hover { text-decoration: underline; }
     .tour-title h1 { font-size: 1.15em; }
 }
 
-/* === Final Standings (Podium) === */
-.final-standings-card { margin-top: 8px; }
+/* === Final Standings (Podium & Table Overhaul) === */
+.final-standings-card {
+    margin-top: 16px;
+    background: #0f141c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 24px 28px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
 
+.final-standings-card h2 {
+    font-size: 1.3em;
+    font-weight: 800;
+    color: #ece8e1;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 14px;
+}
+
+/* --- 3D Stepped Podium --- */
 .podium {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr 1.25fr 1fr;
+    gap: 16px;
     align-items: end;
-    margin: 24px auto 32px;
-    max-width: 720px;
+    margin: 20px auto 36px;
+    max-width: 760px;
 }
 .podium-col {
-    display: flex; flex-direction: column; align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
 }
 .podium-col.first { order: 0; }
 .podium-col.second { order: -1; }
 .podium-col.third { order: 1; }
-.podium-col.first .podium-card { transform: translateY(-20px); }
 
 .podium-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 12px;
+    background: #151b26;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px 12px 0 0;
+    padding: 18px 14px 14px;
     width: 100%;
     text-align: center;
     position: relative;
+    box-sizing: border-box;
 }
 .podium-card.champion-card {
     border: 2px solid #fbbf24;
-    background: linear-gradient(180deg, rgba(251,191,36,0.10) 0%, transparent 60%);
-    box-shadow: 0 0 24px rgba(251,191,36,0.25);
+    border-bottom: none;
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.16) 0%, #151b26 85%);
+    box-shadow: 0 -4px 25px rgba(251, 191, 36, 0.25);
 }
 .podium-rank {
-    font-size: 2.4em; font-weight: 800; line-height: 1;
-    color: var(--dim);
-    margin-bottom: 8px;
+    font-size: 2.2em;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 10px;
 }
-.podium-col.first .podium-rank { color: #fbbf24; }
-.podium-col.second .podium-rank { color: #d1d5db; }
-.podium-col.third .podium-rank { color: #b45309; }
+.podium-col.first .podium-rank {
+    color: #fbbf24;
+    text-shadow: 0 0 16px rgba(251, 191, 36, 0.5);
+}
+.podium-col.second .podium-rank {
+    color: #e2e8f0;
+    text-shadow: 0 0 10px rgba(226, 232, 240, 0.3);
+}
+.podium-col.third .podium-rank {
+    color: #cd7f32;
+    text-shadow: 0 0 10px rgba(205, 127, 50, 0.3);
+}
 
 .podium-team {
-    display: flex; align-items: center; gap: 8px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    margin-bottom: 8px;
+    gap: 10px;
+    margin-bottom: 10px;
 }
-.team-logo-md { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+.team-logo-md {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
 .podium-info {
-    display: flex; flex-direction: column; align-items: flex-start; min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
 }
 .club-code-lg {
-    font-size: 1.1em; font-weight: 700;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-}
-.podium-name {
-    font-size: 0.7em; color: var(--dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-}
-.podium-meta {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    flex-wrap: wrap;
-}
-.podium-wl {
-    font-size: 0.85em; color: var(--dim);
-    background: var(--bg);
-    padding: 1px 8px; border-radius: 3px;
-}
-.champion-badge {
-    background: #fbbf24; color: #000;
-    font-size: 0.7em; font-weight: 700;
-    padding: 2px 8px; border-radius: 3px;
+    font-size: 1.2em;
+    font-weight: 800;
+    color: #fff;
     letter-spacing: 0.5px;
 }
-.podium-bar {
-    width: 60%; height: 4px; border-radius: 2px;
-    margin-top: 8px;
+.podium-name {
+    font-size: 0.76em;
+    color: #94a3b8;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.bar-first { background: #fbbf24; }
-.bar-second { background: #d1d5db; }
-.bar-third { background: #b45309; }
+.podium-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.podium-wl {
+    font-size: 0.82em;
+    font-weight: 700;
+    color: #cbd5e1;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.champion-badge {
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    color: #000;
+    font-size: 0.72em;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.8px;
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+/* Stepped Pedestal Base */
+.podium-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76em;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border-radius: 0 0 10px 10px;
+    box-sizing: border-box;
+}
+.bar-first {
+    height: 75px;
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.25) 0%, rgba(251, 191, 36, 0.04) 100%);
+    border: 2px solid #fbbf24;
+    border-top: 1px dashed rgba(251, 191, 36, 0.5);
+    color: #fbbf24;
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
+}
+.bar-second {
+    height: 50px;
+    background: linear-gradient(180deg, rgba(209, 213, 219, 0.2) 0%, rgba(209, 213, 219, 0.03) 100%);
+    border: 1px solid rgba(209, 213, 219, 0.5);
+    border-top: 1px dashed rgba(209, 213, 219, 0.3);
+    color: #e2e8f0;
+}
+.bar-third {
+    height: 35px;
+    background: linear-gradient(180deg, rgba(205, 127, 50, 0.22) 0%, rgba(205, 127, 50, 0.03) 100%);
+    border: 1px solid rgba(205, 127, 50, 0.5);
+    border-top: 1px dashed rgba(205, 127, 50, 0.3);
+    color: #cd7f32;
+}
 
 @media (max-width: 600px) {
     .podium { grid-template-columns: 1fr; }
     .podium-col.first, .podium-col.second, .podium-col.third { order: initial; }
-    .podium-col.first .podium-card { transform: none; }
+    .podium-bar { height: 40px !important; }
 }
 
-/* Full standings table */
-.full-standings { margin-top: 16px; }
-.standings-subhead {
-    font-size: 0.85em; color: var(--accent);
-    text-transform: uppercase; letter-spacing: 0.5px;
-    margin: 12px 0 8px; font-weight: 700;
+/* --- Full Standings Table --- */
+.full-standings {
+    margin-top: 24px;
 }
+.standings-subhead {
+    font-size: 0.88em;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 20px 0 12px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .standings-table {
-    width: 100%; border-collapse: collapse; font-size: 0.85em;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 4px;
+    font-size: 0.88em;
 }
 .standings-table thead th {
-    text-align: left; padding: 8px 10px;
-    color: var(--dim); font-weight: 600; font-size: 0.8em;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    border-bottom: 2px solid var(--border);
+    text-align: left;
+    padding: 10px 14px;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .standings-table tbody td {
-    padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding: 10px 14px;
+    border: none;
+    vertical-align: middle;
+    background: rgba(255, 255, 255, 0.02);
 }
-.standings-table tbody tr:hover { background: rgba(255,255,255,0.02); }
-.standings-team { display: flex; align-items: center; gap: 6px; }
-.team-name-small {
-    font-size: 0.85em; color: var(--dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;
+.standings-table tbody td:first-child { border-radius: 6px 0 0 6px; }
+.standings-table tbody td:last-child { border-radius: 0 6px 6px 0; }
+.standings-table tbody tr:hover td {
+    background: rgba(255, 255, 255, 0.05);
 }
-.rank-cell { text-align: center; font-weight: 700; width: 50px; }
-.rank-medal {
-    display: inline-block; width: 28px; height: 28px; line-height: 28px;
-    border-radius: 50%; font-weight: 800; color: #000;
-}
-.rank-medal.gold { background: #fbbf24; }
-.rank-medal.silver { background: #d1d5db; }
-.rank-medal.bronze { background: #b45309; color: #fff; }
-.standings-table tr.status-champion { background: rgba(251,191,36,0.06); }
-.standings-table tr.status-runner-up { background: rgba(255,255,255,0.02); }
 
-.status-pill {
-    display: inline-block; padding: 2px 8px; border-radius: 3px;
-    font-size: 0.85em; font-weight: 600;
+.standings-table tr.status-champion td {
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.03) 100%);
 }
-.status-pill.status-champion { background: #fbbf24; color: #000; }
-.status-pill.status-runner-up { background: #d1d5db; color: #000; }
-.status-pill.status-third { background: #b45309; color: #fff; }
-.status-pill.status-fourth { background: #4a3b00; color: #fbbf24; }
-.status-pill.status-ranked { background: #1a3a1a; color: #4ade80; }
-.status-pill.status-eliminated { background: #2a2a3a; color: var(--dim); }
+.standings-table tr.status-champion td:first-child {
+    border-left: 3px solid #fbbf24;
+}
+.standings-table tr.status-runner-up td {
+    background: linear-gradient(90deg, rgba(209, 213, 219, 0.08) 0%, rgba(209, 213, 219, 0.01) 100%);
+}
+.standings-table tr.status-runner-up td:first-child {
+    border-left: 3px solid #d1d5db;
+}
+.standings-table tr.status-third td {
+    background: linear-gradient(90deg, rgba(205, 127, 50, 0.08) 0%, rgba(205, 127, 50, 0.01) 100%);
+}
+.standings-table tr.status-third td:first-child {
+    border-left: 3px solid #cd7f32;
+}
+
+.standings-team {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.team-name-small {
+    font-size: 0.85em;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+.rank-cell {
+    text-align: center;
+    font-weight: 700;
+    width: 60px;
+}
+.rank-medal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-weight: 900;
+    font-size: 0.9em;
+    color: #000;
+}
+.rank-medal.gold {
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+}
+.rank-medal.silver {
+    background: linear-gradient(135deg, #f1f5f9, #94a3b8);
+    color: #0f172a;
+}
+.rank-medal.bronze {
+    background: linear-gradient(135deg, #f59e0b, #92400e);
+    color: #fff;
+}
+
+/* Region Badges */
+.region-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.78em;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+.region-badge.region-americas {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+.region-badge.region-emea {
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.1);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+}
+.region-badge.region-pacific {
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+}
+.region-badge.region-china {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+/* Status Badges */
+.status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.82em;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+.status-pill.status-champion {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.2);
+}
+.status-pill.status-runner-up {
+    background: rgba(209, 213, 219, 0.12);
+    color: #e2e8f0;
+    border: 1px solid rgba(209, 213, 219, 0.3);
+}
+.status-pill.status-third {
+    background: rgba(205, 127, 50, 0.15);
+    color: #cd7f32;
+    border: 1px solid rgba(205, 127, 50, 0.35);
+}
+.status-pill.status-fourth {
+    background: rgba(59, 130, 246, 0.12);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.status-pill.status-ranked {
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+.status-pill.status-eliminated {
+    background: rgba(100, 116, 139, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(100, 116, 139, 0.2);
+}

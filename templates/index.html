@@ -4,36 +4,36 @@
 
 <section class="hero">
   <h1>VALORANT Tournament Simulator</h1>
-  <p>Mo phong giai VCT quoc te: Major (8), Master (12), Champion (16)</p>
+  <p>Mô phỏng giải VCT quốc tế: Major (8), Master (12), Champion (16)</p>
 </section>
 
 <div class="two-col">
   <section class="card">
-    <h2>Tao giai moi</h2>
+    <h2>Tạo giải mới</h2>
     <form id="create-form">
-      <label>Loai giai:</label>
+      <label>Loại giải:</label>
       <select id="tour-type">
-        <option value="major">Major (8 doi)</option>
-        <option value="master">Master (12 doi)</option>
-        <option value="champion">Champion (16 doi)</option>
+        <option value="major">Major (8 đội)</option>
+        <option value="master">Master (12 đội)</option>
+        <option value="champion">Champion (16 đội)</option>
       </select>
 
-      <label>Ten giai:</label>
+      <label>Tên giải:</label>
       <input type="text" id="tour-name" placeholder="VD: Major 2026">
 
-      <label>Chon doi (<span id="slot-count">0</span>/<span id="slot-max">8</span>):</label>
-      <div id="slot-grid">Dang tai...</div>
+      <label>Chọn đội (<span id="slot-count">0</span>/<span id="slot-max">8</span>):</label>
+      <div id="slot-grid">Đang tải...</div>
 
       <div class="form-actions">
         <button type="button" id="btn-fill" onclick="fillAll()">Fill Random</button>
         <button type="button" id="btn-clear" onclick="clearAll()">Clear</button>
-        <button type="submit" id="btn-start">Bat dau giai</button>
+        <button type="submit" id="btn-start">Bắt đầu giải</button>
       </div>
     </form>
   </section>
 
   <section class="card">
-    <h2>Lich su giai</h2>
+    <h2>Lịch sử giải</h2>
     <div id="history-list">
       {% if tournaments %}
         <ul>
@@ -46,7 +46,7 @@
         {% endfor %}
         </ul>
       {% else %}
-        <p class="empty">Chua co giai nao.</p>
+        <p class="empty">Chưa có giải nào.</p>
       {% endif %}
     </div>
   </section>
@@ -107,7 +107,7 @@ function renderSlots() {
               <img class="slot-logo" src="${logoSrc}" alt="" onerror="this.style.display='none'">
               <select class="slot-select" data-region="${region}" data-seed="${i}"
                       onchange="onSlotChange(this)">
-                <option value="">-- Chon doi --</option>`;
+                <option value="">-- Chọn đội --</option>`;
             for (const c of regionClubs) {
                 const sel = c.id === selectedId ? 'selected' : '';
                 html += `<option value="${c.id}" ${sel}>
@@ -116,7 +116,7 @@ function renderSlots() {
             }
             html += `</select>
               <button type="button" class="btn-icon btn-reroll" data-region="${region}" data-seed="${i}"
-                      onclick="rerollSlot(this)" title="Random slot nay">&#x21bb;</button>
+                      onclick="rerollSlot(this)" title="Chọn ngẫu nhiên ô này">&#x21bb;</button>
             </div>`;
         }
         html += '</div>';
@@ -260,14 +260,14 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     const selected = allSelected();
     const count = getTeamCount();
     if (selected.length !== count) {
-        alert(`Vui long chon dung ${count} doi (hien tai ${selected.length}).`);
+        alert(`Vui lòng chọn đúng ${count} đội (hiện tại ${selected.length}).`);
         return;
     }
 
     const name = document.getElementById('tour-name').value || tourType.toUpperCase() + ' ' + new Date().toISOString().slice(0,10);
     const btn = document.getElementById('btn-start');
     btn.disabled = true;
-    btn.textContent = 'Dang tao...';
+    btn.textContent = 'Đang tạo...';
 
     // Build club_ids ordered by seed for initial bracket seeding
     const slots = getSlots();
@@ -289,10 +289,10 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
         if (result.error) { alert(result.error); }
         else { window.location.href = '/tournament/' + result.id; }
     } catch (err) {
-        alert('Loi: ' + err.message);
+        alert('Lỗi: ' + err.message);
     }
     btn.disabled = false;
-    btn.textContent = 'Bat dau giai';
+    btn.textContent = 'Bắt đầu giải';
 });
 
 loadClubs();

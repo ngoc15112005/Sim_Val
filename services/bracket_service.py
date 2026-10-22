@@ -7,7 +7,7 @@ and returns results that routes can pass to Jinja2.
 
 from collections import OrderedDict
 from engine.format import major, master, champion
-from models import Match, TournamentParticipant
+from models import db, Match, TournamentParticipant
 
 
 def _team_to_dict(p):
@@ -254,13 +254,19 @@ def get_final_standings(tournament):
     """Compute final standings for display after tournament completes.
 
     Returns list of dicts:
-      {rank, club, region, status_label, status_class}
+      {rank, club, region, status_label, status_class, wins, losses}
     Sorted by rank (ascending, 1 first).
-
-    status_label: 'Vo dich' | 'A runner-up' | 'Hang ba' | 'Bang tu' | 'Top 5-6' | 'Top 7-8' (Champion)
-                   'Playoffs' | 'Top 5-6' (Major) | 'Top 7-8'
-                   'Loai vong bang' (eliminated in groups/Swiss)
     """
+    from engine.tournament import _finalize_tournament
+
+    all_matches = Match.query.filter_by(tournament_id=tournament.id).all()
+
+    # Self-heal: ensure playoff participants have final_rank assigned if tournament is finished
+    gf = next((m for m in all_matches if m.round_type == 'grand' and m.status == 'completed'), None)
+    if gf and gf.winner_id:
+        _finalize_tournament(tournament)
+        db.session.flush()
+
     participants = TournamentParticipant.query.filter_by(
         tournament_id=tournament.id,
     ).all()
@@ -270,9 +276,9 @@ def get_final_standings(tournament):
 
     ttype = tournament.type
 
-    # Collect stats: count wins/losses from matches
+    # Collect stats: count wins/losses from all completed matches
     stats_by_club = {}
-    for m in tournament.matches:
+    for m in all_matches:
         if m.status != 'completed' or m.winner_id is None:
             continue
         for cid in (m.team_a_id, m.team_b_id):
@@ -285,54 +291,40 @@ def get_final_standings(tournament):
             else:
                 stats_by_club[cid]['losses'] += 1
 
-    # Swiss: 4 advance (playoffs), 4 eliminated (#9-12)
-    # Group: 8 advance, 8 eliminated (#13-16)
-    # Master: 4 directs + 4 Swiss adv advance, 4 eliminated (#13-16)
-
     standings = []
     for p in participants:
         rank = p.final_rank
         if rank is None:
-            # Advancing but no final rank yet (in playoffs)
-            continue
+            rank = len(participants)
 
-        # Determine status label/class
-        # Rank 1 is always the champion, regardless of tournament type
+        # Status label and styling class
         if rank == 1:
-            status_label = 'Vo dich'
+            status_label = 'Vô địch'
             status_class = 'champion'
-        elif ttype == 'champion':
-            if rank == 2:
-                status_label = 'A runner-up'
-                status_class = 'runner-up'
-            elif rank == 3:
-                status_label = 'Hang ba'
-                status_class = 'third'
-            elif rank == 4:
-                status_label = 'Hang tu'
-                status_class = 'fourth'
-            elif rank >= 5 and rank <= 8:
-                status_label = f'Top {rank}'
-                status_class = 'ranked'
-            else:
-                status_label = f'#{rank}'
-                status_class = 'eliminated'
-        else:  # major / master
-            if rank == 2:
-                status_label = 'A runner-up'
-                status_class = 'runner-up'
-            elif rank == 3:
-                status_label = 'Hang ba'
-                status_class = 'third'
-            elif rank == 4:
-                status_label = 'Hang tu'
-                status_class = 'fourth'
-            elif rank >= 5 and rank <= 8:
-                status_label = f'Top {rank}'
-                status_class = 'ranked'
-            else:
-                status_label = f'#{rank}'
-                status_class = 'eliminated'
+        elif rank == 2:
+            status_label = 'Á quân'
+            status_class = 'runner-up'
+        elif rank == 3:
+            status_label = 'Hạng ba'
+            status_class = 'third'
+        elif rank == 4:
+            status_label = 'Hạng tư'
+            status_class = 'fourth'
+        elif rank in (5, 6):
+            status_label = 'Top 5-8' if ttype == 'major' else 'Top 5-6'
+            status_class = 'ranked'
+        elif rank in (7, 8):
+            status_label = 'Top 5-8' if ttype == 'major' else 'Top 7-8'
+            status_class = 'ranked'
+        elif rank in (9, 10, 11, 12):
+            status_label = 'Top 9-12'
+            status_class = 'eliminated'
+        elif rank in (13, 14, 15, 16):
+            status_label = 'Top 13-16'
+            status_class = 'eliminated'
+        else:
+            status_label = f'#{rank}'
+            status_class = 'eliminated'
 
         s = stats_by_club.get(p.club_id, {'wins': 0, 'losses': 0})
         standings.append({
@@ -347,7 +339,7 @@ def get_final_standings(tournament):
             'status_class': status_class,
         })
 
-    standings.sort(key=lambda s: s['rank'])
+    standings.sort(key=lambda s: (s['rank'], -s['wins'], s['losses']))
     return standings
 
 
