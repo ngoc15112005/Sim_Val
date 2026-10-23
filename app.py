@@ -13,6 +13,9 @@ def create_app():
         from models import Region, Club, Role, Player, Tournament
         from models import TournamentParticipant, Match, MatchMap, ClubRating
         db.create_all()
+        if Region.query.count() == 0 or Club.query.count() == 0:
+            from seed import seed_initial_data
+            seed_initial_data()
 
     from routes import register_routes
     register_routes(app)

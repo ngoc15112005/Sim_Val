@@ -113,6 +113,39 @@ def get_club_logo(code, logo_file):
     return LOGO_BASE + logo_file
 
 
+def seed_initial_data():
+    """Seed regions, clubs, and roles if database is empty (for fresh cloud deploys)."""
+    region_map = {}
+    for r in REGIONS:
+        existing = Region.query.filter_by(slug=r['slug']).first()
+        if not existing:
+            region = Region(name=r['name'], slug=r['slug'])
+            db.session.add(region)
+            db.session.flush()
+            region_map[r['slug']] = region.id
+        else:
+            region_map[r['slug']] = existing.id
+
+    for slug, club_list in CLUBS.items():
+        region_id = region_map[slug]
+        for name, code, rating, logo_file in club_list:
+            if not Club.query.filter_by(short_code=code).first():
+                logo = get_club_logo(code, logo_file)
+                club = Club(
+                    name=name, short_code=code,
+                    region_id=region_id,
+                    base_rating=rating, current_rating=rating,
+                    logo_url=logo,
+                )
+                db.session.add(club)
+
+    for role_name in ROLES:
+        if not Role.query.filter_by(name=role_name).first():
+            db.session.add(Role(name=role_name))
+
+    db.session.commit()
+
+
 def sync_ratings():
     """Update base_rating and current_rating for all existing clubs in DB from CLUBS dictionary."""
     app = create_app()
