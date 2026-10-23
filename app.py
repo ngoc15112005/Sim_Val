@@ -26,6 +26,9 @@ def create_app():
         if Region.query.count() == 0 or Club.query.count() == 0:
             from seed import seed_initial_data
             seed_initial_data()
+        else:
+            from seed import sync_club_logos_internal
+            sync_club_logos_internal()
 
     from routes import register_routes
     register_routes(app)

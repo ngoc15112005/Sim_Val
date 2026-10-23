@@ -1,7 +1,11 @@
 """Seed database with regions, clubs, and roles."""
+import os
 import sys
 from app import create_app
 from models import db, Region, Club, Role
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+STATIC_LOGOS_DIR = os.path.join(BASE_DIR, 'static', 'logos')
 
 REGIONS = [
     {'name': 'Pacific', 'slug': 'pacific'},
@@ -105,12 +109,39 @@ ROLES = ['Duelist', 'Initiator', 'Controller', 'Sentinel', 'Flex']
 LOGO_BASE = 'http://static.lolesports.com/teams/'
 
 
-def get_club_logo(code, logo_file):
-    if not logo_file:
+def get_club_logo(code, logo_file=None):
+    """Return local static logo path if exists, otherwise fallback to external."""
+    if not code:
         return ''
-    if logo_file.startswith('http://') or logo_file.startswith('https://'):
+    # Check exact match first (.png, then .svg)
+    for ext in ['.png', '.svg', '.PNG', '.SVG']:
+        filename = f"{code}{ext}"
+        if os.path.isfile(os.path.join(STATIC_LOGOS_DIR, filename)):
+            return f"/static/logos/{filename}"
+
+    # Case-insensitive check
+    if os.path.exists(STATIC_LOGOS_DIR):
+        for f in os.listdir(STATIC_LOGOS_DIR):
+            base, ext = os.path.splitext(f)
+            if base.lower() == code.lower() and ext.lower() in ('.png', '.svg'):
+                return f"/static/logos/{f}"
+
+    if logo_file and (logo_file.startswith('http://') or logo_file.startswith('https://')):
         return logo_file
-    return LOGO_BASE + logo_file
+    return ''
+
+
+def sync_club_logos_internal():
+    """Ensure all clubs in database point to valid local logos (runs in current app context)."""
+    updated = 0
+    for club in Club.query.all():
+        correct_logo = get_club_logo(club.short_code)
+        if correct_logo and club.logo_url != correct_logo:
+            club.logo_url = correct_logo
+            updated += 1
+    if updated > 0:
+        db.session.commit()
+        print(f"Synced local logos for {updated} clubs.")
 
 
 def seed_initial_data():
