@@ -5,6 +5,7 @@ PURE FUNCTIONS. No DB, no Flask, no random for match outcomes.
 """
 
 import random
+import itertools
 
 
 def group_config():
@@ -23,11 +24,86 @@ def group_config():
 
 def generate_gsl_groups(teams):
     """Split 16 teams into 4 groups A/B/C/D.
-    Max 1 team per region per group. Shuffle retry.
+    Each group must contain:
+      - Exactly 1 team from Pool 1 (Seed 1)
+      - Exactly 1 team from Pool 2 (Seed 2)
+      - Exactly 1 team from Pool 3 (Seed 3)
+      - Exactly 1 team from Pool 4 (Seed 4)
+    Max 1 team per region per group (Americas, EMEA, Pacific, China).
 
     Returns: dict {group_label: [team, ...]}
              group_label is 'A','B','C','D'
     """
+    pool1 = [t for t in teams if t.get('regional_seed') == 1]
+    pool2 = [t for t in teams if t.get('regional_seed') == 2]
+    pool3 = [t for t in teams if t.get('regional_seed') == 3]
+    pool4 = [t for t in teams if t.get('regional_seed') == 4]
+
+    group_keys = ['A', 'B', 'C', 'D']
+
+    if len(pool1) == 4 and len(pool2) == 4 and len(pool3) == 4 and len(pool4) == 4:
+        for _ in range(1000):
+            p1 = list(pool1)
+            p2 = list(pool2)
+            p3 = list(pool3)
+            p4 = list(pool4)
+
+            random.shuffle(p1)
+            random.shuffle(p2)
+            random.shuffle(p3)
+            random.shuffle(p4)
+
+            groups = {k: [] for k in group_keys}
+            region_used = {k: set() for k in group_keys}
+
+            # Step 1: Place Pool 1
+            for i, k in enumerate(group_keys):
+                groups[k].append(p1[i])
+                region_used[k].add(p1[i]['region'])
+
+            # Step 2: Place Pool 2
+            ok2 = False
+            for p2_perm in itertools.permutations(p2):
+                if all(t['region'] not in region_used[k] for t, k in zip(p2_perm, group_keys)):
+                    for t, k in zip(p2_perm, group_keys):
+                        groups[k].append(t)
+                        region_used[k].add(t['region'])
+                    ok2 = True
+                    break
+            if not ok2:
+                continue
+
+            # Step 3: Place Pool 3
+            ok3 = False
+            for p3_perm in itertools.permutations(p3):
+                if all(t['region'] not in region_used[k] for t, k in zip(p3_perm, group_keys)):
+                    for t, k in zip(p3_perm, group_keys):
+                        groups[k].append(t)
+                        region_used[k].add(t['region'])
+                    ok3 = True
+                    break
+            if not ok3:
+                continue
+
+            # Step 4: Place Pool 4
+            ok4 = False
+            for p4_perm in itertools.permutations(p4):
+                if all(t['region'] not in region_used[k] for t, k in zip(p4_perm, group_keys)):
+                    for t, k in zip(p4_perm, group_keys):
+                        groups[k].append(t)
+                        region_used[k].add(t['region'])
+                    ok4 = True
+                    break
+            if not ok4:
+                continue
+
+            # Sort teams inside each group by regional_seed
+            for k in group_keys:
+                groups[k].sort(key=lambda x: x.get('regional_seed', 99))
+
+            return groups
+
+    # Fallback if regional_seed is missing or irregular
     for _ in range(500):
         shuffled = list(teams)
         random.shuffle(shuffled)
@@ -49,15 +125,20 @@ def generate_gsl_groups(teams):
                 break
 
         if ok and all(len(g) == 4 for g in groups.values()):
+            for k in ['A', 'B', 'C', 'D']:
+                groups[k].sort(key=lambda x: x.get('regional_seed', 99))
             return groups
 
-    # Fallback
+    # Last resort fallback
     all_t = list(teams)
     random.shuffle(all_t)
-    return {
+    res = {
         'A': all_t[0:4], 'B': all_t[4:8],
         'C': all_t[8:12], 'D': all_t[12:16],
     }
+    for k in res:
+        res[k].sort(key=lambda x: x.get('regional_seed', 99))
+    return res
 
 
 def get_gsl_matches(group_teams, group_label):

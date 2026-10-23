@@ -621,14 +621,17 @@ def _generate_groups(tournament):
             if p:
                 p.group_label = grp_label
 
-        random.shuffle(team_list)
-        t1, t2, t3, t4 = team_list[:4]
+        # Seed 1 vs Seed 4, Seed 2 vs Seed 3
+        t_s1 = next((t for t in team_list if t.get('regional_seed') == 1), team_list[0])
+        t_s2 = next((t for t in team_list if t.get('regional_seed') == 2), team_list[1] if len(team_list) > 1 else team_list[0])
+        t_s3 = next((t for t in team_list if t.get('regional_seed') == 3), team_list[2] if len(team_list) > 2 else team_list[0])
+        t_s4 = next((t for t in team_list if t.get('regional_seed') == 4), team_list[3] if len(team_list) > 3 else team_list[0])
 
         _add_match(tournament, 'group', f'group{grp_label}_opening1', match_order,
-                   t1['id'], t2['id'])
+                   t_s1['id'], t_s4['id'])
         match_order += 1
         _add_match(tournament, 'group', f'group{grp_label}_opening2', match_order,
-                   t3['id'], t4['id'])
+                   t_s2['id'], t_s3['id'])
         match_order += 1
 
     db.session.flush()

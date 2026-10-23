@@ -77,8 +77,12 @@ class Tournament(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     participants = db.relationship('TournamentParticipant', backref='tournament', lazy=True,
-                                   order_by='TournamentParticipant.seed')
-    matches = db.relationship('Match', backref='tournament', lazy=True)
+                                   order_by='TournamentParticipant.seed',
+                                   cascade='all, delete-orphan')
+    matches = db.relationship('Match', backref='tournament', lazy=True,
+                              cascade='all, delete-orphan')
+    ratings = db.relationship('ClubRating', backref='tournament', lazy=True,
+                              cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -131,7 +135,8 @@ class Match(db.Model):
     winner = db.relationship('Club', foreign_keys=[winner_id])
     loser = db.relationship('Club', foreign_keys=[loser_id])
     maps = db.relationship('MatchMap', backref='match', lazy=True,
-                           order_by='MatchMap.map_number')
+                           order_by='MatchMap.map_number',
+                           cascade='all, delete-orphan')
 
     def to_dict(self):
         return {

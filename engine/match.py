@@ -277,7 +277,9 @@ def resolve_manual_match(match, maps_input):
         else:
             ta_score = item.get('team_a_score', 0)
             tb_score = item.get('team_b_score', 0)
-            winner_id = item.get('winner_id', match.team_a_id)
+            winner_id = item.get('winner_id')
+            if not winner_id:
+                winner_id = match.team_a_id if ta_score > tb_score else match.team_b_id
             if winner_id == match.team_a_id:
                 wins_a += 1
             else:

@@ -1,6 +1,7 @@
 """Flask routes for VALORANT Tournament Simulator."""
 
-from flask import request, jsonify, render_template
+import json
+from flask import request, jsonify, render_template, Response
 from models import db, Club, Region, Tournament, TournamentParticipant, Match, MatchMap
 from engine.tournament import (
     create_tournament, generate_bracket, progress_tournament, simulate_all_pending,
@@ -11,6 +12,10 @@ from engine.rating import update_ratings
 from services.bracket_service import (
     get_swiss_standings, group_playoff_rounds, resolve_match_display,
     get_groups_data, get_swiss_data, get_final_standings,
+)
+from services.export_import_service import (
+    export_tournament_dict, export_all_tournaments_dict,
+    import_payload, delete_tournament_cascade,
 )
 from config import Config
 
@@ -184,6 +189,69 @@ def register_routes(app):
         text = data.get('text', '')
         result = parse_match_block(text)
         return jsonify({'result': result})
+
+    # ==================== EXPORT & IMPORT & DELETE ROUTES ====================
+
+    @app.route('/api/tournament/<int:tour_id>/export', methods=['GET'])
+    def api_export_tournament(tour_id):
+        tour = Tournament.query.get_or_404(tour_id)
+        data = export_tournament_dict(tour)
+        json_str = json.dumps(data, indent=2, ensure_ascii=False)
+        safe_name = "".join(c for c in tour.name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+        filename = f"tournament_{tour_id}_{safe_name or 'val'}.json"
+        return Response(
+            json_str,
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+        )
+
+    @app.route('/api/tournaments/export', methods=['GET'])
+    def api_export_all_tournaments():
+        data = export_all_tournaments_dict()
+        json_str = json.dumps(data, indent=2, ensure_ascii=False)
+        filename = "tournaments_backup.json"
+        return Response(
+            json_str,
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+        )
+
+    @app.route('/api/tournaments/import', methods=['POST'])
+    def api_import_tournaments():
+        try:
+            if 'file' in request.files:
+                file = request.files['file']
+                if not file.filename:
+                    return jsonify({'error': 'Chưa chọn file'}), 400
+                content = file.read().decode('utf-8')
+                payload = json.loads(content)
+            else:
+                payload = request.get_json()
+                if not payload:
+                    return jsonify({'error': 'Không có dữ liệu'}), 400
+
+            imported = import_payload(payload)
+            return jsonify({
+                'success': True,
+                'count': len(imported),
+                'tournaments': [t.to_dict() for t in imported],
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/tournament/<int:tour_id>/delete', methods=['POST', 'DELETE'])
+    def api_delete_tournament(tour_id):
+        try:
+            success = delete_tournament_cascade(tour_id)
+            if not success:
+                return jsonify({'error': 'Không tìm thấy giải đấu'}), 404
+            return jsonify({'success': True, 'id': tour_id})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # ==================== VIEW ROUTES ====================
 
     @app.route('/tournament/<int:tour_id>')
     def view_tournament(tour_id):

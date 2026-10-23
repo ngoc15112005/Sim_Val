@@ -479,8 +479,12 @@ def resolve_match_display(m):
         'round_type': m.round_type,
         'round_name': m.round_name,
         'match_order': m.match_order,
+        'team_a_id': m.team_a_id,
+        'team_b_id': m.team_b_id,
         'team_a': m.team_a.short_code if m.team_a else 'TBD',
         'team_b': m.team_b.short_code if m.team_b else 'TBD',
+        'name_a': m.team_a.name if m.team_a else 'TBD',
+        'name_b': m.team_b.name if m.team_b else 'TBD',
         'logo_a': m.team_a.logo_url if m.team_a else '',
         'logo_b': m.team_b.logo_url if m.team_b else '',
         'score_a': m.team_a_score if m.team_a_score is not None else '—',
@@ -491,6 +495,7 @@ def resolve_match_display(m):
         'status': m.status,
         'is_manual': m.is_manual,
         'maps': [f'{mp.team_a_score}-{mp.team_b_score}' for mp in (m.maps or [])],
+        'maps_detail': [{'a': mp.team_a_score, 'b': mp.team_b_score} for mp in (m.maps or [])],
     }
 
 
@@ -628,6 +633,7 @@ def _compute_group_standings(tournament, group_label):
         standings.append({
             'rank': 0,  # filled in after sort
             'club': p.club,
+            'regional_seed': p.regional_seed or 99,
             'wins': rec['wins'],
             'losses': rec['losses'],
             'round_for': rec['round_for'],
@@ -637,8 +643,8 @@ def _compute_group_standings(tournament, group_label):
             'status': status,
         })
 
-    # Sort: wins desc, losses asc, round_diff desc
-    standings.sort(key=lambda s: (-s['wins'], s['losses'], -s['round_diff']))
+    # Sort: wins desc, losses asc, round_diff desc, regional_seed asc
+    standings.sort(key=lambda s: (-s['wins'], s['losses'], -s['round_diff'], s.get('regional_seed', 99)))
     for i, s in enumerate(standings):
         s['rank'] = i + 1
         # Update status based on final rank

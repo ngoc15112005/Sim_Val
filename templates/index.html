@@ -33,20 +33,37 @@
   </section>
 
   <section class="card">
-    <h2>Lịch sử giải</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+      <h2 style="margin-bottom: 0;">Lịch sử giải</h2>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button type="button" class="btn-sm btn-edit" onclick="document.getElementById('import-file-input').click()" title="Nhập giải đấu từ file JSON">
+          📥 Nhập JSON
+        </button>
+        <a href="/api/tournaments/export" class="btn-sm btn-manual" style="text-decoration: none; display: inline-flex; align-items: center;" title="Tải về tất cả giải đấu dạng JSON">
+          📤 Xuất tất cả
+        </a>
+        <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+      </div>
+    </div>
     <div id="history-list">
       {% if tournaments %}
-        <ul>
+        <ul class="history-tour-list">
         {% for t in tournaments %}
-          <li>
-            <strong>[{{ t.type.upper() }}]</strong> {{ t.name }}
-            <span class="badge {{ t.status }}">{{ t.status }}</span>
-            <a href="/tournament/{{ t.id }}">Xem</a>
+          <li class="history-tour-item" id="tour-item-{{ t.id }}">
+            <div class="history-tour-main">
+              <span class="badge {{ t.status }}">{{ t.status }}</span>
+              <span class="history-tour-name"><strong>[{{ t.type.upper() }}]</strong> {{ t.name }}</span>
+            </div>
+            <div class="history-tour-actions">
+              <a href="/tournament/{{ t.id }}" class="action-btn view-btn">Xem</a>
+              <a href="/api/tournament/{{ t.id }}/export" class="action-btn export-btn" title="Xuất file JSON giải này">Xuất</a>
+              <button type="button" class="action-btn delete-btn" onclick="deleteTour({{ t.id }}, '{{ t.name|replace("'", "\\'") }}')" title="Xóa giải này">Xóa</button>
+            </div>
           </li>
         {% endfor %}
         </ul>
       {% else %}
-        <p class="empty">Chưa có giải nào.</p>
+        <p class="empty" id="empty-history-msg">Chưa có giải nào.</p>
       {% endif %}
     </div>
   </section>
@@ -294,6 +311,57 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     btn.disabled = false;
     btn.textContent = 'Bắt đầu giải';
 });
+
+async function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch('/api/tournaments/import', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert('Lỗi import: ' + data.error);
+        } else {
+            alert(`Nhập thành công ${data.count} giải đấu!`);
+            window.location.reload();
+        }
+    } catch (err) {
+        alert('Lỗi kết nối khi import: ' + err.message);
+    } finally {
+        event.target.value = '';
+    }
+}
+
+async function deleteTour(tourId, tourName) {
+    if (!confirm(`Bạn có chắc muốn xóa giải "${tourName}" không? Hành động này không thể hoàn tác.`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/tournament/${tourId}/delete`, {
+            method: 'POST',
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert('Lỗi xóa: ' + data.error);
+        } else {
+            const item = document.getElementById(`tour-item-${tourId}`);
+            if (item) item.remove();
+            const list = document.querySelector('.history-tour-list');
+            if (list && list.children.length === 0) {
+                document.getElementById('history-list').innerHTML = '<p class="empty" id="empty-history-msg">Chưa có giải nào.</p>';
+            }
+        }
+    } catch (err) {
+        alert('Lỗi khi xóa: ' + err.message);
+    }
+}
 
 loadClubs();
 </script>

@@ -22,6 +22,9 @@
       <button id="btn-sim-all" onclick="simAll()" class="btn-primary" title="Simulate all pending">
         <span class="btn-icon">&#9889;</span>Sim All
       </button>
+      <a href="/api/tournament/{{ tour.id }}/export" class="btn-ghost" title="Xuất giải đấu ra file JSON" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px; font-size:0.9em; padding: 7px 12px;">
+        <span>📤</span> Xuất JSON
+      </a>
       <button onclick="location.reload()" class="btn-ghost" title="Refresh">&#x21bb;</button>
     </div>
   </div>
@@ -377,8 +380,15 @@
 {% endif %}
 {% endif %}
 
-<section class="card" id="manual-card" style="display:none;">
-  <h2>Nhập tay</h2>
+<section class="card manual-match-card" id="manual-card" style="display:none;">
+  <div class="manual-card-header">
+    <div class="manual-header-title">
+      <span class="manual-icon">✏️</span>
+      <h3>Nhập kết quả trận đấu</h3>
+      <span class="manual-round-badge" id="manual-round-label">Vòng đấu</span>
+    </div>
+    <button type="button" class="btn-close-manual" onclick="closeManual()" title="Đóng">✕</button>
+  </div>
   <div id="manual-form"></div>
 </section>
 
@@ -512,6 +522,11 @@
 {% block scripts %}
 <script>
 let tourId = {{ tour.id }};
+window.MATCH_DATA = {{ resolved_matches | tojson }};
+const MATCH_DATA = window.MATCH_DATA;
+let currentManualMatch = null;
+let currentManualMaxMaps = 3;
+let currentManualTargetWins = 2;
 
 async function simSwissRound(roundName, btn) {
     if (!confirm('Mô phỏng các trận còn lại của vòng này?')) return;
@@ -582,52 +597,439 @@ async function progressTournament() {
     if (r.error) { alert(r.error); } else { location.reload(); }
 }
 
-let activeMatch = null;
+function closeManual() {
+    const card = document.getElementById('manual-card');
+    if (card) card.style.display = 'none';
+    currentManualMatch = null;
+}
 
 function showManual(mid) {
     const card = document.getElementById('manual-card');
-    card.style.display = 'block'; card.scrollIntoView({ behavior: 'smooth' });
+    const form = document.getElementById('manual-form');
+    if (!card || !form) return;
 
-    const rows = document.querySelectorAll('.match-box[data-match-id="' + mid + '"] .match-team-row, .match-box[data-match-id="' + mid + '"] .match-team');
-    let ta = '?', tb = '?';
-    if (rows.length >= 2) {
-        ta = rows[0].querySelector('.team-name').textContent.trim();
-        tb = rows[1].querySelector('.team-name').textContent.trim();
+    const targetId = parseInt(mid, 10);
+    const list = window.MATCH_DATA || (typeof MATCH_DATA !== 'undefined' ? MATCH_DATA : []);
+    let m = list.find(item => item && parseInt(item.id, 10) === targetId);
+
+    if (!m) {
+        // Fallback: check DOM element with data-match-id
+        const el = document.querySelector(`[data-match-id="${targetId}"]`);
+        if (el) {
+            const nameEls = el.querySelectorAll('.team-name');
+            const teamA = nameEls[0] ? nameEls[0].textContent.trim() : 'Đội A';
+            const teamB = nameEls[1] ? nameEls[1].textContent.trim() : 'Đội B';
+            m = {
+                id: targetId,
+                team_a: teamA,
+                team_b: teamB,
+                name_a: teamA,
+                name_b: teamB,
+                team_a_id: 1,
+                team_b_id: 2,
+                logo_a: '',
+                logo_b: '',
+                maps_detail: []
+            };
+        }
     }
 
-    let inputs = '';
-    const maxMaps = 3;
-    for (let i = 1; i <= maxMaps; i++) {
-        inputs += `<div class="map-input-row">
-          <span>Map ${i}:</span>
-          <input type="number" class="map-a" placeholder="?" min="0" max="25">
-          <span class="vs-label">-</span>
-          <input type="number" class="map-b" placeholder="?" min="0" max="25">
-        </div>`;
+    if (!m) {
+        alert('Không tìm thấy thông tin trận đấu.');
+        return;
+    }
+    if (!m.team_a_id || !m.team_b_id || m.team_a === 'TBD' || m.team_b === 'TBD') {
+        alert('Trận đấu này chưa xác định đủ 2 đội tuyển thi đấu.');
+        return;
     }
 
-    document.getElementById('manual-form').innerHTML = `
-      <p><strong>${ta}</strong> vs <strong>${tb}</strong></p>
-      ${inputs}
-      <div class="form-actions">
-        <button onclick="submitManual(${mid})">Lưu</button>
-        <button onclick="document.getElementById('manual-card').style.display='none'">Hủy</button>
+    currentManualMatch = m;
+    const isBo5 = (m.round_type === 'grand' || m.round_name === 'grand_final' || m.round_name === 'lower_final');
+    currentManualMaxMaps = isBo5 ? 5 : 3;
+    currentManualTargetWins = isBo5 ? 3 : 2;
+
+    const roundLabel = document.getElementById('manual-round-label');
+    if (roundLabel) {
+        const typeText = isBo5 ? 'BO5 (Thắng 3 ván)' : 'BO3 (Thắng 2 ván)';
+        roundLabel.textContent = `${m.round_name || 'Trận đấu'} • ${typeText}`;
+    }
+
+    const existingMaps = m.maps_detail || [];
+
+    let presetsHtml = '';
+    if (!isBo5) {
+        presetsHtml = `
+          <div class="manual-presets-bar">
+            <span class="preset-label">⚡ Chọn nhanh BO3:</span>
+            <button type="button" class="btn-preset btn-preset-a" onclick="applyPreset('a', 2, 0)">${m.team_a} thắng 2-0</button>
+            <button type="button" class="btn-preset btn-preset-a" onclick="applyPreset('a', 2, 1)">${m.team_a} thắng 2-1</button>
+            <button type="button" class="btn-preset btn-preset-b" onclick="applyPreset('b', 2, 0)">${m.team_b} thắng 2-0</button>
+            <button type="button" class="btn-preset btn-preset-b" onclick="applyPreset('b', 2, 1)">${m.team_b} thắng 2-1</button>
+          </div>
+        `;
+    } else {
+        presetsHtml = `
+          <div class="manual-presets-bar">
+            <span class="preset-label">⚡ Chọn nhanh BO5:</span>
+            <button type="button" class="btn-preset btn-preset-a" onclick="applyPreset('a', 3, 0)">${m.team_a} 3-0</button>
+            <button type="button" class="btn-preset btn-preset-a" onclick="applyPreset('a', 3, 1)">${m.team_a} 3-1</button>
+            <button type="button" class="btn-preset btn-preset-a" onclick="applyPreset('a', 3, 2)">${m.team_a} 3-2</button>
+            <button type="button" class="btn-preset btn-preset-b" onclick="applyPreset('b', 3, 0)">${m.team_b} 3-0</button>
+            <button type="button" class="btn-preset btn-preset-b" onclick="applyPreset('b', 3, 1)">${m.team_b} 3-1</button>
+            <button type="button" class="btn-preset btn-preset-b" onclick="applyPreset('b', 3, 2)">${m.team_b} 3-2</button>
+          </div>
+        `;
+    }
+
+    let mapRowsHtml = '';
+    for (let i = 1; i <= currentManualMaxMaps; i++) {
+        const ex = existingMaps[i - 1] || null;
+        const valA = (ex !== null && ex.a !== undefined && ex.a !== null) ? ex.a : '';
+        const valB = (ex !== null && ex.b !== undefined && ex.b !== null) ? ex.b : '';
+
+        mapRowsHtml += `
+          <div class="manual-map-row" id="manual-map-row-${i}">
+            <div class="map-row-col map-row-label">Ván ${i}</div>
+            
+            <div class="map-row-col map-input-col-a">
+              <span class="team-tag tag-a" title="${m.name_a || m.team_a}">${m.team_a}</span>
+              <input type="number" id="map-${i}-a" class="manual-score-input input-a" min="0" max="35" placeholder="0" value="${valA}" oninput="updateManualPreview()">
+            </div>
+
+            <span class="map-colon">:</span>
+
+            <div class="map-row-col map-input-col-b">
+              <input type="number" id="map-${i}-b" class="manual-score-input input-b" min="0" max="35" placeholder="0" value="${valB}" oninput="updateManualPreview()">
+              <span class="team-tag tag-b" title="${m.name_b || m.team_b}">${m.team_b}</span>
+            </div>
+
+            <div class="map-row-col map-result-col" id="map-pill-${i}">
+              <span class="map-pill pill-idle">Chưa nhập</span>
+            </div>
+          </div>
+        `;
+    }
+
+    form.innerHTML = `
+      <div class="manual-matchup-banner">
+        <div class="manual-team-box team-box-a">
+          <div class="team-side-indicator side-a">ĐỘI BÊN TRÁI (ĐỘI A)</div>
+          <div class="team-identity">
+            ${m.logo_a ? `<img class="team-logo-lg" src="${m.logo_a}" alt="" onerror="this.style.display='none'">` : ''}
+            <div class="team-identity-text">
+              <span class="team-code-lg">${m.team_a}</span>
+              <span class="team-name-sub">${m.name_a || ''}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="manual-matchup-vs">
+          <span class="vs-text">VS</span>
+          <span class="format-badge">${isBo5 ? 'BO5' : 'BO3'}</span>
+        </div>
+
+        <div class="manual-team-box team-box-b">
+          <div class="team-side-indicator side-b">ĐỘI BÊN PHẢI (ĐỘI B)</div>
+          <div class="team-identity reverse">
+            <div class="team-identity-text align-right">
+              <span class="team-code-lg">${m.team_b}</span>
+              <span class="team-name-sub">${m.name_b || ''}</span>
+            </div>
+            ${m.logo_b ? `<img class="team-logo-lg" src="${m.logo_b}" alt="" onerror="this.style.display='none'">` : ''}
+          </div>
+        </div>
+      </div>
+
+      ${presetsHtml}
+
+      <div class="manual-maps-container">
+        <div class="manual-maps-head">
+          <span class="head-col-label">Ván</span>
+          <span class="head-col-a">Điểm ${m.team_a} (Trái)</span>
+          <span class="head-col-sep"></span>
+          <span class="head-col-b">Điểm ${m.team_b} (Phải)</span>
+          <span class="head-col-res">Đội thắng ván</span>
+        </div>
+        ${mapRowsHtml}
+      </div>
+
+      <div class="manual-preview-card" id="manual-preview-card"></div>
+
+      <div class="manual-actions-bar">
+        <button type="button" class="btn-manual-submit" id="btn-save-manual" onclick="submitManual(${mid})">
+          💾 Lưu kết quả trận đấu
+        </button>
+        <button type="button" class="btn-manual-reset" onclick="resetManualForm()">
+          🔄 Đặt lại
+        </button>
+        <button type="button" class="btn-manual-cancel" onclick="closeManual()">
+          ✕ Hủy bỏ
+        </button>
       </div>
     `;
+
+    card.style.display = 'block';
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    updateManualPreview();
+}
+
+function applyPreset(side, targetWins, opponentWins) {
+    if (!currentManualMatch) return;
+    const isA = (side === 'a');
+    
+    // Clear all inputs first
+    for (let i = 1; i <= currentManualMaxMaps; i++) {
+        const inA = document.getElementById(`map-${i}-a`);
+        const inB = document.getElementById(`map-${i}-b`);
+        if (inA) inA.value = '';
+        if (inB) inB.value = '';
+    }
+
+    if (currentManualMaxMaps === 3) {
+        if (targetWins === 2 && opponentWins === 0) {
+            document.getElementById('map-1-a').value = isA ? 13 : 8;
+            document.getElementById('map-1-b').value = isA ? 8 : 13;
+            document.getElementById('map-2-a').value = isA ? 13 : 9;
+            document.getElementById('map-2-b').value = isA ? 9 : 13;
+        } else if (targetWins === 2 && opponentWins === 1) {
+            document.getElementById('map-1-a').value = isA ? 13 : 9;
+            document.getElementById('map-1-b').value = isA ? 9 : 13;
+            document.getElementById('map-2-a').value = isA ? 8 : 13;
+            document.getElementById('map-2-b').value = isA ? 13 : 8;
+            document.getElementById('map-3-a').value = isA ? 13 : 10;
+            document.getElementById('map-3-b').value = isA ? 10 : 13;
+        }
+    } else {
+        if (targetWins === 3 && opponentWins === 0) {
+            document.getElementById('map-1-a').value = isA ? 13 : 8;
+            document.getElementById('map-1-b').value = isA ? 8 : 13;
+            document.getElementById('map-2-a').value = isA ? 13 : 9;
+            document.getElementById('map-2-b').value = isA ? 9 : 13;
+            document.getElementById('map-3-a').value = isA ? 13 : 7;
+            document.getElementById('map-3-b').value = isA ? 7 : 13;
+        } else if (targetWins === 3 && opponentWins === 1) {
+            document.getElementById('map-1-a').value = isA ? 13 : 9;
+            document.getElementById('map-1-b').value = isA ? 9 : 13;
+            document.getElementById('map-2-a').value = isA ? 8 : 13;
+            document.getElementById('map-2-b').value = isA ? 13 : 8;
+            document.getElementById('map-3-a').value = isA ? 13 : 8;
+            document.getElementById('map-3-b').value = isA ? 8 : 13;
+            document.getElementById('map-4-a').value = isA ? 13 : 10;
+            document.getElementById('map-4-b').value = isA ? 10 : 13;
+        } else if (targetWins === 3 && opponentWins === 2) {
+            document.getElementById('map-1-a').value = isA ? 13 : 8;
+            document.getElementById('map-1-b').value = isA ? 8 : 13;
+            document.getElementById('map-2-a').value = isA ? 9 : 13;
+            document.getElementById('map-2-b').value = isA ? 13 : 9;
+            document.getElementById('map-3-a').value = isA ? 13 : 11;
+            document.getElementById('map-3-b').value = isA ? 11 : 13;
+            document.getElementById('map-4-a').value = isA ? 8 : 13;
+            document.getElementById('map-4-b').value = isA ? 13 : 8;
+            document.getElementById('map-5-a').value = isA ? 13 : 9;
+            document.getElementById('map-5-b').value = isA ? 9 : 13;
+        }
+    }
+
+    updateManualPreview();
+}
+
+function resetManualForm() {
+    for (let i = 1; i <= currentManualMaxMaps; i++) {
+        const inA = document.getElementById(`map-${i}-a`);
+        const inB = document.getElementById(`map-${i}-b`);
+        if (inA) inA.value = '';
+        if (inB) inB.value = '';
+    }
+    updateManualPreview();
+}
+
+function updateManualPreview() {
+    if (!currentManualMatch) return;
+    const m = currentManualMatch;
+    let wins_a = 0;
+    let wins_b = 0;
+
+    for (let i = 1; i <= currentManualMaxMaps; i++) {
+        const inA = document.getElementById(`map-${i}-a`);
+        const inB = document.getElementById(`map-${i}-b`);
+        const pill = document.getElementById(`map-pill-${i}`);
+        const row = document.getElementById(`manual-map-row-${i}`);
+        if (!inA || !inB || !pill) continue;
+
+        if (row) {
+            row.classList.remove('row-win-a', 'row-win-b', 'row-tie');
+        }
+
+        const valA = inA.value.trim();
+        const valB = inB.value.trim();
+
+        if (valA === '' && valB === '') {
+            pill.innerHTML = `<span class="map-pill pill-idle">Chưa nhập</span>`;
+            continue;
+        }
+
+        if (valA === '' || valB === '') {
+            pill.innerHTML = `<span class="map-pill pill-incomplete">Chưa đủ điểm</span>`;
+            continue;
+        }
+
+        const a = parseInt(valA);
+        const b = parseInt(valB);
+
+        if (isNaN(a) || isNaN(b)) {
+            pill.innerHTML = `<span class="map-pill pill-incomplete">Số không hợp lệ</span>`;
+            continue;
+        }
+
+        if (a > b) {
+            wins_a++;
+            pill.innerHTML = `<span class="map-pill pill-win-a">✓ ${m.team_a} thắng (${a}-${b})</span>`;
+            if (row) row.classList.add('row-win-a');
+        } else if (b > a) {
+            wins_b++;
+            pill.innerHTML = `<span class="map-pill pill-win-b">✓ ${m.team_b} thắng (${b}-${a})</span>`;
+            if (row) row.classList.add('row-win-b');
+        } else {
+            pill.innerHTML = `<span class="map-pill pill-tie">Hòa (${a}-${b})</span>`;
+            if (row) row.classList.add('row-tie');
+        }
+    }
+
+    const preview = document.getElementById('manual-preview-card');
+    if (!preview) return;
+
+    if (wins_a >= currentManualTargetWins) {
+        preview.innerHTML = `
+          <div class="preview-box win-a">
+            <div class="preview-trophy">🏆</div>
+            <div class="preview-content">
+              <div class="preview-title">DỰ KIẾN KẾT QUẢ: <strong>${m.team_a}</strong> CHIẾN THẮNG</div>
+              <div class="preview-score">Tỉ số trận đấu: <strong>${m.team_a} ${wins_a} - ${wins_b} ${m.team_b}</strong></div>
+              <div class="preview-hint">Đã đủ số ván thắng để kết thúc trận. Bấm <strong>Lưu kết quả</strong> để cập nhật giải đấu.</div>
+            </div>
+          </div>
+        `;
+    } else if (wins_b >= currentManualTargetWins) {
+        preview.innerHTML = `
+          <div class="preview-box win-b">
+            <div class="preview-trophy">🏆</div>
+            <div class="preview-content">
+              <div class="preview-title">DỰ KIẾN KẾT QUẢ: <strong>${m.team_b}</strong> CHIẾN THẮNG</div>
+              <div class="preview-score">Tỉ số trận đấu: <strong>${m.team_b} ${wins_b} - ${wins_a} ${m.team_a}</strong></div>
+              <div class="preview-hint">Đã đủ số ván thắng để kết thúc trận. Bấm <strong>Lưu kết quả</strong> để cập nhật giải đấu.</div>
+            </div>
+          </div>
+        `;
+    } else if (wins_a > 0 && wins_a === wins_b) {
+        preview.innerHTML = `
+          <div class="preview-box tie">
+            <div class="preview-trophy">⚠️</div>
+            <div class="preview-content">
+              <div class="preview-title">ĐANG HÒA: ${m.team_a} ${wins_a} - ${wins_b} ${m.team_b}</div>
+              <div class="preview-hint">Cần nhập thêm ván quyết định để xác định đội chiến thắng chung cuộc.</div>
+            </div>
+          </div>
+        `;
+    } else if (wins_a > 0 || wins_b > 0) {
+        const leader = wins_a > wins_b ? m.team_a : m.team_b;
+        const leaderScore = wins_a > wins_b ? `${wins_a} - ${wins_b}` : `${wins_b} - ${wins_a}`;
+        preview.innerHTML = `
+          <div class="preview-box partial">
+            <div class="preview-trophy">⚡</div>
+            <div class="preview-content">
+              <div class="preview-title">ĐANG DẪN: <strong>${leader}</strong> (${leaderScore})</div>
+              <div class="preview-hint">Chưa đạt ${currentManualTargetWins} ván thắng để hoàn tất theo thể thức. Bạn có thể nhập thêm ván tiếp theo hoặc lưu tỉ số này.</div>
+            </div>
+          </div>
+        `;
+    } else {
+        preview.innerHTML = `
+          <div class="preview-box empty">
+            <div class="preview-trophy">💡</div>
+            <div class="preview-content">
+              <div class="preview-title">Chưa nhập điểm ván nào</div>
+              <div class="preview-hint">Nhập điểm round cho từng ván hoặc bấm một trong các nút <strong>Chọn nhanh</strong> phía trên.</div>
+            </div>
+          </div>
+        `;
+    }
 }
 
 async function submitManual(mid) {
-    const rows = document.querySelectorAll('.map-input-row');
+    if (!currentManualMatch) return;
+    const m = currentManualMatch;
     const maps = [];
-    for (const row of rows) {
-        const a = parseInt(row.querySelector('.map-a').value);
-        const b = parseInt(row.querySelector('.map-b').value);
-        if (isNaN(a) || isNaN(b)) continue;
-        maps.push({ team_a_score: a, team_b_score: b, winner_id: a > b ? null : null });
+    let wins_a = 0;
+    let wins_b = 0;
+
+    for (let i = 1; i <= currentManualMaxMaps; i++) {
+        const inA = document.getElementById(`map-${i}-a`);
+        const inB = document.getElementById(`map-${i}-b`);
+        if (!inA || !inB) continue;
+        const valA = inA.value.trim();
+        const valB = inB.value.trim();
+
+        if (valA === '' && valB === '') continue;
+
+        if (valA === '' || valB === '') {
+            alert(`Ván ${i} chưa nhập đủ điểm cho cả 2 đội.`);
+            return;
+        }
+
+        const a = parseInt(valA);
+        const b = parseInt(valB);
+
+        if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+            alert(`Điểm số ở Ván ${i} không hợp lệ.`);
+            return;
+        }
+
+        if (a === b) {
+            alert(`Ván ${i} có điểm hòa (${a}-${b}). Trong Valorant mỗi map phải có đội thắng.`);
+            return;
+        }
+
+        const mapWinnerId = a > b ? m.team_a_id : m.team_b_id;
+        if (a > b) wins_a++; else wins_b++;
+
+        maps.push({
+            team_a_score: a,
+            team_b_score: b,
+            winner_id: mapWinnerId,
+        });
     }
-    if (maps.length === 0) { alert('Vui lòng nhập ít nhất 1 map.'); return; }
+
+    if (maps.length === 0) {
+        alert('Vui lòng nhập điểm ít nhất 1 ván hoặc bấm nút "Chọn nhanh".');
+        return;
+    }
+
+    if (wins_a === wins_b) {
+        alert(`Tỉ số hiện đang hòa (${wins_a}-${wins_b}). Vui lòng nhập thêm ván quyết định để xác định đội chiến thắng.`);
+        return;
+    }
+
+    const winnerName = wins_a > wins_b ? m.team_a : m.team_b;
+    const scoreStr = wins_a > wins_b ? `${wins_a}-${wins_b}` : `${wins_b}-${wins_a}`;
+    const confirmMsg = `Xác nhận lưu kết quả: ${winnerName} chiến thắng với tỉ số ${scoreStr}?`;
+    if (!confirm(confirmMsg)) return;
+
+    const btn = document.getElementById('btn-save-manual');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Đang lưu kết quả...';
+    }
+
     const r = await API.post('/api/tournament/' + tourId + '/match/' + mid + '/manual', { maps });
-    if (r.error) { alert(r.error); } else { location.reload(); }
+    if (r.error) {
+        alert(r.error);
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '💾 Lưu kết quả trận đấu';
+        }
+    } else {
+        location.reload();
+    }
 }
 
 function drawBracketLines() {
