@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from config import Config
 from models import db
@@ -6,6 +7,15 @@ from models import db
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Ensure SQLite directory exists
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if db_uri.startswith('sqlite:///'):
+        db_path = db_uri[len('sqlite:///'):]
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+    os.makedirs(app.instance_path, exist_ok=True)
 
     db.init_app(app)
 
