@@ -54,16 +54,16 @@
 | `lo-fn` | `lower_final` | Chung kết nhánh thua |
 | `g-fn` | `grand_final` | Chung kết tổng |
 
-### A.5. Mùa giải flow
+### A.5. Mùa giải flow (Chế độ Cốt truyện - VCT Season Circuit)
 
 ```
-KO (Kick-off) → MJ (Major)
-S1 (Stage 1)  → MT (Master)
-[ EWC ] (Esports World Cup)
-S2 (Stage 2)  → CP (Champion)
+OQ (Open Qualifier: 16 Non-partner → 4 suất) 
+  → KO (Kick-off: 8 Partner + 4 OQ = 12 đội) → MJ (Major: 8 đội)
+  → S1 (Stage 1: 12 đội) → MT (Master: 12 đội) & [ EWC ] (16 đội)
+  → S2 (Stage 2: 12 đội) → CP (Champion: 16 đội)
+  → Year-End Hall of Fame & Recap
 ```
 
-Mỗi mùa: KO → MJ | S1 → MT | [ EWC ] | S2 → CP
 
 ---
 
@@ -222,13 +222,58 @@ Playoffs (8-team Single Elimination):
 
 ---
 
-## C. Quy tắc BO3 / BO5
+### B.5. Open Qualifier (Vòng tuyển chọn mở khu vực — 16 đội Non-Partner)
 
-| Loại trận | BO3/BO5 |
+```
+Quy mô:          16 đội Non-partner mỗi khu vực
+Số suất đi tiếp: 4 đội giành vé tham dự VCT Kickoff
+Tổng số trận:    43 trận / khu vực (33 Swiss + 10 Playoffs)
+Cấu trúc:        2 Giai đoạn: Swiss Stage (16 đội) + Double Elimination Playoffs (8 đội)
+
+Giai đoạn 1: Swiss Stage (16 đội, 3 Thắng đi tiếp / 3 Thua bị loại, tối đa 5 vòng, 33 trận)
+  - BO1 cho các trận thông thường (R1, R2, R3 nhánh 1-1).
+  - BO3 cho các trận quyết định đi tiếp hoặc bị loại (R3 2-0/0-2, R4 2-1/1-2, R5 2-2).
+  - Không tái đấu đối thủ cũ trong giai đoạn Swiss.
+  - Phân bổ trận đấu:
+    * Vòng 1 (0-0): 8 BO1 (8 trận)
+    * Vòng 2 (1-0 & 0-1): 8 BO1 (8 trận)
+    * Vòng 3 (2-0 BO3 x2, 1-1 BO1 x4, 0-2 BO3 x2): 4 BO3 + 4 BO1 (8 trận)
+    * Vòng 4 (2-1 BO3 x3, 1-2 BO3 x3): 6 BO3 (6 trận)
+    * Vòng 5 (2-2 BO3 x3): 3 BO3 (3 trận)
+  - Kết quả Swiss:
+    * 8 đội vượt qua: 2 đội (3-0), 3 đội (3-1), 3 đội (3-2) → Xếp hạt giống 1-8 vào Playoffs.
+    * 8 đội bị loại: 2 đội (0-3), 3 đội (1-3), 3 đội (2-3).
+
+Giai đoạn 2: Double Elimination Playoffs (8 đội, tất cả trận BO3, dừng ngay khi đủ 4 vé)
+  - Upper R1:
+    * M1: Seed 1 vs Seed 8
+    * M2: Seed 4 vs Seed 5
+    * M3: Seed 2 vs Seed 7
+    * M4: Seed 3 vs Seed 6
+  - Upper R2 (Tranh vé Kickoff 1 & 2):
+    * M5: Winner M1 vs Winner M2 → Winner giành Suất Kickoff #1!
+    * M6: Winner M3 vs Winner M4 → Winner giành Suất Kickoff #2!
+  - Lower R1 (Thua bị loại):
+    * M7: Loser M1 vs Loser M2 → Loser bị loại.
+    * M8: Loser M3 vs Loser M4 → Loser bị loại.
+  - Lower Qualification (Tranh vé Kickoff 3 & 4):
+    * M9: Winner M7 vs Loser M5 → Winner giành Suất Kickoff #3!
+    * M10: Winner M8 vs Loser M6 → Winner giành Suất Kickoff #4!
+  - Dừng giải ngay sau M9 & M10: Đã xác định đủ 4 đội giành vé Kickoff cùng 8 đội Partner!
+```
+
+---
+
+## C. Quy tắc BO1 / BO3 / BO5
+
+| Loại trận | Thể thức |
 |-----------|---------|
-| Tất cả Swiss / Group | BO3 |
-| Upper Bracket (tất cả các vòng) | BO3 |
-| Lower Round 1, Quarterfinal, Semifinal | BO3 |
+| Open Qualifier Swiss thông thường (R1, R2, R3 nhánh 1-1) | **BO1** |
+| Open Qualifier Swiss quyết định (R3 2-0/0-2, R4, R5) | **BO3** |
+| Open Qualifier Playoffs (toàn bộ 10 trận M1-M10) | **BO3** |
+| Tất cả Swiss / Group (Major, Master, Champion, EWC) | **BO3** |
+| Upper Bracket (tất cả các vòng) | **BO3** |
+| Lower Round 1, Quarterfinal, Semifinal | **BO3** |
 | **Trận Tranh Hạng 3 (EWC)** | **BO3** |
 | **Lower Final** | **BO5** |
 | **Grand Final** | **BO5** |

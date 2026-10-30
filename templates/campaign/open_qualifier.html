@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% block title %}Open Qualifier - {{ campaign.name }}{% endblock %}
+{% block content %}
+
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold;">
+      {{ campaign.name }} • Vòng Tuyển Chọn Mở
+    </div>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">Open Qualifier (16 Non-Partner / Khu vực)</h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      Thể thức: Thụy Sĩ (Swiss 33 trận) + Double Elimination Playoffs (10 trận) = <strong>43 trận/khu vực</strong>. Chọn 4 đội vào Kickoff.
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Mùa giải
+    </a>
+  </div>
+</div>
+
+<!-- Regional Tabs & Simulation Action Bar -->
+<div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div class="region-tabs" style="display: flex; gap: 8px;">
+      {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+      {% set r_done = (oq_data and oq_data.regions and r_slug in oq_data.regions) %}
+      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchOqRegion('{{ r_slug }}')">
+        {{ r_slug|upper }}
+        {% if r_done %}
+          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong</span>
+        {% else %}
+          <span style="font-size: 0.75em; background: #ef4444; color: #fff; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">Chưa đấu</span>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button type="button" id="btn-sim-region" class="btn-start" onclick="simSelectedRegion()" style="padding: 9px 18px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim khu vực hiện tại (43 trận)
+      </button>
+      <button type="button" id="btn-sim-all" class="btn-start" onclick="simAllRegions()" style="padding: 9px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim cả 4 khu vực (172 trận)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Regional Views -->
+{% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+{% set r_sim = (oq_data.regions.get(r_slug) if oq_data and oq_data.regions else None) %}
+<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
+
+  {% if r_sim %}
+  <!-- Qualified to Kickoff Banner -->
+  <div class="card" style="border: 2px solid #22c55e; background: rgba(34, 197, 94, 0.05); margin-bottom: 24px;">
+    <h2 style="color: #4ade80; margin-bottom: 6px; font-size: 1.25em;">
+      🎉 4 ĐỘI TUYỂN GIÀNH VÉ THAM DỰ VCT KICKOFF ({{ r_slug|upper }})
+    </h2>
+    <p style="color: var(--dim); font-size: 0.9em; margin-bottom: 14px;">
+      Bốn đội tuyển này đã xuất sắc vượt qua 43 trận đấu căng thẳng để gia nhập 8 đội Partner tại VCT Kickoff!
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+      {% for q in r_sim.qualified_teams %}
+      <div class="qualifier-card" style="display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px;">
+        <div style="font-size: 1.3em; font-weight: 800; color: #4ade80; width: 32px; text-align: center;">
+          #{{ loop.index }}
+        </div>
+        {% if q.logo_url %}
+        <img src="{{ q.logo_url }}" alt="" style="width: 38px; height: 38px; object-fit: contain;" onerror="this.style.display='none'">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; font-size: 1.1em; color: #fff;">{{ q.name }}</div>
+          <div style="font-size: 0.85em; color: #4ade80;">
+            Vé Kickoff Suất #{{ loop.index }}
+            {% if loop.index <= 2 %} (Upper R2) {% else %} (Lower Qual) {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Stage 1: Swiss Stage (33 Matches) -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+      <div>
+        <h2 style="margin: 0; font-size: 1.25em; color: var(--accent);">Giai đoạn 1: Swiss Stage (33 trận)</h2>
+        <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+          Đạt 3 trận thắng: Vào Playoffs • Thua 3 trận: Bị loại. BO1 ở trận thường, BO3 ở trận quyết định.
+        </p>
+      </div>
+      <div>
+        <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);">
+          33 Trận đấu đã hoàn thành
+        </span>
+      </div>
+    </div>
+
+    <!-- Swiss Standings Table -->
+    <div class="table-scroll" style="margin-bottom: 20px;">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th>Hạng</th>
+            <th class="team-col">Đội tuyển</th>
+            <th class="wl-col">W - L</th>
+            <th>Buchholz</th>
+            <th>Hiệu số Maps</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in r_sim.swiss_standings %}
+          <tr style="{% if s.advanced %}background: rgba(34, 197, 94, 0.08);{% else %}background: rgba(239, 68, 68, 0.04);{% endif %}">
+            <td style="text-align: center; font-weight: bold;">{{ s.rank }}</td>
+            <td>
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
+                {% if s.team.logo_url %}
+                <img class="team-logo-sm" src="{{ s.team.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% endif %}
+                <strong style="color: #fff;">{{ s.team.name }}</strong>
+                <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+              </div>
+            </td>
+            <td style="text-align: center; font-weight: bold; font-size: 1.05em; color: {% if s.wins == 3 %}#4ade80{% else %}#f87171{% endif %};">
+              {{ s.wins }} - {{ s.losses }}
+            </td>
+            <td style="text-align: center;">{{ s.buchholz }}</td>
+            <td style="text-align: center; color: {% if s.map_diff > 0 %}#4ade80{% elif s.map_diff < 0 %}#f87171{% else %}var(--dim){% endif %};">
+              {% if s.map_diff > 0 %}+{{ s.map_diff }}{% else %}{{ s.map_diff }}{% endif %}
+            </td>
+            <td style="text-align: center;">
+              {% if s.advanced %}
+              <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: bold;">
+                ✓ Vào Playoffs (Seed {{ s.rank }})
+              </span>
+              {% else %}
+              <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">
+                ✗ Bị loại
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Swiss Matches by Round Collapsible/Tabbed View -->
+    <h3 style="font-size: 1em; color: var(--yellow); margin-bottom: 10px;">Chi tiết kết quả 5 vòng Swiss</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+      {% for round_num in range(1, 6) %}
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+        <div style="font-weight: bold; color: #fff; font-size: 0.9em; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
+          Vòng {{ round_num }}
+          <span style="font-size: 0.8em; color: var(--dim); font-weight: normal;">
+            {% if round_num == 1 %}(8 BO1){% elif round_num == 2 %}(8 BO1){% elif round_num == 3 %}(4 BO3 + 4 BO1){% elif round_num == 4 %}(6 BO3){% else %}(3 BO3){% endif %}
+          </span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          {% for m in r_sim.swiss_matches %}
+          {% if m.round == round_num %}
+          <div style="font-size: 0.82em; padding: 6px; background: var(--surface); border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: {% if m.winner_id == m.team_a.id %}#4ade80; font-weight: bold;{% else %}var(--dim);{% endif %}">
+              {{ m.team_a.short_code }}
+            </span>
+            <span style="font-weight: bold; color: #fff; padding: 0 4px; background: var(--bg); border-radius: 3px;">
+              {{ m.team_a_score }} - {{ m.team_b_score }}
+            </span>
+            <span style="color: {% if m.winner_id == m.team_b.id %}#4ade80; font-weight: bold;{% else %}var(--dim);{% endif %}">
+              {{ m.team_b.short_code }}
+            </span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Stage 2: Playoffs Double Elimination (10 Matches BO3) -->
+  <div class="card">
+    <h2 style="color: var(--accent); margin-bottom: 4px; font-size: 1.25em;">
+      Giai đoạn 2: Double Elimination Playoffs (10 trận BO3)
+    </h2>
+    <p style="font-size: 0.85em; color: var(--dim); margin-bottom: 16px;">
+      8 đội vượt qua Swiss tranh 4 tấm vé Kickoff. Ngay khi xác định đủ 4 đội giành vé, giải đấu dừng lại mà không cần Chung kết.
+    </p>
+
+    <!-- Upper Bracket Section -->
+    <div style="margin-bottom: 20px;">
+      <h3 style="font-size: 1em; color: #3b82f6; margin-bottom: 10px;">Nhánh Thắng (Upper Bracket)</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+        <!-- Upper R1: M1-M4 -->
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: bold; color: var(--dim); font-size: 0.85em; margin-bottom: 8px;">Upper Round 1 (4 trận)</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {% for m in r_sim.playoff_matches %}
+            {% if m.match_code in ['M1', 'M2', 'M3', 'M4'] %}
+            <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
+              <div style="font-size: 0.75em; color: var(--dim); margin-bottom: 4px;">{{ m.label }} ({{ m.match_code }})</div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                <span style="color: {% if m.winner_id == m.team_a.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_a.name }}</span>
+                <strong>{{ m.team_a_score }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 2px;">
+                <span style="color: {% if m.winner_id == m.team_b.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_b.name }}</span>
+                <strong>{{ m.team_b_score }}</strong>
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Upper R2: M5, M6 (Qualification Matches) -->
+        <div style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 12px;">
+          <div style="font-weight: bold; color: #4ade80; font-size: 0.85em; margin-bottom: 8px;">
+            Upper Round 2 - TRANH VÉ 1 & 2 (2 trận)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {% for m in r_sim.playoff_matches %}
+            {% if m.match_code in ['M5', 'M6'] %}
+            <div style="padding: 8px; background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px;">
+              <div style="font-size: 0.75em; color: #4ade80; font-weight: bold; margin-bottom: 4px;">
+                {{ m.label }} • Thắng = VÉ KICKOFF!
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                <span style="color: {% if m.winner_id == m.team_a.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_a.name }}</span>
+                <strong>{{ m.team_a_score }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 2px;">
+                <span style="color: {% if m.winner_id == m.team_b.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_b.name }}</span>
+                <strong>{{ m.team_b_score }}</strong>
+              </div>
+              <div style="margin-top: 6px; font-size: 0.8em; color: #4ade80;">
+                ➔ Vé Kickoff: <strong>{{ m.winner.short_code }}</strong>
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lower Bracket Section -->
+    <div>
+      <h3 style="font-size: 1em; color: #eab308; margin-bottom: 10px;">Nhánh Thua (Lower Bracket)</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+        <!-- Lower R1: M7, M8 -->
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: bold; color: var(--dim); font-size: 0.85em; margin-bottom: 8px;">Lower Round 1 (Thua bị loại)</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {% for m in r_sim.playoff_matches %}
+            {% if m.match_code in ['M7', 'M8'] %}
+            <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;">
+              <div style="font-size: 0.75em; color: var(--dim); margin-bottom: 4px;">{{ m.label }} ({{ m.match_code }})</div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                <span style="color: {% if m.winner_id == m.team_a.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_a.name }}</span>
+                <strong>{{ m.team_a_score }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 2px;">
+                <span style="color: {% if m.winner_id == m.team_b.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_b.name }}</span>
+                <strong>{{ m.team_b_score }}</strong>
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Lower Qual: M9, M10 -->
+        <div style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 12px;">
+          <div style="font-weight: bold; color: #4ade80; font-size: 0.85em; margin-bottom: 8px;">
+            Lower Qualification - TRANH VÉ 3 & 4 (2 trận)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            {% for m in r_sim.playoff_matches %}
+            {% if m.match_code in ['M9', 'M10'] %}
+            <div style="padding: 8px; background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px;">
+              <div style="font-size: 0.75em; color: #4ade80; font-weight: bold; margin-bottom: 4px;">
+                {{ m.label }} • Thắng = VÉ KICKOFF!
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                <span style="color: {% if m.winner_id == m.team_a.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_a.name }}</span>
+                <strong>{{ m.team_a_score }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 2px;">
+                <span style="color: {% if m.winner_id == m.team_b.id %}#4ade80; font-weight: bold;{% endif %}">{{ m.team_b.name }}</span>
+                <strong>{{ m.team_b_score }}</strong>
+              </div>
+              <div style="margin-top: 6px; font-size: 0.8em; color: #4ade80;">
+                ➔ Vé Kickoff: <strong>{{ m.winner.short_code }}</strong>
+              </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Not Simulated Yet State -->
+  <div class="card" style="text-align: center; padding: 48px 24px;">
+    <div style="font-size: 3em; margin-bottom: 12px;">⚔️</div>
+    <h2 style="font-size: 1.4em; color: #fff; margin-bottom: 8px;">Vòng loại {{ r_slug|upper }} chưa diễn ra</h2>
+    <p style="color: var(--dim); max-width: 500px; margin: 0 auto 20px;">
+      16 đội tuyển Non-Partner của khu vực {{ r_slug|upper }} đã sẵn sàng bước vào 43 trận đấu theo thể thức Swiss và Double Elimination.
+    </p>
+    <button type="button" class="btn-start" onclick="simSelectedRegion()" style="padding: 12px 28px; font-size: 1.05em; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer;">
+      Bắt đầu mô phỏng {{ r_slug|upper }} ngay
+    </button>
+  </div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeRegion = '{{ selected_region or "pacific" }}';
+
+function switchOqRegion(rSlug) {
+  activeRegion = rSlug;
+  document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.oq-region-view').forEach(v => v.classList.remove('active'));
+  
+  event.target.closest('.region-tab-btn').classList.add('active');
+  const view = document.getElementById(`oq-view-${rSlug}`);
+  if (view) view.classList.add('active');
+}
+
+async function simSelectedRegion() {
+  if (!confirm(`Bạn có chắc muốn mô phỏng 43 trận đấu Open Qualifier cho khu vực ${activeRegion.toUpperCase()}?`)) return;
+
+  const btn = document.getElementById('btn-sim-region');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim`, {
+      region_slug: activeRegion
+    });
+    if (res.success) {
+      window.location.href = `/campaign/{{ campaign.id }}/stage/open_qualifier?region=${activeRegion}`;
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim khu vực hiện tại (43 trận)';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '⚡ Sim khu vực hiện tại (43 trận)';
+  }
+}
+
+async function simAllRegions() {
+  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ 4 khu vực (172 trận đấu Open Qualifier)?")) return;
+
+  const btn = document.getElementById('btn-sim-all');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng 172 trận...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim`, {});
+    if (res.success) {
+      window.location.href = `/campaign/{{ campaign.id }}/stage/open_qualifier?region=${activeRegion}`;
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim cả 4 khu vực (172 trận)';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔥 Sim cả 4 khu vực (172 trận)';
+  }
+}
+</script>
+
+<style>
+.oq-region-view { display: none; }
+.oq-region-view.active { display: block; }
+</style>
+{% endblock %}

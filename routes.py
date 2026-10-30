@@ -1,8 +1,11 @@
 """Flask routes for VALORANT Tournament Simulator."""
 
 import json
-from flask import request, jsonify, render_template, Response
-from models import db, Club, Region, Tournament, TournamentParticipant, Match, MatchMap
+from flask import request, jsonify, render_template, Response, redirect, url_for
+from models import (
+    db, Club, Region, Tournament, TournamentParticipant, Match, MatchMap,
+    Campaign, CampaignClubState, CampaignStage, CampaignSeason
+)
 from engine.tournament import (
     create_tournament, generate_bracket, progress_tournament, simulate_all_pending,
     simulate_round,
@@ -290,3 +293,111 @@ def register_routes(app):
             groups_data=groups_data,
             final_standings=final_standings,
         )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Campaign / Story Mode (Chế độ Cốt truyện)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    from services.campaign_service import (
+        create_campaign, get_campaign, list_campaigns,
+        get_campaign_club_states, update_club_form, bulk_update_form,
+        run_open_qualifier_stage, get_open_qualifier_data,
+    )
+
+    @app.route('/campaigns')
+    def campaigns_list():
+        campaigns = list_campaigns()
+        return render_template('campaign/list.html', campaigns=campaigns, cfg=Config)
+
+    @app.route('/campaigns/create', methods=['POST'])
+    def campaign_create():
+        name = request.form.get('name', 'VCT 2027 Circuit Journey').strip()
+        year = int(request.form.get('year', 2027))
+        campaign = create_campaign(name=name, start_year=year)
+        return redirect(url_for('campaign_detail', campaign_id=campaign.id))
+
+    @app.route('/campaign/<int:campaign_id>/delete', methods=['POST'])
+    def campaign_delete(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if campaign:
+            db.session.delete(campaign)
+            db.session.commit()
+        return redirect(url_for('campaigns_list'))
+
+    @app.route('/campaign/<int:campaign_id>')
+    def campaign_detail(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        club_states = get_campaign_club_states(campaign_id)
+        oq_data = get_open_qualifier_data(campaign_id)
+
+        stages_info = []
+        current_found = False
+        for s in Config.CIRCUIT_STAGES:
+            is_past = not current_found and s['key'] != campaign.current_stage
+            if s['key'] == campaign.current_stage:
+                current_found = True
+            stages_info.append({
+                'key': s['key'],
+                'name': s['name'],
+                'desc': s['desc'],
+                'is_past': is_past,
+            })
+
+        return render_template(
+            'campaign/detail.html',
+            campaign=campaign,
+            club_states=club_states,
+            stages_info=stages_info,
+            oq_data=oq_data,
+            cfg=Config,
+        )
+
+    @app.route('/campaign/<int:campaign_id>/stage/open_qualifier')
+    def campaign_open_qualifier_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        oq_data = get_open_qualifier_data(campaign_id)
+        selected_region = request.args.get('region', 'pacific')
+
+        return render_template(
+            'campaign/open_qualifier.html',
+            campaign=campaign,
+            oq_data=oq_data,
+            selected_region=selected_region,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/open_qualifier/sim', methods=['POST'])
+    def api_campaign_open_qualifier_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region_slug')
+        if region_slug == '':
+            region_slug = None
+
+        try:
+            results = run_open_qualifier_stage(campaign_id, region_slug=region_slug)
+            return jsonify({'success': True, 'results': results})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/form/update', methods=['POST'])
+    def api_campaign_form_update(campaign_id):
+        data = request.get_json() or {}
+        club_id = data.get('club_id')
+        form_modifier = data.get('form_modifier', 0)
+
+        if not club_id:
+            return jsonify({'error': 'club_id is required'}), 400
+
+        success = update_club_form(campaign_id, club_id, form_modifier)
+        return jsonify({'success': success})
+

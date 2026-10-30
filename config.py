@@ -54,3 +54,23 @@ class Config:
         'champion': {'pacific': 4, 'americas': 4, 'emea': 4, 'china': 4},
         'ewc': {'pacific': 4, 'americas': 4, 'emea': 4, 'china': 4},
     }
+
+    PARTNER_TEAMS_BY_REGION = {
+        'pacific': ['PRX', 'GEN', 'T1', 'ZETA', 'RRQ', 'CR', 'FS', 'GAM'],
+        'americas': ['100T', 'G2', 'KRU', 'LEV', 'LOUD', 'MIBR', 'NRG', 'SEN'],
+        'emea': ['BBL', 'FNC', 'FUT', 'M8', 'KC', 'TH', 'TL', 'VIT'],
+        'china': ['AG', 'BLG', 'EDG', 'JDG', 'TE', 'TYL', 'WBG', 'XLG'],
+    }
+
+    CIRCUIT_STAGES = [
+        {'key': 'open_qualifier', 'name': 'Open Qualifier', 'type': 'regional', 'desc': '16 Non-partners → 4 Kickoff qualifiers per region'},
+        {'key': 'kickoff', 'name': 'Regional Kickoff', 'type': 'regional', 'desc': '8 Partners + 4 Qualifiers → Top 2 to Major'},
+        {'key': 'major', 'name': 'VCT Major (Masters 1)', 'type': 'international', 'desc': '8 World elite teams (Top 2 per region)'},
+        {'key': 'stage1', 'name': 'Regional Stage 1', 'type': 'regional', 'desc': '12 teams → Top 3 to Masters, Top 4 to EWC'},
+        {'key': 'master', 'name': 'VCT Masters (Masters 2)', 'type': 'international', 'desc': '12 International teams'},
+        {'key': 'ewc', 'name': 'Esports World Cup (EWC)', 'type': 'international', 'desc': '16 World teams (GSL Groups + Playoffs)'},
+        {'key': 'stage2', 'name': 'Regional Stage 2', 'type': 'regional', 'desc': '12 teams → Final Championship Points battle'},
+        {'key': 'champion', 'name': 'VALORANT Champions', 'type': 'international', 'desc': '16 Best teams worldwide (World Championship)'},
+        {'key': 'season_summary', 'name': 'Year-End Hall of Fame', 'type': 'summary', 'desc': 'Annual Recap, Title Winners & MVP'},
+    ]
+

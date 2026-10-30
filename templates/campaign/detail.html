@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }} ({{ campaign.current_year }}) - Hub{% endblock %}
+{% block content %}
+
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.9em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">
+      VCT Season Circuit • Năm {{ campaign.current_year }}
+    </div>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">{{ campaign.name }}</h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      Giai đoạn hiện tại: <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); text-transform: uppercase; font-weight: bold;">{{ campaign.current_stage }}</span>
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <button type="button" class="btn-sm btn-edit" onclick="openFormModal()" style="padding: 10px 16px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+      ⚙️ Tùy chỉnh phong độ đội
+    </button>
+    <a href="/campaigns" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      Danh sách mùa
+    </a>
+  </div>
+</div>
+
+<!-- Circuit Roadmap Timeline -->
+<div class="circuit-roadmap card" style="margin-bottom: 24px;">
+  <div class="roadmap-stages-bar">
+    {% for s in stages_info %}
+    <div class="stage-step {% if s.key == campaign.current_stage %}active{% elif s.is_past %}completed{% endif %}">
+      <div class="step-num">
+        {% if s.is_past %}✓{% else %}{{ loop.index }}{% endif %}
+      </div>
+      <div class="step-info">
+        <strong>{{ s.name }}</strong>
+        <span>{{ s.desc }}</span>
+      </div>
+    </div>
+    {% if not loop.last %}
+    <div class="stage-arrow">➔</div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Current Stage Action Panel -->
+<div class="card current-stage-panel" style="border: 2px solid var(--accent); margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+    <div>
+      <span style="font-size: 0.8em; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase;">
+        Sàn đấu tiếp theo
+      </span>
+      <h2 style="font-size: 1.5em; margin: 8px 0 4px; color: #fff;">
+        {% if campaign.current_stage == 'open_qualifier' %}
+          Vòng tuyển chọn Open Qualifier (43 trận / khu vực)
+        {% elif campaign.current_stage == 'kickoff' %}
+          VCT Kickoff (12 đội: 8 Partner + 4 Open Qualifiers)
+        {% else %}
+          {{ campaign.current_stage.upper() }}
+        {% endif %}
+      </h2>
+      <p style="color: var(--dim); font-size: 0.95em;">
+        {% if campaign.current_stage == 'open_qualifier' %}
+          16 đội Non-Partner mỗi khu vực tranh tài qua thể thức Thụy Sĩ (Swiss 33 trận) và Double Elimination Playoffs (10 trận) để giành 4 tấm vé đi Kickoff.
+        {% elif campaign.current_stage == 'kickoff' %}
+          8 đội Partner đối đầu cùng 4 đội Non-partner vượt qua vòng loại. 2 đội xuất sắc nhất mỗi khu vực sẽ giành vé tới giải VCT Major quốc tế!
+        {% endif %}
+      </p>
+    </div>
+    <div>
+      {% if campaign.current_stage == 'open_qualifier' %}
+        <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Open Qualifier ➔
+        </a>
+      {% else %}
+        <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 8px 16px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block;">
+          Xem lại kết quả Open Qualifier
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if oq_data and oq_data.regions %}
+  <div class="oq-quick-summary" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+    <h3 style="font-size: 0.95em; color: var(--yellow); margin-bottom: 10px; text-transform: uppercase;">
+      Kết quả vòng loại Open Qualifier đã xong (4 khu vực):
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+      {% for r_slug, r_data in oq_data.regions.items() %}
+      <div style="padding: 10px; background: var(--surface); border-radius: 6px; border-left: 4px solid var(--green);">
+        <strong style="color: #fff; text-transform: uppercase;">{{ r_slug }}:</strong>
+        <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">4 Đội giành vé Kickoff:</div>
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          {% for q in r_data.qualified_teams %}
+          <span style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
+            {{ q.short_code }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Regional Clubs & Power Ratings Inspector -->
+<div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h2 style="margin: 0; font-size: 1.2em;">Lực lượng các đội tuyển (96 Đội VCT)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        Đánh giá sức mạnh (Story Rating) và phong độ động (Form Modifier). Được cách ly hoàn toàn với chế độ đơn lẻ!
+      </p>
+    </div>
+    <div class="region-tabs" style="display: flex; gap: 6px;">
+      <button type="button" class="region-tab-btn active" onclick="switchRegionTab('pacific')">Pacific (24)</button>
+      <button type="button" class="region-tab-btn" onclick="switchRegionTab('americas')">Americas (24)</button>
+      <button type="button" class="region-tab-btn" onclick="switchRegionTab('emea')">EMEA (24)</button>
+      <button type="button" class="region-tab-btn" onclick="switchRegionTab('china')">China (24)</button>
+    </div>
+  </div>
+
+  {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+  <div id="region-panel-{{ r_slug }}" class="region-content-panel {% if loop.first %}active{% endif %}">
+    <div style="margin-bottom: 12px; display: flex; gap: 16px; font-size: 0.85em;">
+      <span style="color: #fbbf24;">★ 8 Đội Partner chính thức (Đặc cách Kickoff)</span>
+      <span style="color: #60a5fa;">⚔️ 16 Đội Non-Partner (Vòng loại Open Qualifier)</span>
+    </div>
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th>Phân loại</th>
+            <th class="team-col">Đội tuyển</th>
+            <th>Khu vực</th>
+            <th>Sức mạnh gốc</th>
+            <th>Phong độ (Form)</th>
+            <th>Sức mạnh thực tế</th>
+            <th>Điểm CP</th>
+            <th>Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cs in club_states %}
+          {% if cs.club.region.slug == r_slug %}
+          <tr style="{% if cs.is_partner %}background: rgba(234, 179, 8, 0.05);{% endif %}">
+            <td>
+              {% if cs.is_partner %}
+              <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold;">
+                ★ Partner
+              </span>
+              {% else %}
+              <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+                Non-Partner
+              </span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
+                {% if cs.club.logo_url %}
+                <img class="team-logo-sm" src="{{ cs.club.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% endif %}
+                <strong style="color: #fff;">{{ cs.club.name }}</strong>
+                <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ cs.club.short_code }})</span>
+              </div>
+            </td>
+            <td>{{ r_slug|upper }}</td>
+            <td style="text-align: center; font-weight: bold;">{{ cs.story_rating }}</td>
+            <td style="text-align: center;">
+              {% if cs.form_modifier > 0 %}
+                <span style="color: #4ade80; font-weight: bold;">+{{ cs.form_modifier }}</span>
+              {% elif cs.form_modifier < 0 %}
+                <span style="color: #f87171; font-weight: bold;">{{ cs.form_modifier }}</span>
+              {% else %}
+                <span style="color: var(--dim);">0</span>
+              {% endif %}
+            </td>
+            <td style="text-align: center; font-size: 1.1em; font-weight: bold; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% else %}#94a3b8{% endif %};">
+              {{ cs.effective_rating }}
+            </td>
+            <td style="text-align: center; font-weight: bold; color: var(--yellow);">{{ cs.championship_points }}</td>
+            <td style="text-align: center;">
+              <button type="button" class="btn-sm" onclick="editSingleClubForm({{ cs.club_id }}, '{{ cs.club.short_code }}', {{ cs.form_modifier }})" style="padding: 4px 8px; font-size: 0.8em; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">
+                Chỉnh phong độ
+              </button>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal Tùy chỉnh phong độ -->
+<div id="form-modifier-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="modal-card card" style="max-width: 500px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+    <h3 id="modal-title" style="margin-bottom: 8px; color: #fff;">Chỉnh phong độ đội</h3>
+    <p style="font-size: 0.85em; color: var(--dim); margin-bottom: 16px;">
+      Tùy chỉnh phong độ từ -10 đến +10 trước khi vào giải đấu. Giá trị này tác động trực tiếp lên sức mạnh khi thi đấu khu vực!
+    </p>
+
+    <div style="margin-bottom: 16px;">
+      <label>Mức điều chỉnh phong độ (-10 đến +10):</label>
+      <input type="number" id="modal-form-input" min="-10" max="10" value="0" style="font-size: 1.2em; font-weight: bold; text-align: center;">
+    </div>
+
+    <div style="display: flex; gap: 8px; margin-bottom: 20px; justify-content: center;">
+      <button type="button" class="btn-sm" onclick="setPresetForm(3)" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #4ade80; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Thăng hoa (+3)</button>
+      <button type="button" class="btn-sm" onclick="setPresetForm(0)" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; cursor: pointer;">Bình thường (0)</button>
+      <button type="button" class="btn-sm" onclick="setPresetForm(-3)" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #f87171; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Sa sút (-3)</button>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" onclick="closeFormModal()" style="padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Hủy
+      </button>
+      <button type="button" onclick="saveSingleClubForm()" style="padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        Lưu thay đổi
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEditingClubId = null;
+
+function switchRegionTab(region) {
+  document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.region-content-panel').forEach(p => p.classList.remove('active'));
+  
+  event.target.classList.add('active');
+  const panel = document.getElementById(`region-panel-${region}`);
+  if (panel) panel.classList.add('active');
+}
+
+function editSingleClubForm(clubId, shortCode, currentForm) {
+  currentEditingClubId = clubId;
+  document.getElementById('modal-title').textContent = `Tùy chỉnh phong độ: ${shortCode}`;
+  document.getElementById('modal-form-input').value = currentForm || 0;
+  document.getElementById('form-modifier-modal').style.display = 'flex';
+}
+
+function openFormModal() {
+  // Shortcut to tweak
+  alert("Bạn có thể bấm nút 'Chỉnh phong độ' ở từng đội tuyển trong bảng bên dưới để tinh chỉnh riêng cho từng đội trước khi sim giải!");
+}
+
+function closeFormModal() {
+  document.getElementById('form-modifier-modal').style.display = 'none';
+  currentEditingClubId = null;
+}
+
+function setPresetForm(val) {
+  document.getElementById('modal-form-input').value = val;
+}
+
+async function saveSingleClubForm() {
+  if (!currentEditingClubId) return;
+  const val = parseInt(document.getElementById('modal-form-input').value, 10) || 0;
+  
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/form/update`, {
+      club_id: currentEditingClubId,
+      form_modifier: val
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể cập nhật"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+</script>
+
+<style>
+.region-content-panel { display: none; }
+.region-content-panel.active { display: block; }
+
+.region-tab-btn {
+  padding: 6px 14px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.region-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.roadmap-stages-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+}
+.stage-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 150px;
+  flex-shrink: 0;
+}
+.stage-step.active {
+  border-color: var(--accent);
+  background: rgba(255, 70, 85, 0.1);
+}
+.stage-step.completed {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+.stage-step.completed .step-num {
+  background: #22c55e;
+  color: #fff;
+}
+.stage-step.active .step-num {
+  background: var(--accent);
+  color: #fff;
+}
+.step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+.step-info {
+  display: flex;
+  flex-direction: column;
+}
+.step-info strong {
+  font-size: 0.85em;
+  color: #fff;
+}
+.step-info span {
+  font-size: 0.75em;
+  color: var(--dim);
+}
+.stage-arrow {
+  color: var(--dim);
+  font-size: 1.1em;
+  flex-shrink: 0;
+}
+</style>
+{% endblock %}

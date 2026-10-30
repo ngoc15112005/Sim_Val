@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Chế độ Cốt truyện - VCT Circuits{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>🏆 Chế độ Cốt truyện (VCT Season Circuit)</h1>
+  <p>Hành trình 1 năm thi đấu đỉnh cao theo đúng lịch trình VALORANT Champions Tour</p>
+</section>
+
+<div class="circuit-roadmap card" style="margin-bottom: 24px;">
+  <h2 style="margin-bottom: 8px;">Lộ trình mùa giải chuyên nghiệp (Circuit Roadmap)</h2>
+  <div class="roadmap-stages-bar">
+    <div class="stage-step active">
+      <div class="step-num">1</div>
+      <div class="step-info">
+        <strong>Open Qualifier</strong>
+        <span>16 Non-partners → 4 Vé</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">2</div>
+      <div class="step-info">
+        <strong>VCT Kickoff</strong>
+        <span>8 Partner + 4 Vé (12 đội)</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">3</div>
+      <div class="step-info">
+        <strong>VCT Major</strong>
+        <span>Top 2 mỗi vùng (8 đội)</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">4</div>
+      <div class="step-info">
+        <strong>Stage 1</strong>
+        <span>12 đội khu vực</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">5</div>
+      <div class="step-info">
+        <strong>Masters & EWC</strong>
+        <span>12 Masters + 16 EWC</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">6</div>
+      <div class="step-info">
+        <strong>Stage 2</strong>
+        <span>Cuộc đua điểm CP</span>
+      </div>
+    </div>
+    <div class="stage-arrow">➔</div>
+    <div class="stage-step">
+      <div class="step-num">7</div>
+      <div class="step-info">
+        <strong>Champions</strong>
+        <span>Giải thế giới danh giá</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Khởi tạo mùa giải mới</h2>
+    <form action="/campaigns/create" method="POST">
+      <label>Tên mùa giải:</label>
+      <input type="text" name="name" value="VCT 2027 Circuit Journey" required>
+
+      <label>Năm thi đấu:</label>
+      <input type="number" name="year" value="2027" min="2024" max="2035" required>
+
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 12px; line-height: 1.4;">
+        ℹ️ Khi tạo mùa giải, hệ thống sẽ tự động sao chép 96 đội tuyển (32 đội Partner chính thức + 64 đội Non-Partner) vào cơ sở dữ liệu riêng của mùa giải. Sức mạnh và phong độ sẽ được theo dõi xuyên suốt mùa giải mà không ảnh hưởng tới chế độ đơn lẻ!
+      </p>
+
+      <div class="form-actions" style="margin-top: 16px;">
+        <button type="submit" class="btn-start" style="width: 100%; padding: 10px 16px; font-weight: bold; font-size: 1em;">
+          🚀 Bắt đầu mùa giải mới
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Danh sách mùa giải đang lưu</h2>
+    {% if campaigns %}
+      <ul class="campaign-list" style="list-style: none; padding: 0;">
+        {% for c in campaigns %}
+          <li class="campaign-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: bold; font-size: 1.05em; color: #fff;">
+                {{ c.name }} <span style="font-size: 0.85em; color: var(--yellow);">({{ c.current_year }})</span>
+              </div>
+              <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">
+                Giai đoạn: <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); text-transform: uppercase;">{{ c.current_stage }}</span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <a href="/campaign/{{ c.id }}" class="action-btn view-btn" style="text-decoration: none; padding: 6px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-weight: bold;">
+                Vào chơi ➔
+              </a>
+              <form action="/campaign/{{ c.id }}/delete" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mùa giải này không?');" style="display: inline;">
+                <button type="submit" class="action-btn delete-btn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+                  Xóa
+                </button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p style="color: var(--dim); text-align: center; padding: 24px 0;">
+        Chưa có mùa giải nào được tạo. Hãy nhấn "Bắt đầu mùa giải mới" ở cột bên trái!
+      </p>
+    {% endif %}
+  </section>
+</div>
+
+{% endblock %}

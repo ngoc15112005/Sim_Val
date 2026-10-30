@@ -22,6 +22,7 @@ def create_app():
     with app.app_context():
         from models import Region, Club, Role, Player, Tournament
         from models import TournamentParticipant, Match, MatchMap, ClubRating
+        from models import Campaign, CampaignClubState, CampaignStage, CampaignSeason
         db.create_all()
         if Region.query.count() == 0 or Club.query.count() == 0:
             from seed import seed_initial_data

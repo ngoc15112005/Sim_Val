@@ -125,6 +125,59 @@
 
 ---
 
+### Bảng Chế độ Cốt truyện (Campaign / Story Mode)
+
+#### `campaigns` — Mùa giải cốt truyện
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| id | INTEGER PK | |
+| name | VARCHAR(100) | Tên mùa giải (VD: VCT 2027 Circuit Journey) |
+| current_year | INTEGER | Năm mùa giải (2027) |
+| current_stage | VARCHAR(30) | Giai đoạn hiện tại (`open_qualifier`, `kickoff`, `major`, ...) |
+| status | VARCHAR(20) | Trạng thái (`active`, `completed`) |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
+
+#### `campaign_club_states` — Sức mạnh và phong độ động của 96 đội tuyển
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| id | INTEGER PK | |
+| campaign_id | FK → campaigns.id | |
+| club_id | FK → clubs.id | |
+| story_rating | INTEGER | Sức mạnh nội bộ mùa giải (cách ly với giải đơn lẻ) |
+| form_modifier | INTEGER | Điều chỉnh phong độ (-10 đến +10) người chơi tùy chỉnh |
+| championship_points | INTEGER | Điểm tích lũy tranh vé Champions (CP) |
+| is_partner | BOOLEAN | `True` cho 32 đội Partner VCT 2027, `False` cho 64 đội Non-partner |
+
+#### `campaign_stages` — Lưu trữ kết quả các chặng giải đấu
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| id | INTEGER PK | |
+| campaign_id | FK → campaigns.id | |
+| year | INTEGER | Năm thi đấu |
+| stage_key | VARCHAR(30) | Mã chặng (`open_qualifier`, `kickoff`, `major`, ...) |
+| stage_name | VARCHAR(100) | Tên hiển thị chặng giải đấu |
+| status | VARCHAR(20) | `pending`, `in_progress`, `completed` |
+| stage_data | TEXT (JSON) | Toàn bộ kết quả, bracket, các trận đấu và tỷ số |
+| created_at / completed_at | DATETIME | |
+
+#### `campaign_seasons` — Tổng kết năm & Đại sảnh danh vọng (Hall of Fame)
+| Cột | Kiểu | Mô tả |
+|-----|------|-------|
+| id | INTEGER PK | |
+| campaign_id | FK → campaigns.id | |
+| year | INTEGER | Năm tổng kết |
+| major_winner_id | FK → clubs.id | Đội vô địch Major |
+| master_winner_id | FK → clubs.id | Đội vô địch Masters |
+| ewc_winner_id | FK → clubs.id | Đội vô địch Esports World Cup |
+| champion_winner_id | FK → clubs.id | Đội vô địch Thế giới (Champions) |
+| mvp_club_id | FK → clubs.id | Đội tuyển xuất sắc nhất năm |
+| recap_data | TEXT (JSON) | Dữ liệu tổng kết mùa giải |
+| completed_at | DATETIME | |
+
+
+---
+
 ## B. Engine Modules
 
 ### `engine/tournament.py` — Quản lý vòng đấu

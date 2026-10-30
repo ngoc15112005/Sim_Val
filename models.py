@@ -187,3 +187,126 @@ class ClubRating(db.Model):
             'rating_before': self.rating_before,
             'rating_after': self.rating_after,
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Campaign / Story Mode (Chế độ Cốt truyện)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Campaign(db.Model):
+    __tablename__ = 'campaigns'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    current_year = db.Column(db.Integer, default=2027)
+    current_stage = db.Column(db.String(30), default='open_qualifier')
+    status = db.Column(db.String(20), default='active')  # 'active', 'completed'
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    club_states = db.relationship('CampaignClubState', backref='campaign', lazy=True,
+                                  cascade='all, delete-orphan')
+    stages = db.relationship('CampaignStage', backref='campaign', lazy=True,
+                             cascade='all, delete-orphan')
+    seasons = db.relationship('CampaignSeason', backref='campaign', lazy=True,
+                              cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'current_year': self.current_year,
+            'current_stage': self.current_stage,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class CampaignClubState(db.Model):
+    __tablename__ = 'campaign_club_states'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
+    story_rating = db.Column(db.Integer, default=80)
+    form_modifier = db.Column(db.Integer, default=0)
+    championship_points = db.Column(db.Integer, default=0)
+    is_partner = db.Column(db.Boolean, default=False)
+
+    club = db.relationship('Club', backref='campaign_states')
+
+    @property
+    def effective_rating(self):
+        return (self.story_rating or 80) + (self.form_modifier or 0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'club_id': self.club_id,
+            'story_rating': self.story_rating,
+            'form_modifier': self.form_modifier,
+            'effective_rating': self.effective_rating,
+            'championship_points': self.championship_points,
+            'is_partner': self.is_partner,
+            'club': self.club.to_dict() if self.club else None,
+        }
+
+
+class CampaignStage(db.Model):
+    __tablename__ = 'campaign_stages'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    stage_key = db.Column(db.String(30), nullable=False)
+    stage_name = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # 'pending', 'in_progress', 'completed'
+    stage_data = db.Column(db.Text, nullable=True)  # JSON formatted results
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'year': self.year,
+            'stage_key': self.stage_key,
+            'stage_name': self.stage_name,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+class CampaignSeason(db.Model):
+    __tablename__ = 'campaign_seasons'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    major_winner_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    master_winner_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    ewc_winner_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    champion_winner_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    mvp_club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    recap_data = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    major_winner = db.relationship('Club', foreign_keys=[major_winner_id])
+    master_winner = db.relationship('Club', foreign_keys=[master_winner_id])
+    ewc_winner = db.relationship('Club', foreign_keys=[ewc_winner_id])
+    champion_winner = db.relationship('Club', foreign_keys=[champion_winner_id])
+    mvp_club = db.relationship('Club', foreign_keys=[mvp_club_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'year': self.year,
+            'major_winner': self.major_winner.to_dict() if self.major_winner else None,
+            'master_winner': self.master_winner.to_dict() if self.master_winner else None,
+            'ewc_winner': self.ewc_winner.to_dict() if self.ewc_winner else None,
+            'champion_winner': self.champion_winner.to_dict() if self.champion_winner else None,
+            'mvp_club': self.mvp_club.to_dict() if self.mvp_club else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
+
