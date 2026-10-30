@@ -303,6 +303,7 @@ def register_routes(app):
         get_campaign_club_states, update_club_form, bulk_update_form,
         run_open_qualifier_stage, get_open_qualifier_data,
         get_championship_leaderboard, get_champions_paris_qualifiers,
+        get_kickoff_data, run_kickoff_stage, override_kickoff_match,
     )
 
     @app.route('/campaigns')
@@ -333,6 +334,7 @@ def register_routes(app):
 
         club_states = get_campaign_club_states(campaign_id)
         oq_data = get_open_qualifier_data(campaign_id)
+        kickoff_data = get_kickoff_data(campaign_id)
 
         stages_info = []
         current_found = False
@@ -358,6 +360,7 @@ def register_routes(app):
             club_states=club_states,
             stages_info=stages_info,
             oq_data=oq_data,
+            kickoff_data=kickoff_data,
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
@@ -420,4 +423,60 @@ def register_routes(app):
 
         success = update_club_form(campaign_id, club_id, form_modifier)
         return jsonify({'success': success})
+
+    @app.route('/campaign/<int:campaign_id>/stage/kickoff')
+    def campaign_kickoff_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        kickoff_data = get_kickoff_data(campaign_id)
+        selected_region = request.args.get('region', 'pacific')
+
+        return render_template(
+            'campaign/kickoff.html',
+            campaign=campaign,
+            kickoff_data=kickoff_data,
+            selected_region=selected_region,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/kickoff/sim', methods=['POST'])
+    def api_campaign_kickoff_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region_slug')
+        if region_slug == '':
+            region_slug = None
+
+        try:
+            results = run_kickoff_stage(campaign_id, region_slug=region_slug)
+            return jsonify({'success': True, 'results': results})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/kickoff/match/override', methods=['POST'])
+    def api_campaign_kickoff_match_override(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region_slug')
+        round_name = data.get('round_name')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not region_slug or not round_name or not winner_id:
+            return jsonify({'error': 'region_slug, round_name, and winner_id are required'}), 400
+
+        try:
+            results = override_kickoff_match(campaign_id, region_slug, round_name, int(winner_id), maps)
+            return jsonify({'success': True, 'results': results})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
 

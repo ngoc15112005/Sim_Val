@@ -1,0 +1,50 @@
+<div class="kickoff-match-card" style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.75em; color: var(--dim);">
+    <span>
+      <strong>{{ m.label }}</strong>
+      <span style="background: var(--bg); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">BO{{ m.bo }}</span>
+      {% if m.is_manual %}
+      <span style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 4px;">Can thiệp</span>
+      {% endif %}
+    </span>
+    <button type="button" class="btn-sm" onclick="openOverrideModal('{{ m.round_name }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}')" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #60a5fa; border-radius: 4px; cursor: pointer;">
+      ✏️ Can thiệp
+    </button>
+  </div>
+
+  <!-- Team A -->
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; border-radius: 4px; {% if m.winner_id == m.team_a.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+    <div style="display: flex; align-items: center; gap: 6px;">
+      {% if m.team_a.logo_url %}
+      <img src="{{ m.team_a.logo_url }}" alt="" style="width: 18px; height: 18px; object-fit: contain;" onerror="this.style.display='none'">
+      {% endif %}
+      <span style="font-size: 0.9em;">{{ m.team_a.name }}</span>
+      <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.short_code }})</span>
+    </div>
+    <span style="font-size: 1em; font-weight: 800;">{{ m.team_a_score }}</span>
+  </div>
+
+  <!-- Team B -->
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 6px; border-radius: 4px; margin-top: 2px; {% if m.winner_id == m.team_b.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+    <div style="display: flex; align-items: center; gap: 6px;">
+      {% if m.team_b.logo_url %}
+      <img src="{{ m.team_b.logo_url }}" alt="" style="width: 18px; height: 18px; object-fit: contain;" onerror="this.style.display='none'">
+      {% endif %}
+      <span style="font-size: 0.9em;">{{ m.team_b.name }}</span>
+      <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.short_code }})</span>
+    </div>
+    <span style="font-size: 1em; font-weight: 800;">{{ m.team_b_score }}</span>
+  </div>
+
+  <!-- Map Scores Summary -->
+  {% if m.maps %}
+  <div style="display: flex; gap: 4px; margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--border); font-size: 0.72em; color: var(--dim); flex-wrap: wrap;">
+    <span>Tỷ số map:</span>
+    {% for map_item in m.maps %}
+    <span style="background: var(--bg); padding: 1px 5px; border-radius: 3px; color: #fff;">
+      M{{ map_item.map_number }}: {{ map_item.team_a_score }}-{{ map_item.team_b_score }}
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

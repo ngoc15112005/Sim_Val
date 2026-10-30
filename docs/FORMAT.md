@@ -264,7 +264,40 @@ Giai đoạn 2: Double Elimination Playoffs (8 đội, tất cả trận BO3, d�
 
 ---
 
+### B.6. VCT Kickoff (12 đội Double Elimination) — Chuẩn VCT 2025
+
+```
+Quy mô:          12 đội / khu vực (8 đội Partner + 4 đội vượt qua Open Qualifier)
+Suất đi Major:   Top 2 đội (Vô địch & Á quân) đại diện khu vực đi VCT Major (Masters Bangkok)
+Tổng số trận:    Đúng 22 trận / khu vực (11 Nhánh thắng + 10 Nhánh thua + 1 Chung kết tổng)
+Hạt giống Byes:  4 đội nhận suất Đặc cách vào thẳng Tứ kết Upper QF:
+                 - Năm 1: Top 4 Partner có Story Rating cao nhất
+                 - Năm 2+: 4 đội từng đại diện khu vực tham dự Champions năm trước
+
+Sơ đồ nhánh đấu:
+1. Nhánh Thắng (Upper Bracket - 11 trận, BO3):
+   - Upper Round 1 (4 trận): 4 Partner vs 4 Open Qualifier (Defend the throne)
+   - Upper Quarterfinals (4 trận): 4 Byes vs 4 đội thắng Upper R1
+   - Upper Semifinals (2 trận)
+   - Upper Final (1 trận): Thắng vào Chung kết tổng & GIÀNH VÉ MAJOR #1; Thua xuống Lower Final
+
+2. Nhánh Thua (Lower Bracket - 10 trận):
+   - Lower Round 1 (4 trận, BO3): 4 đội thua Upper R1 vs 4 đội thua Upper QF (Thua loại, Hạng 9-12, 0 CP)
+   - Lower Round 2 (2 trận, BO3): 4 đội thắng Lower R1 gặp nhau (Thua loại, Hạng 7-8, 0 CP)
+   - Lower Round 3 (2 trận, BO3): 2 đội thắng Lower R2 vs 2 đội thua Upper SF (Thua loại, Hạng 5-6, 0 CP)
+   - Lower Semifinal (1 trận, BO3): Thua loại, Hạng 4 (+1 CP); Thắng vào Lower Final
+   - Lower Final (1 trận, BO5): Thua loại, Hạng 3 (+1 CP); Thắng vào Chung kết tổng & GIÀNH VÉ MAJOR #2
+
+3. Chung kết Tổng (Grand Final - 1 trận, BO5):
+   - Winner Upper Final vs Winner Lower Final
+   - Vô địch Kickoff: Hạt giống 1 Major + 3 CP
+   - Á quân Kickoff: Hạt giống 2 Major + 2 CP
+```
+
+---
+
 ## C. Quy tắc BO1 / BO3 / BO5
+
 
 | Loại trận | Thể thức |
 |-----------|---------|

@@ -71,13 +71,47 @@
         <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
           🎮 Vào sàn đấu Open Qualifier ➔
         </a>
+      {% elif campaign.current_stage == 'kickoff' %}
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu VCT Kickoff ➔
+        </a>
+        <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Open Qualifier
+        </a>
       {% else %}
-        <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 8px 16px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block;">
-          Xem lại kết quả Open Qualifier
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block;">
+          Xem lại Kickoff
+        </a>
+        <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Open Qualifier
         </a>
       {% endif %}
     </div>
   </div>
+
+  {% if kickoff_data and kickoff_data.regional_results %}
+  <div class="kickoff-quick-summary" style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+    <h3 style="font-size: 0.95em; color: #4ade80; margin-bottom: 10px; text-transform: uppercase;">
+      🎉 8 Đội tuyển giành vé tham dự VCT Major (Masters Bangkok) từ Kickoff:
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+      {% for r_slug, r_data in kickoff_data.regional_results.items() %}
+      <div style="padding: 10px; background: var(--surface); border-radius: 6px; border-left: 4px solid var(--green);">
+        <strong style="color: #fff; text-transform: uppercase;">{{ r_slug }}:</strong>
+        <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">Top 2 đi Major:</div>
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          {% for q in r_data.major_qualifiers %}
+          <span style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
+            {{ q.short_code }} (#{{ loop.index }})
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 
   {% if oq_data and oq_data.regions %}
   <div class="oq-quick-summary" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">

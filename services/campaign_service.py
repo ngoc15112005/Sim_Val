@@ -15,6 +15,8 @@ from typing import List, Dict, Optional, Any
 from models import db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason
 from config import Config
 from engine.format.open_qualifier import simulate_open_qualifier
+from engine.format.kickoff import simulate_kickoff_tournament
+
 
 
 def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 2027) -> Campaign:
@@ -283,6 +285,159 @@ def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     if not stage or not stage.stage_data:
         return None
     return json.loads(stage.stage_data)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VCT Kickoff Stage Execution
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full Kickoff data for all regions in a campaign."""
+    stage = get_stage_record(campaign_id, 'kickoff')
+    if not stage or not stage.stage_data:
+        return None
+    return json.loads(stage.stage_data)
+
+
+def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
+                      manual_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute Kickoff simulation (22 matches per region) for one or all regions."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'kickoff')
+    if not stage:
+        raise ValueError("Kickoff stage not initialized yet. Please complete Open Qualifier first.")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {'rosters': {}, 'regional_results': {}}
+    if 'regional_results' not in data:
+        data['regional_results'] = {}
+    if 'manual_overrides' not in data:
+        data['manual_overrides'] = {}
+
+    regions_to_run = [region_slug] if region_slug else ['pacific', 'americas', 'emea', 'china']
+    summary_results = {}
+
+    for r_slug in regions_to_run:
+        roster = data.get('rosters', {}).get(r_slug, [])
+        if len(roster) != 12:
+            raise ValueError(f"Roster for {r_slug} Kickoff does not have 12 teams")
+
+        # Refresh rating & form from CampaignClubState
+        states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign_id).all()}
+        for t in roster:
+            c_id = t['id']
+            if c_id in states:
+                t['story_rating'] = states[c_id].story_rating
+                t['form_modifier'] = states[c_id].form_modifier
+                t['effective_rating'] = states[c_id].effective_rating
+
+        rating_lookup = {t['id']: t['story_rating'] for t in roster}
+        form_lookup = {t['id']: t['form_modifier'] for t in roster}
+
+        # Combine stored overrides with any new overrides passed in
+        existing_overrides = data['manual_overrides'].get(r_slug, {})
+        if manual_overrides and region_slug == r_slug:
+            existing_overrides.update(manual_overrides)
+        data['manual_overrides'][r_slug] = existing_overrides
+
+        sim_res = simulate_kickoff_tournament(
+            r_slug, roster,
+            rating_lookup=rating_lookup,
+            form_lookup=form_lookup,
+            manual_overrides=existing_overrides
+        )
+
+        data['regional_results'][r_slug] = sim_res
+
+        # Award official VCT 2025 Championship Points
+        cp_awards = []
+        for s in sim_res['standings']:
+            cp_awards.append({
+                'club_id': s['club_id'],
+                'rank': s['rank'],
+            })
+        award_stage_cp(campaign_id, 'kickoff', cp_awards)
+
+        summary_results[r_slug] = {
+            'champion': sim_res['standings'][0]['team'],
+            'runner_up': sim_res['standings'][1]['team'],
+            'major_qualifiers': sim_res['major_qualifiers'],
+            'total_matches': sim_res['total_matches_count'],
+        }
+
+    stage.stage_data = json.dumps(data)
+
+    # Check if all 4 regions are finished
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    if all(r in data['regional_results'] for r in all_regions):
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+
+        # Advance campaign to Major
+        campaign.current_stage = 'major'
+        _prepare_major_stage(campaign, data['regional_results'])
+
+    db.session.commit()
+    return summary_results
+
+
+def override_kickoff_match(campaign_id: int, region_slug: str, round_name: str,
+                           winner_id: int, maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Force a specific winner / map scores for a Kickoff match and re-simulate the bracket."""
+    overrides = {
+        round_name: {
+            'winner_id': winner_id,
+            'maps': maps or [],
+        }
+    }
+    return run_kickoff_stage(campaign_id, region_slug=region_slug, manual_overrides=overrides)
+
+
+def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str, Any]):
+    """Assemble 8 teams for VCT Major (Masters Bangkok): 2 per region (Seed 1 & Seed 2)."""
+    major_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='major'
+    ).first()
+
+    major_roster = []
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        reg_res = kickoff_regional_results.get(r_slug, {})
+        qualifiers = reg_res.get('major_qualifiers', [])
+        if len(qualifiers) >= 2:
+            major_roster.append({
+                'id': qualifiers[0]['id'],
+                'name': qualifiers[0]['name'],
+                'short_code': qualifiers[0]['short_code'],
+                'region_slug': r_slug,
+                'regional_seed': 1,
+                'title': f'{r_slug.upper()} Kickoff Champion',
+            })
+            major_roster.append({
+                'id': qualifiers[1]['id'],
+                'name': qualifiers[1]['name'],
+                'short_code': qualifiers[1]['short_code'],
+                'region_slug': r_slug,
+                'regional_seed': 2,
+                'title': f'{r_slug.upper()} Kickoff Runner-up',
+            })
+
+    if not major_stage:
+        major_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='major',
+            stage_name=f'VCT Major {campaign.current_year} (Masters Bangkok)',
+            status='pending',
+            stage_data=json.dumps({'roster': major_roster}),
+        )
+        db.session.add(major_stage)
+    else:
+        m_data = json.loads(major_stage.stage_data) if major_stage.stage_data else {}
+        m_data['roster'] = major_roster
+        major_stage.stage_data = json.dumps(m_data)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
