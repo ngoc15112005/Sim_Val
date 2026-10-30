@@ -232,6 +232,10 @@ class CampaignClubState(db.Model):
     form_modifier = db.Column(db.Integer, default=0)
     championship_points = db.Column(db.Integer, default=0)
     is_partner = db.Column(db.Boolean, default=False)
+    stage_ranks = db.Column(db.Text, default='{}')  # JSON: {'kickoff': 1, 'major': 2, ...}
+    regular_season_wins = db.Column(db.Integer, default=0)
+    map_differential = db.Column(db.Integer, default=0)
+    round_differential = db.Column(db.Integer, default=0)
 
     club = db.relationship('Club', backref='campaign_states')
 
@@ -239,7 +243,30 @@ class CampaignClubState(db.Model):
     def effective_rating(self):
         return (self.story_rating or 80) + (self.form_modifier or 0)
 
+    def get_stage_rank(self, stage_key):
+        import json
+        try:
+            ranks = json.loads(self.stage_ranks or '{}')
+            return ranks.get(stage_key)
+        except Exception:
+            return None
+
+    def set_stage_rank(self, stage_key, rank):
+        import json
+        try:
+            ranks = json.loads(self.stage_ranks or '{}')
+        except Exception:
+            ranks = {}
+        ranks[stage_key] = rank
+        self.stage_ranks = json.dumps(ranks)
+
     def to_dict(self):
+        import json
+        ranks = {}
+        try:
+            ranks = json.loads(self.stage_ranks or '{}')
+        except Exception:
+            pass
         return {
             'id': self.id,
             'campaign_id': self.campaign_id,
@@ -249,8 +276,13 @@ class CampaignClubState(db.Model):
             'effective_rating': self.effective_rating,
             'championship_points': self.championship_points,
             'is_partner': self.is_partner,
+            'stage_ranks': ranks,
+            'regular_season_wins': self.regular_season_wins,
+            'map_differential': self.map_differential,
+            'round_differential': self.round_differential,
             'club': self.club.to_dict() if self.club else None,
         }
+
 
 
 class CampaignStage(db.Model):

@@ -65,12 +65,43 @@ class Config:
     CIRCUIT_STAGES = [
         {'key': 'open_qualifier', 'name': 'Open Qualifier', 'type': 'regional', 'desc': '16 Non-partners → 4 Kickoff qualifiers per region'},
         {'key': 'kickoff', 'name': 'Regional Kickoff', 'type': 'regional', 'desc': '8 Partners + 4 Qualifiers → Top 2 to Major'},
-        {'key': 'major', 'name': 'VCT Major (Masters 1)', 'type': 'international', 'desc': '8 World elite teams (Top 2 per region)'},
+        {'key': 'major', 'name': 'VCT Major (Masters Bangkok)', 'type': 'international', 'desc': '8 World elite teams (Top 2 per region)'},
         {'key': 'stage1', 'name': 'Regional Stage 1', 'type': 'regional', 'desc': '12 teams → Top 3 to Masters, Top 4 to EWC'},
-        {'key': 'master', 'name': 'VCT Masters (Masters 2)', 'type': 'international', 'desc': '12 International teams'},
+        {'key': 'master', 'name': 'VCT Masters (Masters Toronto)', 'type': 'international', 'desc': '12 International teams'},
         {'key': 'ewc', 'name': 'Esports World Cup (EWC)', 'type': 'international', 'desc': '16 World teams (GSL Groups + Playoffs)'},
         {'key': 'stage2', 'name': 'Regional Stage 2', 'type': 'regional', 'desc': '12 teams → Final Championship Points battle'},
-        {'key': 'champion', 'name': 'VALORANT Champions', 'type': 'international', 'desc': '16 Best teams worldwide (World Championship)'},
+        {'key': 'champion', 'name': 'VALORANT Champions (Paris)', 'type': 'international', 'desc': '16 Best teams worldwide (World Championship)'},
         {'key': 'season_summary', 'name': 'Year-End Hall of Fame', 'type': 'summary', 'desc': 'Annual Recap, Title Winners & MVP'},
     ]
+
+    CHAMPIONSHIP_POINTS_RULES = {
+        'kickoff': {1: 3, 2: 2, 3: 1, 4: 1},
+        'major': {1: 5, 2: 3, 3: 2, 4: 1},                    # Masters Bangkok (Major)
+        'stage1_regular_win': 1,                              # 1 CP per regular season win
+        'stage1_playoffs': {1: 5, 2: 3, 3: 2, 4: 1},
+        'master': {1: 7, 2: 5, 3: 4, 4: 3, 5: 2, 6: 2},         # Masters Toronto (Master)
+        'stage2_regular_win': 1,                              # 1 CP per regular season win
+        'stage2_playoffs': {1: 7, 2: 5, 3: 4, 4: 3},
+        'champions_slots_per_region': {
+            'stage2_champion': 1,
+            'stage2_runner_up': 1,
+            'points_slot_1': 1,
+            'points_slot_2': 1,
+            'total': 4,
+        },
+        'tiebreaker_priority': [
+            'stage2_rank',
+            'master_rank',       # Masters Toronto
+            'stage1_rank',
+            'major_rank',        # Masters Bangkok
+            'kickoff_rank',
+            'season_regular_wins',
+            'map_diff',
+            'round_diff',
+            'h2h_match',
+            'h2h_map_diff',
+            'h2h_round_diff',
+        ]
+    }
+
 

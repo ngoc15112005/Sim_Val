@@ -302,6 +302,7 @@ def register_routes(app):
         create_campaign, get_campaign, list_campaigns,
         get_campaign_club_states, update_club_form, bulk_update_form,
         run_open_qualifier_stage, get_open_qualifier_data,
+        get_championship_leaderboard, get_champions_paris_qualifiers,
     )
 
     @app.route('/campaigns')
@@ -346,14 +347,33 @@ def register_routes(app):
                 'is_past': is_past,
             })
 
+        cp_leaderboards = {
+            r: get_championship_leaderboard(campaign_id, region_slug=r)
+            for r in ['pacific', 'americas', 'emea', 'china']
+        }
+
         return render_template(
             'campaign/detail.html',
             campaign=campaign,
             club_states=club_states,
             stages_info=stages_info,
             oq_data=oq_data,
+            cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
+
+    @app.route('/api/campaign/<int:campaign_id>/points/leaderboard')
+    def api_campaign_cp_leaderboard(campaign_id):
+        region_slug = request.args.get('region')
+        if region_slug:
+            lb = get_championship_leaderboard(campaign_id, region_slug=region_slug)
+            return jsonify({'region': region_slug, 'leaderboard': lb})
+        all_lbs = {
+            r: get_championship_leaderboard(campaign_id, region_slug=r)
+            for r in ['pacific', 'americas', 'emea', 'china']
+        }
+        return jsonify(all_lbs)
+
 
     @app.route('/campaign/<int:campaign_id>/stage/open_qualifier')
     def campaign_open_qualifier_view(campaign_id):

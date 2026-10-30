@@ -283,3 +283,86 @@ def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     if not stage or not stage.stage_data:
         return None
     return json.loads(stage.stage_data)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Official Championship Points (CP) Engine Integration
+# ─────────────────────────────────────────────────────────────────────────────
+
+from engine.points import get_stage_points, sort_championship_points_leaderboard, determine_champions_slots
+
+
+def award_stage_cp(campaign_id: int, stage_key: str, results_list: List[Dict[str, Any]]) -> int:
+    """Award official VCT 2025 Championship Points to clubs based on stage results.
+    
+    results_list: list of dicts with:
+      - 'club_id': int
+      - 'rank': optional int (final standing in the tournament/playoffs)
+      - 'regular_wins': optional int (for Stage 1 / Stage 2 regular season)
+      - 'map_diff': optional int
+      - 'round_diff': optional int
+    """
+    awarded_count = 0
+    for res in results_list:
+        club_id = res['club_id']
+        rank = res.get('rank')
+        reg_wins = res.get('regular_wins', 0)
+
+        pts = get_stage_points(stage_key, rank=rank, regular_wins=reg_wins)
+        state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=club_id).first()
+        if not state:
+            continue
+
+        state.championship_points = (state.championship_points or 0) + pts
+        if rank:
+            state.set_stage_rank(stage_key, rank)
+        if reg_wins:
+            state.regular_season_wins = (state.regular_season_wins or 0) + reg_wins
+        if 'map_diff' in res:
+            state.map_differential = (state.map_differential or 0) + res['map_diff']
+        if 'round_diff' in res:
+            state.round_differential = (state.round_differential or 0) + res['round_diff']
+
+        awarded_count += 1
+
+    db.session.commit()
+    return awarded_count
+
+
+def get_championship_leaderboard(campaign_id: int, region_slug: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return sorted Championship Points leaderboard applying all 11 VCT 2025 tiebreakers."""
+    query = CampaignClubState.query.filter_by(campaign_id=campaign_id).join(Club).join(Region)
+    if region_slug:
+        query = query.filter(Region.slug == region_slug)
+
+    states = query.all()
+    teams_payload = []
+    for s in states:
+        teams_payload.append({
+            'club_id': s.club_id,
+            'name': s.club.name,
+            'short_code': s.club.short_code,
+            'logo_url': s.club.logo_url,
+            'region_slug': s.club.region.slug if s.club.region else '',
+            'is_partner': s.is_partner,
+            'championship_points': s.championship_points or 0,
+            'story_rating': s.story_rating,
+            'effective_rating': s.effective_rating,
+            'stage2_rank': s.get_stage_rank('stage2_playoffs'),
+            'master_rank': s.get_stage_rank('master'),
+            'stage1_rank': s.get_stage_rank('stage1_playoffs'),
+            'major_rank': s.get_stage_rank('major'),
+            'kickoff_rank': s.get_stage_rank('kickoff'),
+            'regular_season_wins': s.regular_season_wins or 0,
+            'map_differential': s.map_differential or 0,
+            'round_differential': s.round_differential or 0,
+        })
+
+    return sort_championship_points_leaderboard(teams_payload)
+
+
+def get_champions_paris_qualifiers(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Calculate the 4 Champions qualifiers for a region according to VCT 2025 rules."""
+    leaderboard = get_championship_leaderboard(campaign_id, region_slug=region_slug)
+    return determine_champions_slots(leaderboard)
+
