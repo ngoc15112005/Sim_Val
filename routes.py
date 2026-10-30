@@ -266,7 +266,7 @@ def register_routes(app):
         playoff_rounds = group_playoff_rounds(tour)
 
         groups_data = None
-        if tour.type == 'champion':
+        if tour.type in ('champion', 'ewc'):
             groups_data = get_groups_data(tour)
 
         final_standings = get_final_standings(tour) if tour.status == 'finished' else None

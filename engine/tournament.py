@@ -40,7 +40,7 @@ def create_tournament(tour_type, name, selected_club_ids, regional_seeds=None):
 
 
 def generate_bracket(tournament):
-    if tournament.type == 'champion':
+    if tournament.type in ('champion', 'ewc'):
         _generate_groups(tournament)
         tournament.status = 'groups'
     else:
@@ -402,37 +402,57 @@ def _finalize_tournament(tournament):
     rank_map[gf.winner_id] = 1
     rank_map[gf.loser_id] = 2
 
-    # Lower Final: #3 loser
-    if completed.get('lower_final') and completed['lower_final'].loser_id:
-        rank_map[completed['lower_final'].loser_id] = 3
-
-    if tournament.type == 'major':
-        # In Major (4-team playoff): lower_round1 loser is #4
-        if completed.get('lower_round1') and completed['lower_round1'].loser_id:
-            rank_map[completed['lower_round1'].loser_id] = 4
-    else:
-        # In Master & Champion (8-team playoff):
-        # Lower Semifinal: #4 loser
-        if completed.get('lower_semifinal') and completed['lower_semifinal'].loser_id:
-            rank_map[completed['lower_semifinal'].loser_id] = 4
-
-        # Lower Quarterfinals: #5, #6 losers
-        lq_losers = []
-        for lq in ('lower_quarterfinal_1', 'lower_quarterfinal_2'):
-            m = completed.get(lq)
+    if tournament.type == 'ewc':
+        # EWC (8-team Single Elimination)
+        # Semifinal losers: #3, #4
+        sf_losers = []
+        for sf in ('semifinal_1', 'semifinal_2'):
+            m = completed.get(sf)
             if m and m.loser_id and m.loser_id not in rank_map:
-                lq_losers.append(m.loser_id)
-        for idx, cid in enumerate(lq_losers):
+                sf_losers.append(m.loser_id)
+        for idx, cid in enumerate(sf_losers):
+            rank_map[cid] = 3 + idx
+
+        # Quarterfinal losers: #5, #6, #7, #8
+        qf_losers = []
+        for qf in ('quarterfinal_1', 'quarterfinal_2', 'quarterfinal_3', 'quarterfinal_4'):
+            m = completed.get(qf)
+            if m and m.loser_id and m.loser_id not in rank_map:
+                qf_losers.append(m.loser_id)
+        for idx, cid in enumerate(qf_losers):
             rank_map[cid] = 5 + idx
+    else:
+        # Lower Final: #3 loser
+        if completed.get('lower_final') and completed['lower_final'].loser_id:
+            rank_map[completed['lower_final'].loser_id] = 3
 
-        # Lower Round 1: #7, #8 losers
-        lr_losers = []
-        for lr in ('lower_round1_1', 'lower_round1_2'):
-            m = completed.get(lr)
-            if m and m.loser_id and m.loser_id not in rank_map:
-                lr_losers.append(m.loser_id)
-        for idx, cid in enumerate(lr_losers):
-            rank_map[cid] = 7 + idx
+        if tournament.type == 'major':
+            # In Major (4-team playoff): lower_round1 loser is #4
+            if completed.get('lower_round1') and completed['lower_round1'].loser_id:
+                rank_map[completed['lower_round1'].loser_id] = 4
+        else:
+            # In Master & Champion (8-team playoff):
+            # Lower Semifinal: #4 loser
+            if completed.get('lower_semifinal') and completed['lower_semifinal'].loser_id:
+                rank_map[completed['lower_semifinal'].loser_id] = 4
+
+            # Lower Quarterfinals: #5, #6 losers
+            lq_losers = []
+            for lq in ('lower_quarterfinal_1', 'lower_quarterfinal_2'):
+                m = completed.get(lq)
+                if m and m.loser_id and m.loser_id not in rank_map:
+                    lq_losers.append(m.loser_id)
+            for idx, cid in enumerate(lq_losers):
+                rank_map[cid] = 5 + idx
+
+            # Lower Round 1: #7, #8 losers
+            lr_losers = []
+            for lr in ('lower_round1_1', 'lower_round1_2'):
+                m = completed.get(lr)
+                if m and m.loser_id and m.loser_id not in rank_map:
+                    lr_losers.append(m.loser_id)
+            for idx, cid in enumerate(lr_losers):
+                rank_map[cid] = 7 + idx
 
     participants = TournamentParticipant.query.filter_by(tournament_id=tournament.id).all()
     for p in participants:
@@ -542,10 +562,10 @@ def simulate_round(tournament, round_name=None, group_label=None, stage=None, ma
     elif round_name:
         # Playoff columns or Swiss rounds
         target_names = []
-        if round_name == 'upper_quarterfinals':
-            target_names = [f'upper_quarterfinal_{i}' for i in range(1, 5)]
-        elif round_name == 'upper_semifinals':
-            target_names = ['upper_semifinal_1', 'upper_semifinal_2']
+        if round_name in ('upper_quarterfinals', 'quarterfinals'):
+            target_names = [f'upper_quarterfinal_{i}' for i in range(1, 5)] + [f'quarterfinal_{i}' for i in range(1, 5)]
+        elif round_name in ('upper_semifinals', 'semifinals'):
+            target_names = ['upper_semifinal_1', 'upper_semifinal_2', 'semifinal_1', 'semifinal_2']
         elif round_name == 'lower_round1':
             target_names = ['lower_round1_1', 'lower_round1_2', 'lower_round1']
         elif round_name == 'lower_quarterfinals':

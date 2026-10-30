@@ -72,7 +72,7 @@
 | Cột | Kiểu | Mô tả |
 |-----|------|-------|
 | id | INTEGER PK | |
-| type | VARCHAR(20) | `major`, `master`, `champion` |
+| type | VARCHAR(20) | `major`, `master`, `champion`, `ewc` |
 | name | VARCHAR(100) | Tên hiển thị |
 | status | VARCHAR(20) | `setup` → `swiss`/`groups` → `playoffs` → `finished` |
 | created_at | DATETIME | Thời gian tạo |

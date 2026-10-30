@@ -4,7 +4,7 @@
 
 <section class="hero">
   <h1>VALORANT Tournament Simulator</h1>
-  <p>Mô phỏng giải VCT quốc tế: Major (8), Master (12), Champion (16)</p>
+  <p>Mô phỏng giải VCT quốc tế: Major (8), Master (12), Champion (16), EWC (16)</p>
 </section>
 
 <div class="two-col">
@@ -16,6 +16,7 @@
         <option value="major">Major (8 đội)</option>
         <option value="master">Master (12 đội)</option>
         <option value="champion">Champion (16 đội)</option>
+        <option value="ewc">EWC (16 đội)</option>
       </select>
 
       <label>Tên giải:</label>
@@ -80,16 +81,18 @@ const REGION_SLOTS = {
     major:   { pacific: 2, americas: 2, emea: 2, china: 2 },
     master:  { pacific: 3, americas: 3, emea: 3, china: 3 },
     champion:{ pacific: 4, americas: 4, emea: 4, china: 4 },
+    ewc:     { pacific: 4, americas: 4, emea: 4, china: 4 },
 };
 
 const TOUR_LABELS = {
     major:    ['', ''],
     master:   ['(auto)', '(swiss)', '(swiss)'],
     champion: ['', '', '', ''],
+    ewc:      ['(Stage 1 #1)', '(Stage 1 #2)', '(Qualifier #1)', '(Qualifier #2)'],
 };
 
 function getTeamCount() {
-    const map = { major: 8, master: 12, champion: 16 };
+    const map = { major: 8, master: 12, champion: 16, ewc: 16 };
     return map[tourType] || 8;
 }
 

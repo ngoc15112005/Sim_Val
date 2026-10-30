@@ -42,6 +42,10 @@
     <span class="info-chip"><strong>16</strong> đội</span>
     <span class="info-chip"><strong>4</strong> Groups GSL</span>
     <span class="info-chip"><strong>8</strong> Playoffs (Double Elim)</span>
+    {% elif tour.type == 'ewc' %}
+    <span class="info-chip"><strong>16</strong> đội</span>
+    <span class="info-chip"><strong>4</strong> Groups GSL</span>
+    <span class="info-chip"><strong>8</strong> Playoffs (Single Elim)</span>
     {% endif %}
   </div>
 </div>
@@ -301,7 +305,7 @@
 <section class="card bracket-card">
   <h2>Playoffs</h2>
 
-  <div class="playoff-tree {{ 'is-8team' if playoff_rounds.is_8team else 'is-4team' }}" id="playoff-tree">
+  <div class="playoff-tree {{ 'is-8team' if playoff_rounds.is_8team else 'is-4team' }} {{ 'is-single-elim' if playoff_rounds.is_single_elim }}" id="playoff-tree">
     <svg id="bracket-svg" class="bracket-svg"></svg>
 
     {% if has_upper %}
@@ -1107,9 +1111,22 @@ function drawBracketLines() {
         }
     }
 
+    const isSingleElim = tree.classList.contains('is-single-elim');
     const is8Team = tree.classList.contains('is-8team');
 
-    if (is8Team) {
+    if (isSingleElim) {
+        const qf1 = getBox('quarterfinal_1');
+        const qf2 = getBox('quarterfinal_2');
+        const qf3 = getBox('quarterfinal_3');
+        const qf4 = getBox('quarterfinal_4');
+        const sf1 = getBox('semifinal_1');
+        const sf2 = getBox('semifinal_2');
+        const gf = getBox('grand_final');
+
+        drawFork(qf1, qf2, sf1);
+        drawFork(qf3, qf4, sf2);
+        drawFork(sf1, sf2, gf);
+    } else if (is8Team) {
         const uq1 = getBox('upper_quarterfinal_1');
         const uq4 = getBox('upper_quarterfinal_4');
         const uq2 = getBox('upper_quarterfinal_2');

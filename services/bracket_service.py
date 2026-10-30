@@ -6,7 +6,7 @@ and returns results that routes can pass to Jinja2.
 """
 
 from collections import OrderedDict
-from engine.format import major, master, champion
+from engine.format import major, master, champion, ewc
 from models import db, Match, TournamentParticipant
 
 
@@ -93,6 +93,13 @@ def generate_playoff_matches(tournament, advancing_participants):
                 [_team_to_dict(p) for p in winners],
                 [_team_to_dict(p) for p in runners],
             )
+        elif ttype == 'ewc':
+            winners = [p for p in advancing_participants if p.seed <= 4]
+            runners = [p for p in advancing_participants if p.seed >= 5]
+            templates = ewc.generate_ewc_playoffs_draw(
+                [_team_to_dict(p) for p in winners],
+                [_team_to_dict(p) for p in runners],
+            )
         else:
             # Generic 8-team
             templates = major.generate_playoffs_4_teams(
@@ -119,6 +126,8 @@ def resolve_playoff_slot(match_template, tournament):
         return master.resolve_slot(match_template, completed)
     elif ttype == 'champion':
         return champion.resolve_slot(match_template, completed)
+    elif ttype == 'ewc':
+        return ewc.resolve_slot(match_template, completed)
     return (None, None)
 
 
@@ -305,16 +314,16 @@ def get_final_standings(tournament):
             status_label = 'Á quân'
             status_class = 'runner-up'
         elif rank == 3:
-            status_label = 'Hạng ba'
+            status_label = 'Top 3-4' if ttype == 'ewc' else 'Hạng ba'
             status_class = 'third'
         elif rank == 4:
-            status_label = 'Hạng tư'
+            status_label = 'Top 3-4' if ttype == 'ewc' else 'Hạng tư'
             status_class = 'fourth'
         elif rank in (5, 6):
-            status_label = 'Top 5-8' if ttype == 'major' else 'Top 5-6'
+            status_label = 'Top 5-8' if ttype in ('major', 'ewc') else 'Top 5-6'
             status_class = 'ranked'
         elif rank in (7, 8):
-            status_label = 'Top 5-8' if ttype == 'major' else 'Top 7-8'
+            status_label = 'Top 5-8' if ttype in ('major', 'ewc') else 'Top 7-8'
             status_class = 'ranked'
         elif rank in (9, 10, 11, 12):
             status_label = 'Top 9-12'
@@ -371,6 +380,28 @@ def group_playoff_rounds(tournament):
         'grand': [],
         'labels': {},
     }
+
+    if tournament.type == 'ewc':
+        bracket['is_single_elim'] = True
+        bracket['labels'] = {
+            'quarterfinals': 'Quarterfinals',
+            'semifinals': 'Semifinals',
+            'grand_final': 'Grand Final',
+        }
+        qf_names = ['quarterfinal_1', 'quarterfinal_2', 'quarterfinal_3', 'quarterfinal_4']
+        qf = [match_by_name[k] for k in qf_names if k in match_by_name]
+        if qf:
+            bracket['upper']['quarterfinals'] = qf
+
+        sf_names = ['semifinal_1', 'semifinal_2']
+        sf = [match_by_name[k] for k in sf_names if k in match_by_name]
+        if sf:
+            bracket['upper']['semifinals'] = sf
+
+        if 'grand_final' in match_by_name:
+            bracket['grand'] = [match_by_name['grand_final']]
+
+        return bracket
 
     if has_8team:
         # Upper bracket:
@@ -453,9 +484,17 @@ def _match_label(m):
     """Human-readable round label for bracket display (Liquipedia style)."""
     name = m.round_name if hasattr(m, 'round_name') else str(m)
     if 'quarterfinal' in name:
-        return 'UB Quarterfinals' if 'upper' in name else 'Lower Bracket Quarterfinals'
+        if 'upper' in name:
+            return 'UB Quarterfinals'
+        elif 'lower' in name:
+            return 'Lower Bracket Quarterfinals'
+        return 'Quarterfinals'
     elif 'semifinal' in name:
-        return 'Upper Bracket Semifinals' if 'upper' in name else 'Lower Bracket Semifinals'
+        if 'upper' in name:
+            return 'Upper Bracket Semifinals'
+        elif 'lower' in name:
+            return 'Lower Bracket Semifinals'
+        return 'Semifinals'
     elif 'round1' in name:
         return 'Lower Bracket Round 1'
     elif 'final' in name:

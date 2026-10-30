@@ -283,6 +283,9 @@ li a:hover { text-decoration: underline; }
 .playoff-tree.is-8team .upper-bracket .round-matches {
     height: 350px;
 }
+.playoff-tree.is-single-elim .upper-bracket .round-matches {
+    height: 420px;
+}
 .playoff-tree.is-8team .lower-bracket .round-matches {
     height: 220px;
 }
@@ -1280,6 +1283,7 @@ li a:hover { text-decoration: underline; }
 .tour-type-badge.major { background: #2563eb; }
 .tour-type-badge.master { background: #7c3aed; }
 .tour-type-badge.champion { background: #d97706; }
+.tour-type-badge.ewc, .tour-type-ewc { background: #059669; }
 
 .tour-actions {
     display: flex; align-items: center; gap: 8px;

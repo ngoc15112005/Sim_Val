@@ -38,10 +38,19 @@ class Config:
             'advance_count': 8,
             'direct_qualifiers': 0,
         },
+        'ewc': {
+            'name': 'EWC',
+            'team_count': 16,
+            'group_stage': True,
+            'advance_count': 8,
+            'direct_qualifiers': 0,
+            'playoff_type': 'single_elim',
+        },
     }
 
     REGION_SLOTS = {
         'major': {'pacific': 2, 'americas': 2, 'emea': 2, 'china': 2},
         'master': {'pacific': 3, 'americas': 3, 'emea': 3, 'china': 3},
         'champion': {'pacific': 4, 'americas': 4, 'emea': 4, 'china': 4},
+        'ewc': {'pacific': 4, 'americas': 4, 'emea': 4, 'china': 4},
     }

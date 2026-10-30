@@ -18,9 +18,9 @@ python app.py         # Khởi động server
 
 ## Chức năng chính
 
-- **Tạo giải đấu**: Major (8 đội), Master (12 đội), Champion (16 đội)
+- **Tạo giải đấu**: Major (8 đội), Master (12 đội), Champion (16 đội), EWC (16 đội)
 - **Chọn đội thủ công** hoặc **fill random** từ 48 CLB Tier 1 (Pacific, Americas, EMEA, China)
-- **Tự động sinh bracket** theo format VCT 2025: Swiss Stage, Group Stage, Double Elimination
+- **Tự động sinh bracket** theo format VCT 2025 & EWC: Swiss Stage, Group Stage (GSL), Double Elimination, Single Elimination
 - **Mô phỏng trận đấu** với weighted random (rating + phong độ)
 - **Nhập tỷ số tay** từng trận nếu muốn can thiệp
 - **Parse shorthand** từ file `.txt` match log (`13*-8 W`)

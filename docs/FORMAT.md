@@ -59,10 +59,11 @@
 ```
 KO (Kick-off) → MJ (Major)
 S1 (Stage 1)  → MT (Master)
+[ EWC ] (Esports World Cup)
 S2 (Stage 2)  → CP (Champion)
 ```
 
-Mỗi mùa: KO → MJ | S1 → MT | S2 → CP
+Mỗi mùa: KO → MJ | S1 → MT | [ EWC ] | S2 → CP
 
 ---
 
@@ -179,6 +180,42 @@ Group Stage (GSL):
 
 Playoffs (8-team Double Elimination):
   (Giống hệt bracket của Master)
+```
+
+### B.4. EWC (16 đội) — Esports World Cup
+
+```
+Thể thức:
+  Group Stage:   4 bảng × 4 đội (GSL format)
+                 → 2 đội/bảng đi tiếp = 8 đội
+  Playoffs:      8 đội Single Elimination (Loại trực tiếp đơn)
+
+Group Stage (GSL):
+  Giống format của Champion (4 bảng A/B/C/D, 5 trận/bảng, BO3).
+  Rổ hạt giống:
+    Pool 1: Vô địch VCT Stage 1 của 4 khu vực
+    Pool 2: Á quân VCT Stage 1 của 4 khu vực
+    Pool 3: Hạt giống 1 vòng loại khu vực EWC
+    Pool 4: Hạt giống 2 vòng loại khu vực EWC
+  Bảo vệ khu vực: Tối đa 1 đội/khu vực mỗi bảng.
+
+Playoffs (8-team Single Elimination):
+  ┌───────────────────────┬───────────┐
+  │ Trận                  │ BO3/BO5   │
+  ├───────────────────────┼───────────┤
+  │ quarterfinal_1        │ BO3       │
+  │ quarterfinal_2        │ BO3       │
+  │ quarterfinal_3        │ BO3       │
+  │ quarterfinal_4        │ BO3       │
+  │ semifinal_1           │ BO3       │
+  │ semifinal_2           │ BO3       │
+  │ grand_final           │ BO5       │
+  └───────────────────────┴───────────┘
+
+  Ràng buộc bốc thăm:
+    - Nhất bảng gặp Nhì bảng khác.
+    - 2 đội cùng bảng nằm ở 2 nửa nhánh đấu đối diện (không thể tái đấu trước Chung kết tổng).
+    - Thua là bị loại ngay lập tức (không có nhánh thua).
 ```
 
 ---
