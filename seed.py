@@ -37,6 +37,9 @@ CLUBS = {
         ('DetonatioN FocusMe', 'DFM', 70, '1675669923678_190px-DetonatioN_FocusMe_2022_darkmode1.png'),
         ('Bleed Esports', 'BLD', 70, 'https://liquipedia.net/commons/images/4/42/Bleed_eSports_2021_allmode.png'),
         ('GAM Esports', 'GAM', 70, 'https://liquipedia.net/commons/images/b/ba/GAM_Esports_2021_allmode.png'),
+        ('FENNEL', 'FL', 73, ''),
+        ('Disguised', 'DSG', 71, ''),
+        ('Made in Thailand', 'MITH', 71, ''),
     ],
     'americas': [
         ('LOUD', 'LOUD', 96, '1644060140569_LOUDGreen.png'),
@@ -58,6 +61,11 @@ CLUBS = {
         ('FURIA', 'FUR', 72, '1644059765262_FURIA-LOGO.png'),
         ('Galorys', 'GLR', 71, ''),
         ('DarkZero Esports', 'DZ', 70, ''),
+        ('Shopify Rebellion', 'SR', 74, ''),
+        ('YFP Gaming', 'YFP', 72, ''),
+        ('Turtle Troop', 'TT', 71, ''),
+        ('9z Team', '9z', 72, ''),
+        ('RED Canids', 'RED', 71, ''),
     ],
     'emea': [
         ('Team Vitality', 'VIT', 93, '1722030793680_VITALITY_YELLOW.png'),
@@ -80,6 +88,10 @@ CLUBS = {
         ('CGN Esports', 'CGN', 70, ''),
         ('Case Esports', 'CASE', 70, ''),
         ('KOI', 'KOI', 70, '1774348464161_EternalFireLogo.png'),
+        ('MOUZ', 'MOUZ', 74, ''),
+        ('FOKUS', 'FKS', 72, ''),
+        ('Barça eSports', 'BAR', 72, ''),
+        ('Dsyre', 'DSY', 71, ''),
     ],
     'china': [
         ('EDward Gaming', 'EDG', 88, '1735920597800_edg1.png'),
@@ -102,6 +114,10 @@ CLUBS = {
         ('Top Esports', 'TES', 70, ''),
         ('Invictus Gaming', 'iG', 70, ''),
         ('Rare Atom', 'RA', 70, '1764151573361_ENVY_Standard_Light.png'),
+        ('Royal Never Give Up', 'RNG', 73, ''),
+        ('Qing Jiu Club', 'Q9', 72, ''),
+        ('LGD Gaming', 'LGD', 71, ''),
+        ('Ninjas in Pyjamas', 'NIP', 71, ''),
     ],
 }
 
