@@ -124,6 +124,9 @@ def generate_ewc_playoffs_draw(winners, runners):
             {'round_type': 'grand', 'round_name': 'grand_final',
              'sources': {'team_a': {'type': 'winner_of', 'value': 'semifinal_1'},
                          'team_b': {'type': 'winner_of', 'value': 'semifinal_2'}}},
+            {'round_type': 'third_place', 'round_name': 'third_place_match',
+             'sources': {'team_a': {'type': 'loser_of', 'value': 'semifinal_1'},
+                         'team_b': {'type': 'loser_of', 'value': 'semifinal_2'}}},
         ]
 
     # Fallback if constraint matching fails
@@ -153,6 +156,9 @@ def generate_ewc_playoffs_draw(winners, runners):
         {'round_type': 'grand', 'round_name': 'grand_final',
          'sources': {'team_a': {'type': 'winner_of', 'value': 'semifinal_1'},
                      'team_b': {'type': 'winner_of', 'value': 'semifinal_2'}}},
+        {'round_type': 'third_place', 'round_name': 'third_place_match',
+         'sources': {'team_a': {'type': 'loser_of', 'value': 'semifinal_1'},
+                     'team_b': {'type': 'loser_of', 'value': 'semifinal_2'}}},
     ]
 
 

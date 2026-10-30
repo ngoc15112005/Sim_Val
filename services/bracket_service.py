@@ -117,7 +117,7 @@ def resolve_playoff_slot(match_template, tournament):
     ttype = tournament.type
     matches = Match.query.filter_by(
         tournament_id=tournament.id,
-    ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).all()
+    ).filter(Match.round_type.in_(['upper', 'lower', 'grand', 'third_place'])).all()
     completed = [_match_to_dict(m) for m in matches if m.status == 'completed']
 
     if ttype == 'major':
@@ -314,10 +314,10 @@ def get_final_standings(tournament):
             status_label = 'Á quân'
             status_class = 'runner-up'
         elif rank == 3:
-            status_label = 'Top 3-4' if ttype == 'ewc' else 'Hạng ba'
+            status_label = 'Hạng ba'
             status_class = 'third'
         elif rank == 4:
-            status_label = 'Top 3-4' if ttype == 'ewc' else 'Hạng tư'
+            status_label = 'Hạng tư'
             status_class = 'fourth'
         elif rank in (5, 6):
             status_label = 'Top 5-8' if ttype in ('major', 'ewc') else 'Top 5-6'
@@ -368,7 +368,7 @@ def group_playoff_rounds(tournament):
 
     all_matches = Match.query.filter_by(
         tournament_id=tournament.id,
-    ).filter(Match.round_type.in_(['upper', 'lower', 'grand'])).order_by(Match.match_order).all()
+    ).filter(Match.round_type.in_(['upper', 'lower', 'grand', 'third_place'])).order_by(Match.match_order).all()
 
     match_by_name = {m.round_name: m for m in all_matches}
     has_8team = any('quarterfinal' in m.round_name for m in all_matches if m.round_type == 'upper')
@@ -378,6 +378,7 @@ def group_playoff_rounds(tournament):
         'upper': OrderedDict(),
         'lower': OrderedDict(),
         'grand': [],
+        'third_place': [],
         'labels': {},
     }
 
@@ -387,6 +388,7 @@ def group_playoff_rounds(tournament):
             'quarterfinals': 'Quarterfinals',
             'semifinals': 'Semifinals',
             'grand_final': 'Grand Final',
+            'third_place': '3rd Place',
         }
         qf_names = ['quarterfinal_1', 'quarterfinal_2', 'quarterfinal_3', 'quarterfinal_4']
         qf = [match_by_name[k] for k in qf_names if k in match_by_name]
@@ -400,6 +402,9 @@ def group_playoff_rounds(tournament):
 
         if 'grand_final' in match_by_name:
             bracket['grand'] = [match_by_name['grand_final']]
+
+        if 'third_place_match' in match_by_name:
+            bracket['third_place'] = [match_by_name['third_place_match']]
 
         return bracket
 
@@ -501,6 +506,8 @@ def _match_label(m):
         if 'grand' in name:
             return 'Grand Final'
         return 'Upper Bracket Final' if 'upper' in name else 'Lower Bracket Final'
+    elif 'third_place' in name:
+        return '3rd Place Match'
     return name
 
 

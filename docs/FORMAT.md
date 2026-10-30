@@ -209,13 +209,15 @@ Playoffs (8-team Single Elimination):
   │ quarterfinal_4        │ BO3       │
   │ semifinal_1           │ BO3       │
   │ semifinal_2           │ BO3       │
+  │ third_place_match     │ BO3       │
   │ grand_final           │ BO5       │
   └───────────────────────┴───────────┘
 
   Ràng buộc bốc thăm:
     - Nhất bảng gặp Nhì bảng khác.
     - 2 đội cùng bảng nằm ở 2 nửa nhánh đấu đối diện (không thể tái đấu trước Chung kết tổng).
-    - Thua là bị loại ngay lập tức (không có nhánh thua).
+    - Thua tại Bán kết sẽ xuống thi đấu trận Tranh Hạng 3 (third_place_match).
+    - Thua tại Tứ kết bị loại (Top 5-8).
 ```
 
 ---
@@ -227,5 +229,6 @@ Playoffs (8-team Single Elimination):
 | Tất cả Swiss / Group | BO3 |
 | Upper Bracket (tất cả các vòng) | BO3 |
 | Lower Round 1, Quarterfinal, Semifinal | BO3 |
+| **Trận Tranh Hạng 3 (EWC)** | **BO3** |
 | **Lower Final** | **BO5** |
 | **Grand Final** | **BO5** |

@@ -59,10 +59,15 @@ class TestEWCFormatPure(unittest.TestCase):
         ]
 
         templates = ewc.generate_ewc_playoffs_draw(winners, runners)
-        self.assertEqual(len(templates), 7)  # 4 QF + 2 SF + 1 GF
+        self.assertEqual(len(templates), 8)  # 4 QF + 2 SF + 1 GF + 1 3rd Place
 
         qfs = [t for t in templates if 'quarterfinal' in t['round_name']]
         self.assertEqual(len(qfs), 4)
+
+        tp = next((t for t in templates if t['round_name'] == 'third_place_match'), None)
+        self.assertIsNotNone(tp)
+        self.assertEqual(tp['sources']['team_a']['value'], 'semifinal_1')
+        self.assertEqual(tp['sources']['team_b']['value'], 'semifinal_2')
 
         # 1. Winner vs Runner in every QF
         winner_ids = {w['id'] for w in winners}
@@ -148,16 +153,21 @@ class TestEWCTournamentLifecycle(unittest.TestCase):
 
         # Check total matches:
         # Group stage: 4 groups * 5 matches = 20 matches
-        # Playoffs: 4 QF + 2 SF + 1 GF = 7 matches
-        # Total = 27 matches
+        # Playoffs: 4 QF + 2 SF + 1 GF + 1 3rd Place = 8 matches
+        # Total = 28 matches
         all_matches = Match.query.filter_by(tournament_id=tour.id).all()
-        self.assertEqual(len(all_matches), 27)
+        self.assertEqual(len(all_matches), 28)
 
-        # Grand final check
+        # Grand final & 3rd place check
         gf = Match.query.filter_by(tournament_id=tour.id, round_name='grand_final').first()
         self.assertIsNotNone(gf)
         self.assertEqual(gf.status, 'completed')
         self.assertIsNotNone(gf.winner_id)
+
+        tp = Match.query.filter_by(tournament_id=tour.id, round_name='third_place_match').first()
+        self.assertIsNotNone(tp)
+        self.assertEqual(tp.status, 'completed')
+        self.assertIsNotNone(tp.winner_id)
 
         # Check final rankings of all 16 participants
         participants = TournamentParticipant.query.filter_by(tournament_id=tour.id).all()
@@ -169,8 +179,12 @@ class TestEWCTournamentLifecycle(unittest.TestCase):
         # Winner is rank 1, GF loser is rank 2
         p_champ = next(p for p in participants if p.final_rank == 1)
         p_runner = next(p for p in participants if p.final_rank == 2)
+        p_third = next(p for p in participants if p.final_rank == 3)
+        p_fourth = next(p for p in participants if p.final_rank == 4)
         self.assertEqual(p_champ.club_id, gf.winner_id)
         self.assertEqual(p_runner.club_id, gf.loser_id)
+        self.assertEqual(p_third.club_id, tp.winner_id)
+        self.assertEqual(p_fourth.club_id, tp.loser_id)
 
         # Check bracket rounds
         playoff_data = group_playoff_rounds(tour)
@@ -181,6 +195,7 @@ class TestEWCTournamentLifecycle(unittest.TestCase):
         self.assertEqual(len(playoff_data['upper']['quarterfinals']), 4)
         self.assertEqual(len(playoff_data['upper']['semifinals']), 2)
         self.assertEqual(len(playoff_data['grand']), 1)
+        self.assertEqual(len(playoff_data['third_place']), 1)
         self.assertEqual(len(playoff_data['lower']), 0)
 
         # Check final standings service
@@ -188,8 +203,8 @@ class TestEWCTournamentLifecycle(unittest.TestCase):
         self.assertEqual(len(standings), 16)
         self.assertEqual(standings[0]['status_label'], 'Vô địch')
         self.assertEqual(standings[1]['status_label'], 'Á quân')
-        self.assertEqual(standings[2]['status_label'], 'Top 3-4')
-        self.assertEqual(standings[3]['status_label'], 'Top 3-4')
+        self.assertEqual(standings[2]['status_label'], 'Hạng ba')
+        self.assertEqual(standings[3]['status_label'], 'Hạng tư')
         for i in range(4, 8):
             self.assertEqual(standings[i]['status_label'], 'Top 5-8')
 
@@ -201,6 +216,7 @@ class TestEWCTournamentLifecycle(unittest.TestCase):
             self.assertIn('is-single-elim', html)
             self.assertIn('Quarterfinals', html)
             self.assertIn('Grand Final', html)
+            self.assertIn('3rd Place', html)
             self.assertIn('EWC', html)
 
 

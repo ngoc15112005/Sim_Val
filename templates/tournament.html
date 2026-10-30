@@ -297,11 +297,12 @@
 </section>
 {% endif %}
 
-{% if playoff_rounds and (playoff_rounds.upper or playoff_rounds.lower or playoff_rounds.grand) %}
+{% if playoff_rounds and (playoff_rounds.upper or playoff_rounds.lower or playoff_rounds.grand or playoff_rounds.third_place) %}
 {% set has_upper = playoff_rounds.upper|length > 0 %}
 {% set has_lower = playoff_rounds.lower|length > 0 %}
 {% set has_grand = playoff_rounds.grand|length > 0 %}
-{% if has_upper or has_lower or has_grand %}
+{% set has_third_place = (playoff_rounds.third_place|length > 0) if playoff_rounds.third_place is defined else False %}
+{% if has_upper or has_lower or has_grand or has_third_place %}
 <section class="card bracket-card">
   <h2>Playoffs</h2>
 
@@ -342,6 +343,26 @@
           </div>
           <div class="round-matches">
             {% for m in playoff_rounds.grand %}
+            {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
+            <div class="match-box-wrapper">
+              {% include 'tournament/_match_box.html' %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if has_third_place %}
+        <div class="bracket-column third-place-column" data-col="third_place">
+          <div class="round-header">
+            <span>{{ playoff_rounds.labels.get('third_place', '3rd Place') }}</span>
+            {% set tp_pending = playoff_rounds.third_place | selectattr('status', 'equalto', 'pending') | selectattr('team_a_id') | selectattr('team_b_id') | list | length %}
+            {% if tp_pending > 0 %}
+            <button type="button" class="btn-sim-bracket-col" onclick="simPlayoffColumn('third_place_match', this)" title="Mô phỏng Tranh Hạng 3">⚡ Sim</button>
+            {% endif %}
+          </div>
+          <div class="round-matches">
+            {% for m in playoff_rounds.third_place %}
             {% set display = resolved_matches | selectattr('id', 'equalto', m.id) | list | first %}
             <div class="match-box-wrapper">
               {% include 'tournament/_match_box.html' %}

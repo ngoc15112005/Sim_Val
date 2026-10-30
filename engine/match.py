@@ -97,7 +97,7 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
         prob_a += seed_diff * 0.01
 
         # 'Seed 1 Curse' (Cold Start in first playoff match)
-        is_playoff = round_type in ('upper', 'lower', 'playoff', 'grand')
+        is_playoff = round_type in ('upper', 'lower', 'playoff', 'grand', 'third_place')
         if seed_a == 1 and prior_a == 0 and is_playoff:
             prob_a -= 0.04  # Team A cold start
         if seed_b == 1 and prior_b == 0 and is_playoff:

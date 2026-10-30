@@ -377,10 +377,14 @@ def _resolve_playoff_slots(tournament):
 
 def _is_bracket_finished(tournament):
     gf = Match.query.filter_by(tournament_id=tournament.id, round_type='grand').first()
-    if gf and gf.status == 'completed':
-        _finalize_tournament(tournament)
-        return True
-    return False
+    if not (gf and gf.status == 'completed'):
+        return False
+    if tournament.type == 'ewc':
+        tp = Match.query.filter_by(tournament_id=tournament.id, round_name='third_place_match').first()
+        if tp and tp.status != 'completed':
+            return False
+    _finalize_tournament(tournament)
+    return True
 
 
 def _finalize_tournament(tournament):
@@ -388,7 +392,7 @@ def _finalize_tournament(tournament):
     from services.bracket_service import _match_label
     matches = Match.query.filter_by(tournament_id=tournament.id).all()
     completed = {m.round_name: m for m in matches
-                 if m.status == 'completed' and m.round_type in ('upper', 'lower', 'grand')}
+                 if m.status == 'completed' and m.round_type in ('upper', 'lower', 'grand', 'third_place')}
 
     if not completed.get('grand_final'):
         return
@@ -404,14 +408,19 @@ def _finalize_tournament(tournament):
 
     if tournament.type == 'ewc':
         # EWC (8-team Single Elimination)
-        # Semifinal losers: #3, #4
-        sf_losers = []
-        for sf in ('semifinal_1', 'semifinal_2'):
-            m = completed.get(sf)
-            if m and m.loser_id and m.loser_id not in rank_map:
-                sf_losers.append(m.loser_id)
-        for idx, cid in enumerate(sf_losers):
-            rank_map[cid] = 3 + idx
+        # 3rd Place Match: Winner #3, Loser #4
+        tp = completed.get('third_place_match')
+        if tp and tp.winner_id and tp.loser_id:
+            rank_map[tp.winner_id] = 3
+            rank_map[tp.loser_id] = 4
+        else:
+            sf_losers = []
+            for sf in ('semifinal_1', 'semifinal_2'):
+                m = completed.get(sf)
+                if m and m.loser_id and m.loser_id not in rank_map:
+                    sf_losers.append(m.loser_id)
+            for idx, cid in enumerate(sf_losers):
+                rank_map[cid] = 3 + idx
 
         # Quarterfinal losers: #5, #6, #7, #8
         qf_losers = []
@@ -578,6 +587,8 @@ def simulate_round(tournament, round_name=None, group_label=None, stage=None, ma
             target_names = ['lower_final']
         elif round_name == 'grand_final':
             target_names = ['grand_final']
+        elif round_name in ('third_place_match', 'third_place'):
+            target_names = ['third_place_match']
         else:
             target_names = [round_name]
 
