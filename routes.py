@@ -304,6 +304,7 @@ def register_routes(app):
         run_open_qualifier_stage, get_open_qualifier_data,
         get_championship_leaderboard, get_champions_paris_qualifiers,
         get_kickoff_data, run_kickoff_stage, override_kickoff_match,
+        get_major_data, run_major_stage, override_major_match,
     )
 
     @app.route('/campaigns')
@@ -335,6 +336,7 @@ def register_routes(app):
         club_states = get_campaign_club_states(campaign_id)
         oq_data = get_open_qualifier_data(campaign_id)
         kickoff_data = get_kickoff_data(campaign_id)
+        major_data = get_major_data(campaign_id)
 
         stages_info = []
         current_found = False
@@ -361,6 +363,7 @@ def register_routes(app):
             stages_info=stages_info,
             oq_data=oq_data,
             kickoff_data=kickoff_data,
+            major_data=major_data,
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
@@ -475,6 +478,58 @@ def register_routes(app):
 
         try:
             results = override_kickoff_match(campaign_id, region_slug, round_name, int(winner_id), maps)
+            return jsonify({'success': True, 'results': results})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/campaign/<int:campaign_id>/stage/major')
+    def campaign_major_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        major_data = get_major_data(campaign_id)
+        cp_leaderboards = {
+            r: get_championship_leaderboard(campaign_id, region_slug=r)
+            for r in ['pacific', 'americas', 'emea', 'china']
+        }
+
+        return render_template(
+            'campaign/major.html',
+            campaign=campaign,
+            major_data=major_data,
+            cp_leaderboards=cp_leaderboards,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/major/sim', methods=['POST'])
+    def api_campaign_major_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            results = run_major_stage(campaign_id)
+            return jsonify({'success': True, 'results': results})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/major/match/override', methods=['POST'])
+    def api_campaign_major_match_override(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        round_name = data.get('round_name')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not round_name or not winner_id:
+            return jsonify({'error': 'round_name and winner_id are required'}), 400
+
+        try:
+            results = override_major_match(campaign_id, round_name, int(winner_id), maps)
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             return jsonify({'error': str(e)}), 400

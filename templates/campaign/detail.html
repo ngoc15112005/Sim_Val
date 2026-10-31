@@ -54,6 +54,10 @@
           Vòng tuyển chọn Open Qualifier (43 trận / khu vực)
         {% elif campaign.current_stage == 'kickoff' %}
           VCT Kickoff (12 đội: 8 Partner + 4 Open Qualifiers)
+        {% elif campaign.current_stage == 'major' %}
+          VCT Major (Masters Bangkok - 8 Đội Tuyển Toàn Cầu)
+        {% elif campaign.current_stage == 'stage1' %}
+          VCT Regional Stage 1 (12 Đội / Khu Vực)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -63,6 +67,10 @@
           16 đội Non-Partner mỗi khu vực tranh tài qua thể thức Thụy Sĩ (Swiss 33 trận) và Double Elimination Playoffs (10 trận) để giành 4 tấm vé đi Kickoff.
         {% elif campaign.current_stage == 'kickoff' %}
           8 đội Partner đối đầu cùng 4 đội Non-partner vượt qua vòng loại. 2 đội xuất sắc nhất mỗi khu vực sẽ giành vé tới giải VCT Major quốc tế!
+        {% elif campaign.current_stage == 'major' %}
+          8 đội tuyển xuất sắc nhất thế giới tranh tài qua Vòng Thụy Sĩ (10 trận) và Double Elimination (6 trận) để giành ngôi Vương Masters Bangkok và 5 Championship Points.
+        {% elif campaign.current_stage == 'stage1' %}
+          12 đội tuyển mỗi khu vực bước vào giai đoạn Vòng Bảng & Playoffs Stage 1 để tích lũy điểm số và giành vé tới Masters Toronto & EWC!
         {% endif %}
       </p>
     </div>
@@ -78,8 +86,20 @@
         <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Open Qualifier
         </a>
+      {% elif campaign.current_stage == 'major' %}
+        <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu VCT Major ➔
+        </a>
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Kickoff
+        </a>
       {% else %}
-        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block;">
+        {% if major_data and major_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block;">
+          Xem lại VCT Major
+        </a>
+        {% endif %}
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Kickoff
         </a>
         <a href="/campaign/{{ campaign.id }}/stage/open_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -88,6 +108,25 @@
       {% endif %}
     </div>
   </div>
+
+  {% if major_data and major_data.result %}
+  <div class="major-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
+        🏆 VCT Major Bangkok Kết Thúc
+      </span>
+      <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
+        Nhà Vô Địch: <span style="color: #fbbf24;">{{ major_data.result.champion.name }} ({{ major_data.result.champion.short_code }})</span> (+5 CP)
+      </h3>
+      <div style="font-size: 0.85em; color: var(--dim);">
+        Á quân: <strong style="color: #fff;">{{ major_data.result.runner_up.name }} ({{ major_data.result.runner_up.short_code }})</strong> (+3 CP) • 3rd: (+2 CP) • 4th: (+1 CP)
+      </div>
+    </div>
+    <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
+      Xem toàn bộ nhánh đấu Major ➔
+    </a>
+  </div>
+  {% endif %}
 
   {% if kickoff_data and kickoff_data.regional_results %}
   <div class="kickoff-quick-summary" style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
