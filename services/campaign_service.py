@@ -22,7 +22,14 @@ from engine.format.open_qualifier import (
     sim_open_qualifier_remaining,
     simulate_open_qualifier,
 )
-from engine.format.kickoff import simulate_kickoff_tournament
+from engine.format.kickoff import (
+    simulate_kickoff_tournament,
+    init_kickoff_region_state,
+    resolve_kickoff_match,
+    advance_kickoff_region,
+    sim_kickoff_round,
+    sim_kickoff_remaining,
+)
 from engine.format.major_sim import simulate_major_tournament
 
 
@@ -361,6 +368,10 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
 
         kickoff_rosters[r_slug] = partner_teams + qual_teams
 
+    regional_results = {}
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        regional_results[r_slug] = init_kickoff_region_state(r_slug, kickoff_rosters[r_slug])
+
     if not kickoff_stage:
         kickoff_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -368,28 +379,162 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
             stage_key='kickoff',
             stage_name=f'VCT Kickoff {campaign.current_year}',
             status='pending',
-            stage_data=json.dumps({'rosters': kickoff_rosters, 'regional_results': {}}),
+            stage_data=json.dumps({'rosters': kickoff_rosters, 'regional_results': regional_results}),
         )
         db.session.add(kickoff_stage)
     else:
         current_data = json.loads(kickoff_stage.stage_data) if kickoff_stage.stage_data else {}
         current_data['rosters'] = kickoff_rosters
+        if 'regional_results' not in current_data or not current_data['regional_results']:
+            current_data['regional_results'] = regional_results
         kickoff_stage.stage_data = json.dumps(current_data)
 
 
-
-
-
 # ─────────────────────────────────────────────────────────────────────────────
-# VCT Kickoff Stage Execution
+# VCT Kickoff Stage Execution & Interactive Match Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieve full Kickoff data for all regions in a campaign."""
+    """Retrieve full Kickoff data for all regions in a campaign.
+    Ensures that regional_results is initialized with interactive states.
+    """
     stage = get_stage_record(campaign_id, 'kickoff')
     if not stage or not stage.stage_data:
         return None
-    return json.loads(stage.stage_data)
+    data = json.loads(stage.stage_data)
+
+    if 'regional_results' not in data:
+        data['regional_results'] = {}
+
+    rosters = data.get('rosters', {})
+    updated = False
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        if r_slug in rosters and (r_slug not in data['regional_results'] or not data['regional_results'][r_slug].get('matches')):
+            data['regional_results'][r_slug] = init_kickoff_region_state(r_slug, rosters[r_slug])
+            updated = True
+
+    if updated:
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return data
+
+
+def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Award CP, story ratings, and advance campaign when all 4 Kickoff regions complete."""
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    for r_slug in all_regions:
+        reg_data = data.get('regional_results', {}).get(r_slug)
+        if reg_data and reg_data.get('status') == 'completed':
+            if not reg_data.get('rewards_awarded'):
+                cp_awards = []
+                for s in reg_data.get('standings', []):
+                    cp_awards.append({
+                        'club_id': s['club_id'],
+                        'rank': s['rank'],
+                    })
+                award_stage_cp(campaign.id, 'kickoff', cp_awards)
+
+                if reg_data.get('major_qualifiers'):
+                    c_id = reg_data['major_qualifiers'][0]['id']
+                    if c_id in club_states:
+                        club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 2)
+                    r_id = reg_data['major_qualifiers'][1]['id']
+                    if r_id in club_states:
+                        club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 1)
+                reg_data['rewards_awarded'] = True
+
+    stage.stage_data = json.dumps(data)
+
+    if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'major'
+        _prepare_major_stage(campaign, data['regional_results'])
+
+
+def resolve_ko_match(campaign_id: int, region_slug: str, match_id: str,
+                     winner_id: Optional[int] = None,
+                     maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single Kickoff match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'kickoff')
+    if not stage:
+        raise ValueError("Kickoff stage not found")
+
+    data = get_kickoff_data(campaign_id)
+    if not data or 'regional_results' not in data or region_slug not in data['regional_results']:
+        raise ValueError(f"Kickoff data for {region_slug} not initialized")
+
+    reg_data = data['regional_results'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    resolved = resolve_kickoff_match(
+        reg_data, match_id,
+        winner_id=winner_id,
+        maps=maps,
+        rating_lookup=rating_lookup,
+        form_lookup=form_lookup,
+    )
+
+    _check_and_finalize_kickoff_regions(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'region_data': reg_data}
+
+
+def sim_ko_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all currently playable pending matches in the active round/wave."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'kickoff')
+    if not stage:
+        raise ValueError("Kickoff stage not found")
+
+    data = get_kickoff_data(campaign_id)
+    reg_data = data['regional_results'][region_slug]
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_count = sim_kickoff_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_kickoff_regions(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'region_data': reg_data}
+
+
+def sim_ko_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all remaining matches for a single Kickoff region until completed."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'kickoff')
+    if not stage:
+        raise ValueError("Kickoff stage not found")
+
+    data = get_kickoff_data(campaign_id)
+    reg_data = data['regional_results'][region_slug]
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_kickoff_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_kickoff_regions(campaign, stage, data)
+    db.session.commit()
+    return {'region_data': reg_data}
 
 
 def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
@@ -403,9 +548,7 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
     if not stage:
         raise ValueError("Kickoff stage not initialized yet. Please complete Open Qualifier first.")
 
-    data = json.loads(stage.stage_data) if stage.stage_data else {'rosters': {}, 'regional_results': {}}
-    if 'regional_results' not in data:
-        data['regional_results'] = {}
+    data = get_kickoff_data(campaign_id)
     if 'manual_overrides' not in data:
         data['manual_overrides'] = {}
 
@@ -417,7 +560,6 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
         if len(roster) != 12:
             raise ValueError(f"Roster for {r_slug} Kickoff does not have 12 teams")
 
-        # Refresh rating & form from CampaignClubState
         states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign_id).all()}
         for t in roster:
             c_id = t['id']
@@ -429,7 +571,6 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
         rating_lookup = {t['id']: t['story_rating'] for t in roster}
         form_lookup = {t['id']: t['form_modifier'] for t in roster}
 
-        # Combine stored overrides with any new overrides passed in
         existing_overrides = data['manual_overrides'].get(r_slug, {})
         if manual_overrides and region_slug == r_slug:
             existing_overrides.update(manual_overrides)
@@ -444,7 +585,6 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
 
         data['regional_results'][r_slug] = sim_res
 
-        # Award official VCT 2025 Championship Points
         cp_awards = []
         for s in sim_res['standings']:
             cp_awards.append({
@@ -462,13 +602,10 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
 
     stage.stage_data = json.dumps(data)
 
-    # Check if all 4 regions are finished
     all_regions = ['pacific', 'americas', 'emea', 'china']
-    if all(r in data['regional_results'] for r in all_regions):
+    if all(r in data['regional_results'] and data['regional_results'][r].get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-
-        # Advance campaign to Major
         campaign.current_stage = 'major'
         _prepare_major_stage(campaign, data['regional_results'])
 

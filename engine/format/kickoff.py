@@ -535,165 +535,455 @@ def simulate_kickoff_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: i
     }
 
 
+def _get_kickoff_source_label(src: Dict[str, Any]) -> str:
+    stype = src.get('type')
+    sval = src.get('value')
+    if stype == 'seed':
+        return f"Hạt giống #{sval}"
+
+    code_labels = {
+        'upper_r1_m1': 'Thắng UB R1 - Trận 1',
+        'upper_r1_m2': 'Thắng UB R1 - Trận 2',
+        'upper_r1_m3': 'Thắng UB R1 - Trận 3',
+        'upper_r1_m4': 'Thắng UB R1 - Trận 4',
+        'upper_qf_m1': 'Thắng Tứ kết NT 1',
+        'upper_qf_m2': 'Thắng Tứ kết NT 2',
+        'upper_qf_m3': 'Thắng Tứ kết NT 3',
+        'upper_qf_m4': 'Thắng Tứ kết NT 4',
+        'upper_sf_m1': 'Thắng Bán kết NT 1',
+        'upper_sf_m2': 'Thắng Bán kết NT 2',
+        'upper_final': 'Thắng Chung kết NT',
+        'lower_r1_m1': 'Thắng Vòng 1 Nhánh thua 1',
+        'lower_r1_m2': 'Thắng Vòng 1 Nhánh thua 2',
+        'lower_r1_m3': 'Thắng Vòng 1 Nhánh thua 3',
+        'lower_r1_m4': 'Thắng Vòng 1 Nhánh thua 4',
+        'lower_r2_m1': 'Thắng Vòng 2 Nhánh thua 1',
+        'lower_r2_m2': 'Thắng Vòng 2 Nhánh thua 2',
+        'lower_r3_m1': 'Thắng Tứ kết Nhánh thua 1',
+        'lower_r3_m2': 'Thắng Tứ kết Nhánh thua 2',
+        'lower_semifinal': 'Thắng Bán kết Nhánh thua',
+        'lower_final': 'Thắng Chung kết Nhánh thua',
+    }
+    loser_labels = {
+        'upper_r1_m1': 'Thua UB R1 - Trận 1',
+        'upper_r1_m2': 'Thua UB R1 - Trận 2',
+        'upper_r1_m3': 'Thua UB R1 - Trận 3',
+        'upper_r1_m4': 'Thua UB R1 - Trận 4',
+        'upper_qf_m1': 'Thua Tứ kết NT 1',
+        'upper_qf_m2': 'Thua Tứ kết NT 2',
+        'upper_qf_m3': 'Thua Tứ kết NT 3',
+        'upper_qf_m4': 'Thua Tứ kết NT 4',
+        'upper_sf_m1': 'Thua Bán kết NT 1',
+        'upper_sf_m2': 'Thua Bán kết NT 2',
+        'upper_final': 'Thua Chung kết NT',
+    }
+    if stype == 'winner_of':
+        return code_labels.get(sval, f"Thắng {sval}")
+    if stype == 'loser_of':
+        return loser_labels.get(sval, f"Thua {sval}")
+    return "TBD"
+
+
+def _resolve_kickoff_slots_for_region(region_data: Dict[str, Any]):
+    """Resolve team_a and team_b for any kickoff match where sources are determined."""
+    raw_seeds = region_data.get('seeds', {})
+    seeds = {int(k): v for k, v in raw_seeds.items()}
+
+    matches = region_data.get('matches', [])
+    completed_map = {m['round_name']: m for m in matches if m['status'] == 'completed'}
+
+    def resolve_team(src):
+        stype = src['type']
+        sval = src['value']
+        if stype == 'seed':
+            return seeds.get(int(sval))
+        if stype == 'winner_of':
+            feeder = completed_map.get(sval)
+            return feeder['winner'] if feeder else None
+        if stype == 'loser_of':
+            feeder = completed_map.get(sval)
+            return feeder['loser'] if feeder else None
+        return None
+
+    for m in matches:
+        if m['status'] == 'pending':
+            t_a = resolve_team(m['team_a_source'])
+            t_b = resolve_team(m['team_b_source'])
+
+            if t_a:
+                m['team_a'] = t_a
+                m['team_a_id'] = t_a['id']
+                m['placeholder_a'] = None
+            else:
+                m['team_a'] = None
+                m['team_a_id'] = None
+                m['placeholder_a'] = _get_kickoff_source_label(m['team_a_source'])
+
+            if t_b:
+                m['team_b'] = t_b
+                m['team_b_id'] = t_b['id']
+                m['placeholder_b'] = None
+            else:
+                m['team_b'] = None
+                m['team_b_id'] = None
+                m['placeholder_b'] = _get_kickoff_source_label(m['team_b_source'])
+
+
+def init_kickoff_region_state(region_slug: str, participants: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Initialize state for VCT Kickoff double-elimination bracket (22 matches)."""
+    if len(participants) != 12:
+        raise ValueError(f"Kickoff requires exactly 12 teams, received {len(participants)}")
+
+    norm_participants = []
+    for p in participants:
+        norm = dict(p)
+        c_id = norm.get('id') or norm.get('club_id')
+        norm['id'] = c_id
+        norm['club_id'] = c_id
+        norm_participants.append(norm)
+
+    seeding_info = seed_kickoff_participants(norm_participants)
+    seeds = seeding_info['seeds']
+
+    templates = get_kickoff_bracket_templates()
+    matches = []
+    for idx, tpl in enumerate(templates):
+        match_id = f"ko_{region_slug}_{tpl['round_name']}"
+        matches.append({
+            'id': match_id,
+            'round_name': tpl['round_name'],
+            'round_type': tpl['round_type'],
+            'match_code': tpl['match_code'],
+            'label': tpl['label'],
+            'match_order': idx + 1,
+            'bo': tpl['bo'],
+            'status': 'pending',
+            'team_a_source': tpl['team_a_source'],
+            'team_b_source': tpl['team_b_source'],
+            'team_a': None,
+            'team_b': None,
+            'team_a_id': None,
+            'team_b_id': None,
+            'placeholder_a': None,
+            'placeholder_b': None,
+            'team_a_score': 0,
+            'team_b_score': 0,
+            'winner_id': None,
+            'loser_id': None,
+            'winner': None,
+            'loser': None,
+            'maps': [],
+            'is_manual': False,
+            'is_major_decider': tpl.get('is_major_decider'),
+            'loser_standing_rank': tpl.get('loser_standing_rank'),
+        })
+
+    region_data = {
+        'region_slug': region_slug,
+        'status': 'in_progress',
+        'participants': norm_participants,
+        'seeds': {k: v for k, v in seeds.items()},
+        'matches': matches,
+        'completed_dict': {},
+        'standings': [],
+        'major_qualifiers': [],
+        'total_matches_count': 0,
+    }
+
+    _resolve_kickoff_slots_for_region(region_data)
+    return region_data
+
+
+def advance_kickoff_region(region_data: Dict[str, Any]) -> bool:
+    """Advance the Kickoff tournament state:
+    - Resolves placeholder slots in downstream matches
+    - Computes real-time standings
+    - Determines Major qualifiers and final CP awards when Grand Final finishes.
+    """
+    matches = region_data.get('matches', [])
+    completed_dict = {m['round_name']: m for m in matches if m['status'] == 'completed'}
+    region_data['completed_dict'] = completed_dict
+
+    _resolve_kickoff_slots_for_region(region_data)
+
+    standings = []
+    # If Grand Final is completed:
+    if 'grand_final' in completed_dict:
+        gf = completed_dict['grand_final']
+        lb_final = completed_dict.get('lower_final')
+        lb_semi = completed_dict.get('lower_semifinal')
+
+        champion = gf['winner']
+        runner_up = gf['loser']
+        third_place = lb_final['loser'] if lb_final else None
+        fourth_place = lb_semi['loser'] if lb_semi else None
+
+        standings.append({
+            'rank': 1, 'team': champion, 'club_id': champion['id'],
+            'title': 'Vô địch Kickoff', 'major_qualified': True, 'major_seed': 1,
+            'championship_points': get_stage_points('kickoff', rank=1),  # 3 CP
+        })
+        standings.append({
+            'rank': 2, 'team': runner_up, 'club_id': runner_up['id'],
+            'title': 'Á quân Kickoff', 'major_qualified': True, 'major_seed': 2,
+            'championship_points': get_stage_points('kickoff', rank=2),  # 2 CP
+        })
+        if third_place:
+            standings.append({
+                'rank': 3, 'team': third_place, 'club_id': third_place['id'],
+                'title': 'Hạng 3 (Thua Chung kết Nhánh thua)', 'major_qualified': False, 'major_seed': None,
+                'championship_points': get_stage_points('kickoff', rank=3),  # 1 CP
+            })
+        if fourth_place:
+            standings.append({
+                'rank': 4, 'team': fourth_place, 'club_id': fourth_place['id'],
+                'title': 'Hạng 4 (Thua Bán kết Nhánh thua)', 'major_qualified': False, 'major_seed': None,
+                'championship_points': get_stage_points('kickoff', rank=4),  # 1 CP
+            })
+
+        for r_name in ['lower_r3_m1', 'lower_r3_m2']:
+            if r_name in completed_dict:
+                t = completed_dict[r_name]['loser']
+                standings.append({
+                    'rank': 5, 'team': t, 'club_id': t['id'],
+                    'title': 'Top 5-6 (Thua Tứ kết Nhánh thua)', 'major_qualified': False, 'major_seed': None,
+                    'championship_points': 0,
+                })
+
+        for r_name in ['lower_r2_m1', 'lower_r2_m2']:
+            if r_name in completed_dict:
+                t = completed_dict[r_name]['loser']
+                standings.append({
+                    'rank': 7, 'team': t, 'club_id': t['id'],
+                    'title': 'Top 7-8 (Thua Vòng 2 Nhánh thua)', 'major_qualified': False, 'major_seed': None,
+                    'championship_points': 0,
+                })
+
+        for r_name in ['lower_r1_m1', 'lower_r1_m2', 'lower_r1_m3', 'lower_r1_m4']:
+            if r_name in completed_dict:
+                t = completed_dict[r_name]['loser']
+                standings.append({
+                    'rank': 9, 'team': t, 'club_id': t['id'],
+                    'title': 'Top 9-12 (Thua Vòng 1 Nhánh thua)', 'major_qualified': False, 'major_seed': None,
+                    'championship_points': 0,
+                })
+
+        region_data['standings'] = standings
+        region_data['major_qualifiers'] = [champion, runner_up]
+        region_data['status'] = 'completed'
+        region_data['total_matches_count'] = len(matches)
+        return True
+
+    # Standings in progress
+    for r_name in ['lower_r1_m1', 'lower_r1_m2', 'lower_r1_m3', 'lower_r1_m4']:
+        if r_name in completed_dict:
+            t = completed_dict[r_name]['loser']
+            standings.append({
+                'rank': 9, 'team': t, 'club_id': t['id'],
+                'title': 'Top 9-12 (Đã bị loại)', 'major_qualified': False, 'major_seed': None,
+                'championship_points': 0,
+            })
+    for r_name in ['lower_r2_m1', 'lower_r2_m2']:
+        if r_name in completed_dict:
+            t = completed_dict[r_name]['loser']
+            standings.append({
+                'rank': 7, 'team': t, 'club_id': t['id'],
+                'title': 'Top 7-8 (Đã bị loại)', 'major_qualified': False, 'major_seed': None,
+                'championship_points': 0,
+            })
+    for r_name in ['lower_r3_m1', 'lower_r3_m2']:
+        if r_name in completed_dict:
+            t = completed_dict[r_name]['loser']
+            standings.append({
+                'rank': 5, 'team': t, 'club_id': t['id'],
+                'title': 'Top 5-6 (Đã bị loại)', 'major_qualified': False, 'major_seed': None,
+                'championship_points': 0,
+            })
+    if 'lower_semifinal' in completed_dict:
+        t = completed_dict['lower_semifinal']['loser']
+        standings.append({
+            'rank': 4, 'team': t, 'club_id': t['id'],
+            'title': 'Hạng 4 (Đã bị loại)', 'major_qualified': False, 'major_seed': None,
+            'championship_points': get_stage_points('kickoff', rank=4),
+        })
+    if 'lower_final' in completed_dict:
+        t = completed_dict['lower_final']['loser']
+        standings.append({
+            'rank': 3, 'team': t, 'club_id': t['id'],
+            'title': 'Hạng 3 (Đã bị loại)', 'major_qualified': False, 'major_seed': None,
+            'championship_points': get_stage_points('kickoff', rank=3),
+        })
+
+    region_data['standings'] = standings
+    return False
+
+
+def resolve_kickoff_match(region_data: Dict[str, Any], match_id_or_round_name: str,
+                          winner_id: Optional[int] = None,
+                          maps: Optional[List[Dict[str, Any]]] = None,
+                          rating_lookup: Optional[Dict[int, int]] = None,
+                          form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
+    """Resolve a Kickoff match by either manual score or simulation roll."""
+    matches = region_data.get('matches', [])
+    match_obj = None
+    for m in matches:
+        if m['id'] == match_id_or_round_name or m['round_name'] == match_id_or_round_name:
+            match_obj = m
+            break
+
+    if not match_obj:
+        raise ValueError(f"Match {match_id_or_round_name} not found in Kickoff {region_data.get('region_slug')}")
+
+    if not match_obj.get('team_a') or not match_obj.get('team_b'):
+        raise ValueError(f"Match {match_obj['round_name']} does not have both teams determined yet")
+
+    if region_data.get('status') == 'completed':
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu Kickoff của khu vực này đã hoàn thành!")
+
+    # Guard against invalid edits if downstream matches are completed
+    if match_obj.get('status') == 'completed':
+        r_name = match_obj['round_name']
+        downstream = [
+            m for m in matches
+            if m.get('team_a_source', {}).get('value') == r_name or m.get('team_b_source', {}).get('value') == r_name
+        ]
+        if any(m.get('status') == 'completed' for m in downstream):
+            raise ValueError("Không thể sửa trận đấu này vì trận đấu nhánh tiếp theo đã hoàn thành!")
+
+    t_a = match_obj['team_a']
+    t_b = match_obj['team_b']
+    id_a = t_a['id']
+    id_b = t_b['id']
+    bo = match_obj.get('bo', 3)
+    target_wins = 3 if bo == 5 else 2
+
+    r_a = (rating_lookup.get(id_a) if rating_lookup else None) or t_a.get('story_rating') or t_a.get('current_rating') or 80
+    r_b = (rating_lookup.get(id_b) if rating_lookup else None) or t_b.get('story_rating') or t_b.get('current_rating') or 80
+
+    if winner_id is not None:
+        if winner_id not in (id_a, id_b):
+            raise ValueError(f"winner_id {winner_id} is neither team A ({id_a}) nor team B ({id_b})")
+
+        winner = t_a if winner_id == id_a else t_b
+        loser = t_b if winner == t_a else t_a
+
+        if maps:
+            wins_a = sum(1 for m_item in maps if m_item['team_a_score'] > m_item['team_b_score'])
+            wins_b = sum(1 for m_item in maps if m_item['team_b_score'] > m_item['team_a_score'])
+            resolved_maps = maps
+        else:
+            wins_a = target_wins if winner == t_a else 1
+            wins_b = target_wins if winner == t_b else 1
+            resolved_maps = []
+            for i in range(target_wins):
+                sc_w, sc_l = _gen_map_score_kickoff(r_a if winner == t_a else r_b, r_b if winner == t_a else r_a)
+                resolved_maps.append({
+                    'map_number': i + 1,
+                    'team_a_score': sc_w if winner == t_a else sc_l,
+                    'team_b_score': sc_l if winner == t_a else sc_w,
+                    'winner_id': winner_id,
+                })
+
+        match_obj.update({
+            'status': 'completed',
+            'team_a_score': wins_a,
+            'team_b_score': wins_b,
+            'winner_id': winner_id,
+            'loser_id': loser['id'],
+            'winner': winner,
+            'loser': loser,
+            'maps': resolved_maps,
+            'is_manual': True,
+        })
+    else:
+        # Simulation roll
+        sim = simulate_kickoff_match(t_a, t_b, bo=bo, rating_lookup=rating_lookup, form_lookup=form_lookup)
+        match_obj.update({
+            'status': 'completed',
+            'team_a_score': sim['team_a_score'],
+            'team_b_score': sim['team_b_score'],
+            'winner_id': sim['winner_id'],
+            'loser_id': sim['loser_id'],
+            'winner': sim['winner'],
+            'loser': sim['loser'],
+            'maps': sim['maps'],
+            'is_manual': False,
+        })
+
+    advance_kickoff_region(region_data)
+    return match_obj
+
+
+def sim_kickoff_round(region_data: Dict[str, Any],
+                      rating_lookup: Optional[Dict[int, int]] = None,
+                      form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate all currently playable pending matches in the Kickoff bracket."""
+    playable = [
+        m for m in region_data.get('matches', [])
+        if m['status'] == 'pending' and m.get('team_a') and m.get('team_b')
+    ]
+    if not playable:
+        return 0
+
+    count = 0
+    for m in playable:
+        resolve_kickoff_match(region_data, m['round_name'], winner_id=None,
+                              rating_lookup=rating_lookup, form_lookup=form_lookup)
+        count += 1
+
+    return count
+
+
+def sim_kickoff_remaining(region_data: Dict[str, Any],
+                          rating_lookup: Optional[Dict[int, int]] = None,
+                          form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate all remaining matches until Grand Final finishes."""
+    total_sim = 0
+    max_loops = 50
+    loop_idx = 0
+
+    while region_data.get('status') != 'completed' and loop_idx < max_loops:
+        c = sim_kickoff_round(region_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+        if c == 0:
+            break
+        total_sim += c
+        loop_idx += 1
+
+    return total_sim
+
+
 def simulate_kickoff_tournament(region_slug: str, participants: List[Dict[str, Any]],
                                 rating_lookup: Optional[Dict[int, int]] = None,
                                 form_lookup: Optional[Dict[int, int]] = None,
                                 manual_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Execute complete 22-match VCT Kickoff double-elimination tournament.
-    
-    Args:
-        region_slug: e.g. 'pacific', 'americas', 'emea', 'china'
-        participants: list of 12 team dicts (8 Partner + 4 Open Qualifiers)
-        rating_lookup: optional dict {club_id: rating}
-        form_lookup: optional dict {club_id: form}
-        manual_overrides: optional dict {round_name: {'winner_id': int, ...}}
-    
-    Returns:
-        {
-            'region_slug': str,
-            'matches': list of 22 match dicts,
-            'completed_dict': dict mapping round_name -> match dict,
-            'standings': list of 12 team standings dicts (ranked 1..12 with CP awarded),
-            'major_qualifiers': list of 2 team dicts (Champion and Runner-up),
-            'total_matches_count': 22,
-        }
-    """
-    if len(participants) != 12:
-        raise ValueError(f"Kickoff requires exactly 12 teams, received {len(participants)}")
-
-    seeding_info = seed_kickoff_participants(participants)
-    seeds = seeding_info['seeds']
-
-    templates = get_kickoff_bracket_templates()
-    completed_matches: Dict[str, Dict[str, Any]] = {}
-    matches_list: List[Dict[str, Any]] = []
-
+    """Execute complete 22-match VCT Kickoff double-elimination tournament."""
+    state = init_kickoff_region_state(region_slug, participants)
     overrides = manual_overrides or {}
 
-    for tpl in templates:
-        r_name = tpl['round_name']
-        t_a, t_b = resolve_kickoff_slot(tpl, seeds, completed_matches)
-        if not t_a or not t_b:
-            raise RuntimeError(f"Kickoff match {r_name} could not resolve teams")
+    max_loops = 50
+    loop_idx = 0
+    while state.get('status') != 'completed' and loop_idx < max_loops:
+        playable = [m for m in state['matches'] if m['status'] == 'pending' and m.get('team_a') and m.get('team_b')]
+        if not playable:
+            break
+        for m in playable:
+            r_name = m['round_name']
+            if r_name in overrides:
+                ov = overrides[r_name]
+                resolve_kickoff_match(
+                    state, r_name,
+                    winner_id=ov.get('winner_id'),
+                    maps=ov.get('maps'),
+                    rating_lookup=rating_lookup,
+                    form_lookup=form_lookup
+                )
+            else:
+                resolve_kickoff_match(
+                    state, r_name,
+                    winner_id=None,
+                    rating_lookup=rating_lookup,
+                    form_lookup=form_lookup
+                )
+        loop_idx += 1
 
-        m_override = overrides.get(r_name)
-        sim = simulate_kickoff_match(
-            t_a, t_b, bo=tpl['bo'],
-            rating_lookup=rating_lookup, form_lookup=form_lookup,
-            manual_override=m_override
-        )
-        sim.update({
-            'round_name': r_name,
-            'round_type': tpl['round_type'],
-            'match_code': tpl['match_code'],
-            'label': tpl['label'],
-        })
-
-        completed_matches[r_name] = sim
-        matches_list.append(sim)
-
-    # Compute Standings and CP Points
-    gf = completed_matches['grand_final']
-    lb_final = completed_matches['lower_final']
-    lb_semi = completed_matches['lower_semifinal']
-
-    champion = gf['winner']
-    runner_up = gf['loser']
-    third_place = lb_final['loser']
-    fourth_place = lb_semi['loser']
-
-    # 5-6th place: Losers of Lower R3
-    lb_r3_losers = [completed_matches['lower_r3_m1']['loser'], completed_matches['lower_r3_m2']['loser']]
-    # 7-8th place: Losers of Lower R2
-    lb_r2_losers = [completed_matches['lower_r2_m1']['loser'], completed_matches['lower_r2_m2']['loser']]
-    # 9-12th place: Losers of Lower R1
-    lb_r1_losers = [
-        completed_matches['lower_r1_m1']['loser'],
-        completed_matches['lower_r1_m2']['loser'],
-        completed_matches['lower_r1_m3']['loser'],
-        completed_matches['lower_r1_m4']['loser'],
-    ]
-
-    standings = [
-        {
-            'rank': 1,
-            'team': champion,
-            'club_id': champion['id'] if 'id' in champion else champion.get('club_id'),
-            'title': 'Vô địch Kickoff',
-            'major_qualified': True,
-            'major_seed': 1,
-            'championship_points': get_stage_points('kickoff', rank=1),  # 3 CP
-        },
-        {
-            'rank': 2,
-            'team': runner_up,
-            'club_id': runner_up['id'] if 'id' in runner_up else runner_up.get('club_id'),
-            'title': 'Á quân Kickoff',
-            'major_qualified': True,
-            'major_seed': 2,
-            'championship_points': get_stage_points('kickoff', rank=2),  # 2 CP
-        },
-        {
-            'rank': 3,
-            'team': third_place,
-            'club_id': third_place['id'] if 'id' in third_place else third_place.get('club_id'),
-            'title': 'Hạng 3 (Thua Chung kết Nhánh thua)',
-            'major_qualified': False,
-            'major_seed': None,
-            'championship_points': get_stage_points('kickoff', rank=3),  # 1 CP
-        },
-        {
-            'rank': 4,
-            'team': fourth_place,
-            'club_id': fourth_place['id'] if 'id' in fourth_place else fourth_place.get('club_id'),
-            'title': 'Hạng 4 (Thua Bán kết Nhánh thua)',
-            'major_qualified': False,
-            'major_seed': None,
-            'championship_points': get_stage_points('kickoff', rank=4),  # 1 CP
-        },
-    ]
-
-    for t in lb_r3_losers:
-        standings.append({
-            'rank': 5,
-            'team': t,
-            'club_id': t['id'] if 'id' in t else t.get('club_id'),
-            'title': 'Top 5-6 (Thua Tứ kết Nhánh thua)',
-            'major_qualified': False,
-            'major_seed': None,
-            'championship_points': 0,
-        })
-
-    for t in lb_r2_losers:
-        standings.append({
-            'rank': 7,
-            'team': t,
-            'club_id': t['id'] if 'id' in t else t.get('club_id'),
-            'title': 'Top 7-8 (Thua Vòng 2 Nhánh thua)',
-            'major_qualified': False,
-            'major_seed': None,
-            'championship_points': 0,
-        })
-
-    for t in lb_r1_losers:
-        standings.append({
-            'rank': 9,
-            'team': t,
-            'club_id': t['id'] if 'id' in t else t.get('club_id'),
-            'title': 'Top 9-12 (Thua Vòng 1 Nhánh thua)',
-            'major_qualified': False,
-            'major_seed': None,
-            'championship_points': 0,
-        })
-
-    major_qualifiers = [champion, runner_up]
-
-    return {
-        'region_slug': region_slug,
-        'matches': matches_list,
-        'completed_dict': completed_matches,
-        'standings': standings,
-        'major_qualifiers': major_qualifiers,
-        'total_matches_count': len(matches_list),
-        'seeds': seeds,
-    }
+    return state

@@ -24,24 +24,28 @@
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div class="region-tabs" style="display: flex; gap: 8px;">
       {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
-      {% set r_done = (kickoff_data and kickoff_data.regional_results and r_slug in kickoff_data.regional_results) %}
+      {% set reg_data = (kickoff_data.regional_results.get(r_slug) if kickoff_data and kickoff_data.regional_results else None) %}
+      {% set r_done = (reg_data and reg_data.status == 'completed') %}
       <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchKickoffRegion('{{ r_slug }}')">
         {{ r_slug|upper }}
         {% if r_done %}
           <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong</span>
         {% else %}
-          <span style="font-size: 0.75em; background: #ef4444; color: #fff; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">Chưa đấu</span>
+          <span style="font-size: 0.75em; background: #3b82f6; color: #fff; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">Đang đấu</span>
         {% endif %}
       </button>
       {% endfor %}
     </div>
 
-    <div style="display: flex; gap: 10px;">
-      <button type="button" id="btn-sim-kickoff-region" class="btn-start" onclick="simKickoffSelectedRegion()" style="padding: 9px 18px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-        ⚡ Sim Kickoff {{ selected_region|upper }} (22 trận)
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <button type="button" id="btn-sim-round" class="btn-start" onclick="simCurrentKoRound()" style="padding: 9px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
       </button>
-      <button type="button" id="btn-sim-kickoff-all" class="btn-start" onclick="simKickoffAllRegions()" style="padding: 9px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-        🔥 Sim cả 4 khu vực (88 trận)
+      <button type="button" id="btn-sim-region" class="btn-start" onclick="simSelectedKoRegion()" style="padding: 9px 18px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim cả khu vực
+      </button>
+      <button type="button" id="btn-sim-all" class="btn-start" onclick="simAllKoRegions()" style="padding: 9px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🌟 Sim cả 4 khu vực
       </button>
     </div>
   </div>
@@ -50,12 +54,11 @@
 <!-- Regional Kickoff Views -->
 {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
 {% set reg_res = (kickoff_data.regional_results.get(r_slug) if kickoff_data and kickoff_data.regional_results else None) %}
-{% set roster = (kickoff_data.rosters.get(r_slug) if kickoff_data and kickoff_data.rosters else []) %}
 <div id="kickoff-view-{{ r_slug }}" class="kickoff-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
 
   {% if reg_res %}
   <!-- Major Qualifiers & Prize Pool Summary (Chuẩn Liquipedia VCT 2025) -->
-  <div class="card" style="border: 2px solid #22c55e; background: rgba(34, 197, 94, 0.05); margin-bottom: 24px;">
+  <div class="card" style="border: 2px solid {% if reg_res.status == 'completed' %}#22c55e{% else %}var(--border){% endif %}; background: rgba(34, 197, 94, 0.03); margin-bottom: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
       <div>
         <h2 style="color: #4ade80; margin: 0; font-size: 1.3em;">
@@ -65,9 +68,21 @@
           Top 2 đội giành vé đại diện khu vực tham dự <strong>VCT Major (Masters Bangkok)</strong> và cộng điểm Championship Points (CP).
         </p>
       </div>
+      <div>
+        {% if reg_res.status == 'completed' %}
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 0.9em;">
+          ✓ Giải đấu đã kết thúc
+        </span>
+        {% else %}
+        <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.9em;">
+          ⏳ Đang diễn ra
+        </span>
+        {% endif %}
+      </div>
     </div>
 
     <!-- Prize Pool / Points Table -->
+    {% if reg_res.standings %}
     <div class="table-scroll" style="margin-bottom: 10px;">
       <table class="swiss-standings-table">
         <thead>
@@ -114,7 +129,7 @@
                 ★ VCT Major (Hạt giống {{ s.major_seed }})
               </span>
               {% else %}
-              <span style="color: var(--dim);">—</span>
+              <span style="color: var(--dim);">{{ s.title or '—' }}</span>
               {% endif %}
             </td>
             <td style="text-align: center; font-size: 1.2em; font-weight: 800; color: var(--yellow);">
@@ -129,6 +144,7 @@
         </tbody>
       </table>
     </div>
+    {% endif %}
   </div>
 
   <!-- Double Elimination Bracket Layout (22 Matches) -->
@@ -137,12 +153,13 @@
       <div>
         <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Cây Nhánh Đấu Double Elimination (22 trận)</h2>
         <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-          Bấm nút <strong>"✏️ Can thiệp"</strong> trên bất kỳ trận nào để chọn đội thắng theo ý muốn nếu đội yêu thích gặp bất lợi!
+          Bạn có quyền bấm <strong>🎲 Roll</strong> để sim từng trận hoặc <strong>✏️ Nhập tay</strong> chỉnh tỷ số chi tiết ngay từ đầu!
         </p>
       </div>
       <div>
+        {% set completed_count = (reg_res.completed_dict|length if reg_res.completed_dict else 0) %}
         <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);">
-          22/22 Trận Đã Đấu
+          {{ completed_count }}/22 Trận Đã Đấu
         </span>
       </div>
     </div>
@@ -262,73 +279,54 @@
     </div>
 
   </div>
-
-  {% else %}
-  <!-- Not Simulated State -->
-  <div class="card" style="text-align: center; padding: 48px 24px;">
-    <div style="font-size: 3em; margin-bottom: 12px;">⚔️</div>
-    <h2 style="font-size: 1.4em; color: #fff; margin-bottom: 8px;">VCT Kickoff {{ r_slug|upper }} chưa diễn ra</h2>
-    <p style="color: var(--dim); max-width: 520px; margin: 0 auto 20px;">
-      12 đội tuyển (8 đội Partner + 4 đội vượt qua Open Qualifier) đã sẵn sàng bước vào 22 trận đấu Double Elimination để giành 2 tấm vé đi VCT Major.
-    </p>
-
-    <!-- 12 Teams Roster Preview -->
-    <div style="max-width: 700px; margin: 0 auto 24px; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-      <div style="font-weight: bold; color: var(--yellow); margin-bottom: 8px; font-size: 0.9em;">
-        Danh sách 12 đội tham dự Kickoff {{ r_slug|upper }}:
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-        <div>
-          <div style="font-size: 0.8em; color: #fbbf24; font-weight: bold; margin-bottom: 4px;">★ 8 Đội Partner:</div>
-          {% for t in roster %}
-          {% if t.is_partner %}
-          <div style="font-size: 0.85em; color: #fff; padding: 2px 0;">• {{ t.name }} ({{ t.short_code }})</div>
-          {% endif %}
-          {% endfor %}
-        </div>
-        <div>
-          <div style="font-size: 0.8em; color: #60a5fa; font-weight: bold; margin-bottom: 4px;">⚔️ 4 Đội Open Qualifier:</div>
-          {% for t in roster %}
-          {% if not t.is_partner %}
-          <div style="font-size: 0.85em; color: #fff; padding: 2px 0;">• {{ t.name }} ({{ t.short_code }})</div>
-          {% endif %}
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    <button type="button" class="btn-start" onclick="simKickoffSelectedRegion()" style="padding: 12px 28px; font-size: 1.05em; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer;">
-      Bắt đầu mô phỏng Kickoff {{ r_slug|upper }} ngay
-    </button>
-  </div>
   {% endif %}
 
 </div>
 {% endfor %}
 
-<!-- Modal Can thiệp kết quả trận đấu -->
-<div id="match-override-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center;">
-  <div class="modal-card card" style="max-width: 480px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-    <h3 id="override-modal-title" style="margin-bottom: 6px; color: #fff;">Can thiệp kết quả trận đấu</h3>
-    <p style="font-size: 0.85em; color: var(--dim); margin-bottom: 16px;">
-      Chọn đội chiến thắng theo ý bạn. Toàn bộ nhánh đấu phía sau sẽ tự động cập nhật lại theo kết quả mới!
-    </p>
-
-    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-      <button type="button" id="btn-pick-team-a" onclick="submitOverride(currentOverrideTeamAId)" style="padding: 12px; background: var(--bg); border: 2px solid var(--border); border-radius: 8px; color: #fff; font-weight: bold; font-size: 1em; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
-        <span id="label-team-a">Đội A</span>
-        <span style="font-size: 0.85em; color: #4ade80;">Chọn đội này thắng ➔</span>
-      </button>
-
-      <button type="button" id="btn-pick-team-b" onclick="submitOverride(currentOverrideTeamBId)" style="padding: 12px; background: var(--bg); border: 2px solid var(--border); border-radius: 8px; color: #fff; font-weight: bold; font-size: 1em; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center;">
-        <span id="label-team-b">Đội B</span>
-        <span style="font-size: 0.85em; color: #4ade80;">Chọn đội này thắng ➔</span>
-      </button>
+<!-- Modal Nhập tay kết quả trận đấu Kickoff -->
+<div id="ko-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 id="ko-modal-match-title" style="margin: 0; color: #fff; font-size: 1.2em;">Nhập tỉ số trận đấu</h3>
+      <button type="button" onclick="closeKoManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
     </div>
 
-    <div style="display: flex; justify-content: flex-end;">
-      <button type="button" onclick="closeOverrideModal()" style="padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;">
+    <!-- VS Banner -->
+    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+      <div style="text-align: left; flex: 1;">
+        <div id="ko-modal-team-a-code" style="font-size: 0.8em; color: var(--dim);">TEAM A</div>
+        <div id="ko-modal-team-a-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team A</div>
+      </div>
+      <div style="font-weight: bold; color: var(--accent); padding: 0 12px; font-size: 1.1em;">VS</div>
+      <div style="text-align: right; flex: 1;">
+        <div id="ko-modal-team-b-code" style="font-size: 0.8em; color: var(--dim);">TEAM B</div>
+        <div id="ko-modal-team-b-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team B</div>
+      </div>
+    </div>
+
+    <!-- Quick Score Selection -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">CHỌN NHANH TỈ SỐ:</div>
+      <div id="ko-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <!-- Detailed Map Inputs -->
+    <div style="margin-bottom: 16px; border-top: 1px dashed var(--border); padding-top: 12px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">HOẶC TỰ NHẬP ĐIỂM SỐ CHI TIẾT TỪNG MAP:</div>
+      <div id="ko-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+      <button type="button" onclick="closeKoManualModal()" class="btn-sm btn-manual" style="padding: 8px 16px; border-radius: 6px;">
         Hủy
+      </button>
+      <button type="button" id="btn-save-ko-manual-score" onclick="submitKoCustomScore()" class="btn-start" style="padding: 8px 20px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        💾 Lưu kết quả trận đấu
       </button>
     </div>
   </div>
@@ -339,100 +337,296 @@
 {% block scripts %}
 <script>
 let activeKickoffRegion = '{{ selected_region or "pacific" }}';
-let currentOverrideRoundName = null;
-let currentOverrideTeamAId = null;
-let currentOverrideTeamBId = null;
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamAName = '';
+let currentModalTeamBId = null;
+let currentModalTeamBName = '';
+let currentModalBo = 3;
 
 function switchKickoffRegion(rSlug) {
   activeKickoffRegion = rSlug;
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.kickoff-region-view').forEach(v => v.classList.remove('active'));
-  
+
   event.target.closest('.region-tab-btn').classList.add('active');
   const view = document.getElementById(`kickoff-view-${rSlug}`);
   if (view) view.classList.add('active');
 }
 
-async function simKickoffSelectedRegion() {
-  if (!confirm(`Bạn có chắc muốn mô phỏng 22 trận đấu VCT Kickoff cho khu vực ${activeKickoffRegion.toUpperCase()}?`)) return;
-
-  const btn = document.getElementById('btn-sim-kickoff-region');
-  btn.disabled = true;
-  btn.textContent = '⏳ Đang mô phỏng Kickoff...';
-
+async function rollKoMatch(matchId) {
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {
-      region_slug: activeKickoffRegion
-    });
-    if (res.success) {
-      window.location.href = `/campaign/{{ campaign.id }}/stage/kickoff?region=${activeKickoffRegion}`;
-    } else {
-      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
-      btn.disabled = false;
-      btn.textContent = '⚡ Sim Kickoff ' + activeKickoffRegion.toUpperCase() + ' (22 trận)';
-    }
-  } catch (err) {
-    alert("Lỗi kết nối: " + err.message);
-    btn.disabled = false;
-    btn.textContent = '⚡ Sim Kickoff ' + activeKickoffRegion.toUpperCase() + ' (22 trận)';
-  }
-}
-
-async function simKickoffAllRegions() {
-  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ 4 khu vực (88 trận đấu VCT Kickoff)?")) return;
-
-  const btn = document.getElementById('btn-sim-kickoff-all');
-  btn.disabled = true;
-  btn.textContent = '⏳ Đang mô phỏng 88 trận...';
-
-  try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {});
-    if (res.success) {
-      window.location.href = `/campaign/{{ campaign.id }}/stage/kickoff?region=${activeKickoffRegion}`;
-    } else {
-      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
-      btn.disabled = false;
-      btn.textContent = '🔥 Sim cả 4 khu vực (88 trận)';
-    }
-  } catch (err) {
-    alert("Lỗi kết nối: " + err.message);
-    btn.disabled = false;
-    btn.textContent = '🔥 Sim cả 4 khu vực (88 trận)';
-  }
-}
-
-function openOverrideModal(roundName, matchLabel, teamAId, teamAName, teamBId, teamBName) {
-  currentOverrideRoundName = roundName;
-  currentOverrideTeamAId = teamAId;
-  currentOverrideTeamBId = teamBId;
-
-  document.getElementById('override-modal-title').textContent = `Can thiệp: ${matchLabel}`;
-  document.getElementById('label-team-a').textContent = teamAName;
-  document.getElementById('label-team-b').textContent = teamBName;
-  document.getElementById('match-override-modal').style.display = 'flex';
-}
-
-function closeOverrideModal() {
-  document.getElementById('match-override-modal').style.display = 'none';
-  currentOverrideRoundName = null;
-}
-
-async function submitOverride(winnerId) {
-  if (!currentOverrideRoundName || !winnerId) return;
-
-  try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/match/override`, {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/match/sim`, {
       region_slug: activeKickoffRegion,
-      round_name: currentOverrideRoundName,
-      winner_id: winnerId
+      match_id: matchId
     });
     if (res.success) {
       window.location.reload();
     } else {
-      alert("Lỗi: " + (res.error || "Không thể lưu"));
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function simCurrentKoRound() {
+  const btn = document.getElementById('btn-sim-round');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng vòng...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim-round`, {
+      region_slug: activeKickoffRegion
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '⚡ Sim vòng hiện tại';
+  }
+}
+
+async function simSelectedKoRegion() {
+  if (!confirm(`Bạn có chắc muốn mô phỏng toàn bộ các trận còn lại của khu vực ${activeKickoffRegion.toUpperCase()}?`)) return;
+
+  const btn = document.getElementById('btn-sim-region');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng khu vực...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim-region`, {
+      region_slug: activeKickoffRegion
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim cả khu vực';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔥 Sim cả khu vực';
+  }
+}
+
+async function simAllKoRegions() {
+  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ 4 khu vực VCT Kickoff (chọn 8 đội đi Major)?")) return;
+
+  const btn = document.getElementById('btn-sim-all');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng 4 khu vực...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '🌟 Sim cả 4 khu vực';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🌟 Sim cả 4 khu vực';
+  }
+}
+
+function openKoManualModal(matchId, matchLabel, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamAName = teamAName;
+  currentModalTeamBId = teamBId;
+  currentModalTeamBName = teamBName;
+  currentModalBo = bo || 3;
+
+  document.getElementById('ko-modal-match-title').textContent = `${matchLabel} (BO${currentModalBo})`;
+  document.getElementById('ko-modal-team-a-code').textContent = teamACode;
+  document.getElementById('ko-modal-team-a-name').textContent = teamAName;
+  document.getElementById('ko-modal-team-b-code').textContent = teamBCode;
+  document.getElementById('ko-modal-team-b-name').textContent = teamBName;
+
+  const quickContainer = document.getElementById('ko-modal-quick-buttons');
+  if (currentModalBo === 5) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 2
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 2
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitKoQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  const mapsContainer = document.getElementById('ko-modal-maps-container');
+  const maxMaps = currentModalBo;
+  let mapsHtml = '';
+  for (let i = 1; i <= maxMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-ko-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-ko-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+  document.getElementById('ko-manual-modal').style.display = 'flex';
+}
+
+function closeKoManualModal() {
+  document.getElementById('ko-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
+}
+
+async function submitKoQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendKoManualRequest(winnerId, maps);
+}
+
+async function submitKoCustomScore() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = document.getElementById(`inp-ko-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-ko-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendKoManualRequest(winnerId, maps);
+}
+
+async function sendKoManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-ko-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/match/manual`, {
+      region_slug: activeKickoffRegion,
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
   }
 }
 </script>
