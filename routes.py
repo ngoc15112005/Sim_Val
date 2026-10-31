@@ -307,6 +307,7 @@ def register_routes(app):
         get_kickoff_data, run_kickoff_stage, override_kickoff_match,
         resolve_ko_match, sim_ko_round, sim_ko_region,
         get_major_data, run_major_stage, override_major_match,
+        resolve_major_match_interactive, sim_major_round_interactive, sim_major_tournament_interactive,
     )
 
     @app.route('/campaigns')
@@ -651,6 +652,55 @@ def register_routes(app):
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
+
+    @app.route('/api/campaign/<int:campaign_id>/major/match/sim', methods=['POST'])
+    def api_campaign_major_match_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        if not match_id:
+            return jsonify({'error': 'match_id is required'}), 400
+
+        try:
+            res = resolve_major_match_interactive(campaign_id, match_id, winner_id=None)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/major/match/manual', methods=['POST'])
+    def api_campaign_major_match_manual(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not match_id or not winner_id:
+            return jsonify({'error': 'match_id and winner_id are required'}), 400
+
+        try:
+            res = resolve_major_match_interactive(campaign_id, match_id, winner_id=int(winner_id), maps=maps)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/major/sim-round', methods=['POST'])
+    def api_campaign_major_sim_round(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_major_round_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/campaign/<int:campaign_id>/major/sim', methods=['POST'])
     def api_campaign_major_sim(campaign_id):

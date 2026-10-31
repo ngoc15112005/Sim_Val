@@ -30,7 +30,14 @@ from engine.format.kickoff import (
     sim_kickoff_round,
     sim_kickoff_remaining,
 )
-from engine.format.major_sim import simulate_major_tournament
+from engine.format.major_sim import (
+    simulate_major_tournament,
+    init_major_state,
+    resolve_major_match,
+    advance_major_state,
+    sim_major_round,
+    sim_major_remaining,
+)
 
 
 
@@ -671,6 +678,8 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
                 'logo_url': cs2.club.logo_url if cs2 and cs2.club else qualifiers[1].get('logo_url'),
             })
 
+    initial_result = init_major_state(major_roster) if len(major_roster) == 8 else None
+
     if not major_stage:
         major_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -678,17 +687,19 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
             stage_key='major',
             stage_name=f'VCT Major {campaign.current_year} (Masters Bangkok)',
             status='pending',
-            stage_data=json.dumps({'roster': major_roster}),
+            stage_data=json.dumps({'roster': major_roster, 'result': initial_result}),
         )
         db.session.add(major_stage)
     else:
         m_data = json.loads(major_stage.stage_data) if major_stage.stage_data else {}
         m_data['roster'] = major_roster
+        if 'result' not in m_data or not m_data['result']:
+            m_data['result'] = initial_result
         major_stage.stage_data = json.dumps(m_data)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VCT Major (Masters Bangkok) Stage Execution
+# VCT Major (Masters Bangkok) Stage Execution & Interactive Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_major_data(campaign_id: int) -> Optional[Dict[str, Any]]:
@@ -696,7 +707,110 @@ def get_major_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     stage = get_stage_record(campaign_id, 'major')
     if not stage or not stage.stage_data:
         return None
-    return json.loads(stage.stage_data)
+    data = json.loads(stage.stage_data)
+    roster = data.get('roster', [])
+
+    if roster and len(roster) == 8 and ('result' not in data or not data['result'] or not data['result'].get('swiss_matches')):
+        data['result'] = init_major_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return data
+
+
+def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Award CP, story ratings, and advance campaign when Major completes."""
+    res = data.get('result')
+    if res and res.get('status') == 'completed':
+        if not res.get('rewards_awarded'):
+            cp_awards = []
+            for s in res.get('standings', []):
+                cp_awards.append({
+                    'club_id': s['club_id'],
+                    'rank': s['rank'],
+                })
+            award_stage_cp(campaign.id, 'major', cp_awards)
+
+            club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+            if res.get('champion'):
+                champ_id = res['champion']['id']
+                if champ_id in club_states:
+                    club_states[champ_id].story_rating = min(99, club_states[champ_id].story_rating + 3)
+            if res.get('runner_up'):
+                runner_id = res['runner_up']['id']
+                if runner_id in club_states:
+                    club_states[runner_id].story_rating = min(99, club_states[runner_id].story_rating + 2)
+
+            res['rewards_awarded'] = True
+
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'stage1'
+        _prepare_stage1_stage(campaign)
+
+    stage.stage_data = json.dumps(data)
+
+
+def resolve_major_match_interactive(campaign_id: int, match_id: str,
+                                    winner_id: Optional[int] = None,
+                                    maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single Major match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'major')
+    if not stage:
+        raise ValueError("Major stage not found")
+
+    data = get_major_data(campaign_id)
+    major_data = data['result']
+
+    resolved = resolve_major_match(major_data, match_id, winner_id=winner_id, maps=maps)
+
+    _check_and_finalize_major(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'major_data': major_data}
+
+
+def sim_major_round_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all currently playable pending matches in the active round/wave of Major."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'major')
+    if not stage:
+        raise ValueError("Major stage not found")
+
+    data = get_major_data(campaign_id)
+    major_data = data['result']
+
+    sim_count = sim_major_round(major_data)
+
+    _check_and_finalize_major(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'major_data': major_data}
+
+
+def sim_major_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all remaining matches in VCT Major until Grand Final completes."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'major')
+    if not stage:
+        raise ValueError("Major stage not found")
+
+    data = get_major_data(campaign_id)
+    major_data = data['result']
+
+    sim_major_remaining(major_data)
+
+    _check_and_finalize_major(campaign, stage, data)
+    db.session.commit()
+    return {'major_data': major_data}
 
 
 def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

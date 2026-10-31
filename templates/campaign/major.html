@@ -16,7 +16,7 @@
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
-    {% if res %}
+    {% if res and res.status == 'completed' %}
     <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
       Tiếp tục mùa giải ➔
     </a>
@@ -31,8 +31,8 @@
 <div class="card" style="margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
     <div>
-      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4);{% endif %}">
-        {% if res %}ĐÃ HOÀN THÀNH (16 TRẬN){% else %}CHỜ MÔ PHỎNG (8 ĐỘI ĐÃ SẴN SÀNG){% endif %}
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
+        {% if res and res.status == 'completed' %}ĐÃ HOÀN THÀNH (16 TRẬN){% else %}ĐANG DIỄN RA (8 ĐỘI TINH HOA){% endif %}
       </span>
       <span style="font-size: 0.9em; color: var(--dim); margin-left: 10px;">
         Hệ thống điểm: <strong>Hạng 1 (+5 CP)</strong> • <strong>Hạng 2 (+3 CP)</strong> • <strong>Hạng 3 (+2 CP)</strong> • <strong>Hạng 4 (+1 CP)</strong>
@@ -40,14 +40,17 @@
     </div>
 
     <div style="display: flex; gap: 10px;">
-      <button type="button" id="btn-sim-major" class="btn-start" onclick="simMajorTournament()" style="padding: 10px 22px; font-size: 1.05em; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-        {% if res %}🔄 Mô phỏng lại VCT Major (16 trận){% else %}⚡ Bắt đầu mô phỏng VCT Major (16 trận){% endif %}
+      <button type="button" id="btn-sim-major-round" class="btn-start" onclick="simMajorRound()" style="padding: 10px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
+      </button>
+      <button type="button" id="btn-sim-major" class="btn-start" onclick="simMajorTournament()" style="padding: 10px 22px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim toàn bộ VCT Major
       </button>
     </div>
   </div>
 </div>
 
-{% if res %}
+{% if res and res.status == 'completed' and res.champion %}
 <!-- Major Champions Podium / Prize Pool Banner -->
 <div class="card" style="border: 2px solid #eab308; background: linear-gradient(135deg, rgba(234, 179, 8, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
@@ -112,8 +115,8 @@
               {{ s.team.region_slug or s.team.region }}
             </span>
           </td>
-          <td style="color: var(--dim); font-size: 0.9em;">
-            {{ s.title }}
+          <td>
+            <span style="color: var(--text);">{{ s.title }}</span>
           </td>
           <td style="text-align: center; font-size: 1.2em; font-weight: 800; color: var(--yellow);">
             {% if s.championship_points > 0 %}
@@ -173,8 +176,8 @@
         Đội đạt <strong>2 chiến thắng</strong> lọt vào Vòng Playoffs • Đội nhận <strong>2 thất bại</strong> bị loại khỏi giải.
       </p>
     </div>
-    <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);">
-      Swiss Hoàn Thành (4 Đội Vào Playoffs)
+    <span class="badge" style="{% if res.swiss_qualifiers|length == 4 %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.swiss_qualifiers|length == 4 %}Swiss Hoàn Thành (4 Đội Vào Playoffs){% else %}Vòng Thụy Sĩ Đang Diễn Ra{% endif %}
     </span>
   </div>
 
@@ -194,7 +197,7 @@
         </thead>
         <tbody>
           {% for s in res.swiss_standings %}
-          <tr style="{% if s.advanced %}background: rgba(34, 197, 94, 0.08);{% else %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+          <tr style="{% if s.advanced %}background: rgba(34, 197, 94, 0.08);{% elif s.eliminated %}background: rgba(239, 68, 68, 0.05);{% endif %}">
             <td style="text-align: center; color: var(--dim);">{{ loop.index }}</td>
             <td>
               <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
@@ -218,9 +221,13 @@
               <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: bold;">
                 ✓ Vào Playoffs (Seed {{ s.team.bracket_seed or loop.index }})
               </span>
-              {% else %}
+              {% elif s.eliminated %}
               <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">
                 Bị loại
+              </span>
+              {% else %}
+              <span class="badge" style="background: var(--surface); color: var(--dim);">
+                Đang đấu
               </span>
               {% endif %}
             </td>
@@ -249,46 +256,57 @@
     <!-- Round 2 -->
     <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
       <h4 style="font-size: 0.9em; color: #60a5fa; margin: 0 0 10px; text-transform: uppercase;">
-        Vòng 2 (4 trận: Nhóm 1-0 & Nhóm 0-1)
+        Vòng 2 (4 trận: 2 trận 1-0 & 2 trận 0-1)
       </h4>
       {% for m in res.swiss_matches %}
       {% if m.round == 2 %}
         {% include "campaign/_major_match_card.html" %}
       {% endif %}
       {% endfor %}
+      {% if res.current_swiss_round < 2 and (not res.swiss_matches or res.swiss_matches|length <= 4) %}
+      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
+        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 1
+      </div>
+      {% endif %}
     </div>
 
     <!-- Round 3 -->
     <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
       <h4 style="font-size: 0.9em; color: #f87171; margin: 0 0 10px; text-transform: uppercase;">
-        Vòng 3 (2 trận Sinh Tử - Nhóm 1-1 Decider)
+        Vòng 3 Quyết định (2 trận 1-1 tranh vé vớt)
       </h4>
       {% for m in res.swiss_matches %}
       {% if m.round == 3 %}
         {% include "campaign/_major_match_card.html" %}
       {% endif %}
       {% endfor %}
+      {% if res.current_swiss_round < 3 and (not res.swiss_matches or res.swiss_matches|length <= 8) %}
+      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
+        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 2
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
 
-<!-- STAGE 2: PLAYOFFS DOUBLE ELIMINATION (6 Matches) -->
+<!-- STAGE 2: PLAYOFFS (6 Matches) -->
 <div class="card" style="margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
     <div>
-      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 4 Đội - 6 trận)</h2>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 4 đội - 6 trận)</h2>
       <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-        Tất cả các trận BO3, riêng trận <strong>Chung kết Tổng (Grand Final)</strong> thi đấu BO5 tranh ngôi Quán quân Masters Bangkok.
+        4 Đội tuyển vượt qua Swiss bước vào nhánh thắng & thua để tìm ra Nhà Vô Địch Thế Giới.
       </p>
     </div>
   </div>
 
+  {% if res.playoff_matches %}
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
     <!-- Upper Bracket -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-      <h3 style="font-size: 0.95em; color: #4ade80; margin: 0 0 12px; text-transform: uppercase;">
-        🌿 Nhánh Thắng (Upper Bracket)
-      </h3>
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #3b82f6; margin: 0 0 10px; text-transform: uppercase;">
+        ▲ Nhánh Thắng (Bán kết & Chung kết Nhánh thắng)
+      </h4>
       {% for m in res.playoff_matches %}
       {% if m.round_name in ['upper_semifinal_1', 'upper_semifinal_2', 'upper_final'] %}
         {% include "campaign/_major_match_card.html" %}
@@ -297,10 +315,10 @@
     </div>
 
     <!-- Lower Bracket -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
-      <h3 style="font-size: 0.95em; color: #f87171; margin: 0 0 12px; text-transform: uppercase;">
-        🔥 Nhánh Thua (Lower Bracket)
-      </h3>
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase;">
+        ▼ Nhánh Thua (Vòng 1 & Chung kết Nhánh thua)
+      </h4>
       {% for m in res.playoff_matches %}
       {% if m.round_name in ['lower_round1', 'lower_final'] %}
         {% include "campaign/_major_match_card.html" %}
@@ -308,208 +326,330 @@
       {% endfor %}
     </div>
 
-    <!-- Grand Final (Special Column) -->
-    <div style="background: linear-gradient(180deg, rgba(234, 179, 8, 0.1) 0%, var(--bg) 100%); border: 2px solid #eab308; border-radius: 8px; padding: 14px;">
-      <h3 style="font-size: 0.95em; color: #fbbf24; margin: 0 0 12px; text-transform: uppercase;">
-        👑 Chung Kết Tổng (Grand Final BO5)
-      </h3>
+    <!-- Grand Final -->
+    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(255, 70, 85, 0.12)); border: 2px solid #eab308; border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase; text-align: center;">
+        👑 CHUNG KẾT TỔNG VCT MAJOR (BO5)
+      </h4>
       {% for m in res.playoff_matches %}
       {% if m.round_name == 'grand_final' %}
         {% include "campaign/_major_match_card.html" %}
       {% endif %}
       {% endfor %}
-
-      <div style="margin-top: 14px; padding: 10px; background: var(--surface); border-radius: 6px; font-size: 0.85em; color: var(--dim);">
-        Đội thắng sẽ nâng cúp <strong>VCT Masters Bangkok</strong> cùng trọn vẹn <strong>5 điểm Championship Points</strong>!
-      </div>
     </div>
   </div>
+  {% else %}
+  <div style="color: var(--dim); text-align: center; padding: 24px 0;">
+    ⏳ Giai đoạn Playoffs sẽ bắt đầu ngay khi Vòng Thụy Sĩ hoàn tất (chọn đủ 4 đội).
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
-<!-- Championship Points Leaderboards Overview -->
-<div class="card" style="margin-bottom: 24px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-    <div>
-      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Bảng Xếp Hạng Championship Points VCT 2025</h2>
-      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-        Điểm số tích lũy sau vòng Kickoff và Major. Áp dụng trọn bộ 11 tiêu chí phụ chuẩn VCT 2025.
-      </p>
-    </div>
-    <div class="region-tabs" style="display: flex; gap: 6px;">
-      {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
-      <button type="button" class="region-tab-btn {% if loop.first %}active{% endif %}" onclick="switchMajorCpRegion('{{ r_slug }}')">
-        {{ r_slug|upper }}
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-
-  {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
-  <div id="major-cp-view-{{ r_slug }}" class="major-cp-view {% if loop.first %}active{% endif %}">
-    <div class="table-scroll">
-      <table class="swiss-standings-table">
-        <thead>
-          <tr>
-            <th style="width: 50px; text-align: center;">#</th>
-            <th class="team-col">Đội tuyển</th>
-            <th style="text-align: center;">Kickoff</th>
-            <th style="text-align: center;">Major</th>
-            <th style="text-align: center; color: var(--yellow); font-size: 1.05em;">Tổng CP</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in cp_leaderboards[r_slug] %}
-          <tr style="{% if loop.index <= 2 %}background: rgba(34, 197, 94, 0.05);{% endif %}">
-            <td style="text-align: center; font-weight: bold; color: {% if loop.index == 1 %}#eab308{% elif loop.index == 2 %}#4ade80{% else %}var(--dim){% endif %};">
-              {{ loop.index }}
-            </td>
-            <td>
-              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
-                {% if t.logo_url %}
-                <img class="team-logo-sm" src="{{ t.logo_url }}" alt="" onerror="this.style.display='none'">
-                {% endif %}
-                <strong style="color: #fff;">{{ t.name }}</strong>
-                <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span>
-                {% if t.is_partner %}
-                <span class="badge" style="font-size: 0.7em; background: rgba(234, 179, 8, 0.2); color: #f59e0b;">Partner</span>
-                {% else %}
-                <span class="badge" style="font-size: 0.7em; background: rgba(59, 130, 246, 0.2); color: #60a5fa;">Open Qual</span>
-                {% endif %}
-              </div>
-            </td>
-            <td style="text-align: center; color: var(--dim); font-size: 0.9em;">
-              {% if t.kickoff_rank %}
-                Hạng {{ t.kickoff_rank }}
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            <td style="text-align: center; color: var(--dim); font-size: 0.9em;">
-              {% if t.major_rank %}
-                Hạng {{ t.major_rank }}
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            <td style="text-align: center; font-size: 1.25em; font-weight: 800; color: var(--yellow);">
-              {{ t.championship_points }}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- Match Override Modal -->
-<div id="major-override-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; padding: 16px;">
-  <div class="card" style="width: 100%; max-width: 480px; border: 2px solid var(--accent); background: var(--bg); box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-      <h3 id="major-override-title" style="margin: 0; font-size: 1.2em; color: var(--accent);">Can thiệp kết quả trận đấu</h3>
-      <button type="button" onclick="closeMajorOverrideModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
+<!-- Modal Nhập tay kết quả trận đấu Major -->
+<div id="major-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 id="major-modal-match-title" style="margin: 0; color: #fff; font-size: 1.2em;">Nhập tỉ số trận đấu</h3>
+      <button type="button" onclick="closeMajorManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
     </div>
 
-    <p style="font-size: 0.9em; color: var(--dim); margin-bottom: 16px;">
-      Chọn đội chiến thắng. Toàn bộ các nhánh đấu tiếp theo của VCT Major sẽ tự động được tính toán lại theo đội bạn chọn!
-    </p>
-
-    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-      <button type="button" class="btn-start" onclick="submitMajorOverride(currentMajorOverrideTeamAId)" style="padding: 12px; font-size: 1.05em; background: rgba(59, 130, 246, 0.2); border: 2px solid #3b82f6; color: #fff; text-align: left; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 6px;">
-        <span id="major-label-team-a" style="font-weight: bold;">Team A</span>
-        <span style="font-size: 0.85em; background: #3b82f6; color: #fff; padding: 2px 8px; border-radius: 4px;">Chọn Thắng 🏆</span>
-      </button>
-
-      <button type="button" class="btn-start" onclick="submitMajorOverride(currentMajorOverrideTeamBId)" style="padding: 12px; font-size: 1.05em; background: rgba(239, 68, 68, 0.2); border: 2px solid #ef4444; color: #fff; text-align: left; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-radius: 6px;">
-        <span id="major-label-team-b" style="font-weight: bold;">Team B</span>
-        <span style="font-size: 0.85em; background: #ef4444; color: #fff; padding: 2px 8px; border-radius: 4px;">Chọn Thắng 🏆</span>
-      </button>
+    <!-- VS Banner -->
+    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+      <div style="text-align: left; flex: 1;">
+        <div id="major-modal-team-a-code" style="font-size: 0.8em; color: var(--dim);">TEAM A</div>
+        <div id="major-modal-team-a-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team A</div>
+      </div>
+      <div style="font-weight: bold; color: var(--accent); padding: 0 12px; font-size: 1.1em;">VS</div>
+      <div style="text-align: right; flex: 1;">
+        <div id="major-modal-team-b-code" style="font-size: 0.8em; color: var(--dim);">TEAM B</div>
+        <div id="major-modal-team-b-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team B</div>
+      </div>
     </div>
 
-    <div style="display: flex; justify-content: flex-end; gap: 10px;">
-      <button type="button" onclick="closeMajorOverrideModal()" class="btn-sm btn-manual" style="padding: 8px 16px; border-radius: 6px;">
+    <!-- Quick Score Selection -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">CHỌN NHANH TỈ SỐ:</div>
+      <div id="major-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <!-- Detailed Map Inputs -->
+    <div style="margin-bottom: 16px; border-top: 1px dashed var(--border); padding-top: 12px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">HOẶC TỰ NHẬP ĐIỂM SỐ CHI TIẾT TỪNG MAP:</div>
+      <div id="major-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+      <button type="button" onclick="closeMajorManualModal()" class="btn-sm btn-manual" style="padding: 8px 16px; border-radius: 6px;">
         Hủy
       </button>
+      <button type="button" id="btn-save-major-manual-score" onclick="submitMajorCustomScore()" class="btn-start" style="padding: 8px 20px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        💾 Lưu kết quả trận đấu
+      </button>
     </div>
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
-let currentMajorOverrideRoundName = null;
-let currentMajorOverrideTeamAId = null;
-let currentMajorOverrideTeamBId = null;
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamAName = '';
+let currentModalTeamBId = null;
+let currentModalTeamBName = '';
+let currentModalBo = 3;
 
-function switchMajorCpRegion(rSlug) {
-  document.querySelectorAll('.region-tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.major-cp-view').forEach(v => v.classList.remove('active'));
+async function rollMajorMatch(matchId) {
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/match/sim`, {
+      match_id: matchId
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
 
-  event.target.closest('.region-tab-btn').classList.add('active');
-  const view = document.getElementById(`major-cp-view-${rSlug}`);
-  if (view) view.classList.add('active');
+async function simMajorRound() {
+  const btn = document.getElementById('btn-sim-major-round');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng vòng...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim-round`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '⚡ Sim vòng hiện tại';
+  }
 }
 
 async function simMajorTournament() {
-  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ giải đấu VCT Major (Masters Bangkok - 16 trận)?")) return;
+  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ các trận còn lại của VCT Major?")) return;
 
   const btn = document.getElementById('btn-sim-major');
   btn.disabled = true;
-  btn.textContent = '⏳ Đang mô phỏng VCT Major...';
+  btn.textContent = '⏳ Đang mô phỏng Major...';
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim`, {});
     if (res.success) {
       window.location.reload();
     } else {
-      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng Major"));
       btn.disabled = false;
-      btn.textContent = '⚡ Bắt đầu mô phỏng VCT Major (16 trận)';
+      btn.textContent = '🔥 Sim toàn bộ VCT Major';
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
     btn.disabled = false;
-    btn.textContent = '⚡ Bắt đầu mô phỏng VCT Major (16 trận)';
+    btn.textContent = '🔥 Sim toàn bộ VCT Major';
   }
 }
 
-function openMajorOverrideModal(roundName, matchLabel, teamAId, teamAName, teamBId, teamBName, bo) {
-  currentMajorOverrideRoundName = roundName;
-  currentMajorOverrideTeamAId = teamAId;
-  currentMajorOverrideTeamBId = teamBId;
+function openMajorManualModal(matchId, matchLabel, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamAName = teamAName;
+  currentModalTeamBId = teamBId;
+  currentModalTeamBName = teamBName;
+  currentModalBo = bo || 3;
 
-  document.getElementById('major-override-title').textContent = `Can thiệp: ${matchLabel}`;
-  document.getElementById('major-label-team-a').textContent = teamAName;
-  document.getElementById('major-label-team-b').textContent = teamBName;
-  document.getElementById('major-override-modal').style.display = 'flex';
+  document.getElementById('major-modal-match-title').textContent = `${matchLabel} (BO${currentModalBo})`;
+  document.getElementById('major-modal-team-a-code').textContent = teamACode;
+  document.getElementById('major-modal-team-a-name').textContent = teamAName;
+  document.getElementById('major-modal-team-b-code').textContent = teamBCode;
+  document.getElementById('major-modal-team-b-name').textContent = teamBName;
+
+  const quickContainer = document.getElementById('major-modal-quick-buttons');
+  if (currentModalBo === 5) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamACode} Thắng 3 - 2
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+        ${teamBCode} Thắng 3 - 2
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMajorQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  const mapsContainer = document.getElementById('major-modal-maps-container');
+  const maxMaps = currentModalBo;
+  let mapsHtml = '';
+  for (let i = 1; i <= maxMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-major-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-major-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+  document.getElementById('major-manual-modal').style.display = 'flex';
 }
 
-function closeMajorOverrideModal() {
-  document.getElementById('major-override-modal').style.display = 'none';
-  currentMajorOverrideRoundName = null;
+function closeMajorManualModal() {
+  document.getElementById('major-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
 }
 
-async function submitMajorOverride(winnerId) {
-  if (!currentMajorOverrideRoundName || !winnerId) return;
+async function submitMajorQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendMajorManualRequest(winnerId, maps);
+}
+
+async function submitMajorCustomScore() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = document.getElementById(`inp-major-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-major-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendMajorManualRequest(winnerId, maps);
+}
+
+async function sendMajorManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-major-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/match/override`, {
-      round_name: currentMajorOverrideRoundName,
-      winner_id: winnerId
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/match/manual`, {
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
     });
     if (res.success) {
       window.location.reload();
     } else {
-      alert("Lỗi: " + (res.error || "Không thể lưu kết quả can thiệp"));
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
   }
 }
 </script>
-
-<style>
-.major-cp-view { display: none; }
-.major-cp-view.active { display: block; }
-</style>
 {% endblock %}
