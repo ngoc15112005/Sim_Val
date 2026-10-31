@@ -12,7 +12,7 @@
         VCT Stage 1 {{ campaign.current_year }}
       </h1>
       <div style="font-size: 0.85em; color: var(--dim);">
-        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (36 trận BO3) + Vòng Playoffs (8 trận BO3/BO5) • Top 3 đi Masters Toronto, Top 4 đi EWC
+        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (30 trận BO3 - 5 trận/đội) + Vòng Playoffs (8 trận BO3/BO5) • Top 3 đi Masters Toronto, Top 4 đi EWC
       </div>
     </div>
 
@@ -59,7 +59,7 @@
         {% elif cur_reg.current_phase == 'playoffs' %}
           <span style="color: #fbbf24;">⚡ Vòng Playoffs 6 Đội (Double Elimination)</span>
         {% else %}
-          <span style="color: #60a5fa;">📅 Vòng Bảng (Cross-group Alpha vs Omega)</span>
+          <span style="color: #60a5fa;">📅 Vòng Bảng (Bảng Alpha & Bảng Omega - 5 trận/đội)</span>
         {% endif %}
       </div>
     </div>
@@ -219,7 +219,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div>
             <h3 style="margin: 0; font-size: 1.15em; color: #60a5fa;">
-              📅 Giai đoạn 1: Vòng Bảng (36 Trận BO3 Cross-group)
+              📅 Giai đoạn 1: Vòng Bảng (30 Trận BO3 - 5 Trận/Đội)
             </h3>
             <div style="font-size: 0.8em; color: var(--dim); margin-top: 2px;">
               Mỗi trận thắng được nhận ngay <strong>+1 Championship Point</strong>. Top 3 mỗi bảng vào Playoffs.
@@ -298,11 +298,11 @@
 
         <!-- Matches by Week (6 Weeks) -->
         <div>
-          <h4 style="font-size: 0.95em; color: #fff; margin-bottom: 10px;">Lịch thi đấu 6 Tuần (Cross-group Alpha vs Omega):</h4>
-          {% for w in range(1, 7) %}
+          <h4 style="font-size: 0.95em; color: #fff; margin-bottom: 10px;">Lịch thi đấu 5 Tuần (Bảng Alpha & Bảng Omega):</h4>
+          {% for w in range(1, 6) %}
           <div style="margin-bottom: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
             <div style="font-weight: bold; font-size: 0.85em; color: var(--yellow); margin-bottom: 8px;">
-              Tuần {{ w }} (6 Trận)
+              Tuần {{ w }} (6 Trận: 3 Bảng Alpha + 3 Bảng Omega)
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px;">
               {% for m in cur_reg.regular_matches %}

@@ -37,11 +37,11 @@ def stage1_config() -> Dict[str, Any]:
         'teams_per_region': 12,
         'group_alpha_teams': 6,
         'group_omega_teams': 6,
-        'regular_season_weeks': 6,
-        'regular_season_matches': 36,
+        'regular_season_weeks': 5,
+        'regular_season_matches': 30,
         'playoff_teams': 6,
         'playoff_matches': 8,
-        'total_matches': 44,
+        'total_matches': 38,
         'regular_win_cp': 1,
         'playoff_cp': {1: 5, 2: 3, 3: 2, 4: 1},
         'masters_qualifiers_count': 3,
@@ -277,25 +277,79 @@ def compute_stage1_group_standings(group_teams: List[Dict[str, Any]],
     return standings
 
 
+def generate_round_robin_schedule(teams: List[Dict[str, Any]]) -> List[List[Tuple[Dict[str, Any], Dict[str, Any]]]]:
+    """Generate 5 rounds of 3 matches for 6 teams (15 matches total).
+    Standard circle method: team 0 is fixed, teams 1..5 rotate.
+    Returns 5 rounds, each containing 3 pairings.
+    """
+    if len(teams) != 6:
+        raise ValueError(f"Expected 6 teams for group round-robin, got {len(teams)}")
+
+    rounds_indices = [
+        [(0, 5), (1, 4), (2, 3)],
+        [(0, 4), (5, 3), (1, 2)],
+        [(0, 3), (4, 2), (5, 1)],
+        [(0, 2), (3, 1), (4, 5)],
+        [(0, 1), (2, 5), (3, 4)],
+    ]
+
+    schedule = []
+    for r in rounds_indices:
+        round_pairs = []
+        for i, j in r:
+            round_pairs.append((teams[i], teams[j]))
+        schedule.append(round_pairs)
+    return schedule
+
+
 def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]]) -> Dict[str, Any]:
     if len(participants) != 12:
         raise ValueError(f"Stage 1 requires exactly 12 teams, got {len(participants)}")
 
     group_alpha, group_omega = partition_stage1_groups(participants)
+    alpha_schedule = generate_round_robin_schedule(group_alpha)
+    omega_schedule = generate_round_robin_schedule(group_omega)
 
     regular_matches = []
-    # 6 Weeks cross-group: each week 6 matches
-    for w in range(1, 7):
-        for i in range(6):
-            t_a = group_alpha[i]
-            t_b = group_omega[(i + w - 1) % 6]
-            m_id = f"reg_w{w}_m{i+1}"
+    # 5 Weeks: in each week, 3 matches from Group Alpha + 3 matches from Group Omega = 6 matches/week (total 30 matches, 5 matches/team)
+    for w in range(1, 6):
+        # Group Alpha matches (1-3)
+        for idx, (t_a, t_b) in enumerate(alpha_schedule[w - 1]):
+            m_idx = idx + 1
+            m_id = f"reg_w{w}_m{m_idx}"
             regular_matches.append({
                 'match_id': m_id,
                 'round_type': 'regular',
+                'group': 'Alpha',
                 'week': w,
-                'match_index': i + 1,
-                'label': f"Tuần {w} - Trận {i+1}",
+                'match_index': m_idx,
+                'label': f"Tuần {w} - Bảng Alpha - Trận {idx + 1}",
+                'team_a': t_a,
+                'team_b': t_b,
+                'team_a_id': t_a.get('id') or t_a.get('club_id'),
+                'team_b_id': t_b.get('id') or t_b.get('club_id'),
+                'bo': 3,
+                'status': 'pending',
+                'winner': None,
+                'loser': None,
+                'winner_id': None,
+                'loser_id': None,
+                'team_a_score': 0,
+                'team_b_score': 0,
+                'maps': [],
+            })
+
+        # Group Omega matches (4-6)
+        for idx, (t_a, t_b) in enumerate(omega_schedule[w - 1]):
+            m_idx = idx + 4
+            m_id = f"reg_w{w}_m{m_idx}"
+            regular_matches.append({
+                'match_id': m_id,
+                'round_type': 'regular',
+                'group': 'Omega',
+                'week': w,
+                'match_index': m_idx,
+                'label': f"Tuần {w} - Bảng Omega - Trận {idx + 1}",
                 'team_a': t_a,
                 'team_b': t_b,
                 'team_a_id': t_a.get('id') or t_a.get('club_id'),

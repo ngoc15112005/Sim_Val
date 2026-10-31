@@ -28,24 +28,22 @@ class TestStage1Interactive(unittest.TestCase):
         self.state = init_stage1_region_state('pacific', self.participants)
 
     def test_init_groups_and_schedule(self):
-        """Verify groups are 6 each and regular schedule has 36 cross-group matches."""
+        """Verify groups are 6 each and regular schedule has 30 matches (5 matches per team)."""
         self.assertEqual(len(self.state['group_alpha']), 6)
         self.assertEqual(len(self.state['group_omega']), 6)
-        self.assertEqual(len(self.state['regular_matches']), 36)
+        self.assertEqual(len(self.state['regular_matches']), 30)
 
-        # Verify every Alpha plays every Omega
-        alpha_ids = {t['id'] for t in self.state['group_alpha']}
-        omega_ids = {t['id'] for t in self.state['group_omega']}
-
-        pairs = set()
+        # Verify each of the 12 teams plays exactly 5 matches against the 5 opponents in their group
+        team_counts = {}
         for m in self.state['regular_matches']:
             a = m['team_a']['id']
             b = m['team_b']['id']
-            self.assertIn(a, alpha_ids)
-            self.assertIn(b, omega_ids)
-            pairs.add((a, b))
+            team_counts[a] = team_counts.get(a, 0) + 1
+            team_counts[b] = team_counts.get(b, 0) + 1
 
-        self.assertEqual(len(pairs), 36)
+        self.assertEqual(len(team_counts), 12)
+        for t_id, cnt in team_counts.items():
+            self.assertEqual(cnt, 5)
 
     def test_manual_score_override(self):
         """Verify manual score override works for regular season match."""
@@ -69,8 +67,8 @@ class TestStage1Interactive(unittest.TestCase):
         self.assertTrue(resolved['is_manual'])
 
     def test_round_by_round_simulation(self):
-        """Simulate weeks 1 to 6 one by one."""
-        for week in range(1, 7):
+        """Simulate weeks 1 to 5 one by one (30 regular matches, 6 per week)."""
+        for week in range(1, 6):
             count = sim_stage1_round(self.state)
             self.assertEqual(count, 6, f"Week {week} should simulate 6 matches")
 
@@ -95,7 +93,7 @@ class TestStage1Interactive(unittest.TestCase):
     def test_playoffs_and_full_completion(self):
         """Simulate remaining until complete and verify final standings and qualifiers."""
         total = sim_stage1_remaining(self.state)
-        self.assertEqual(total, 44)  # 36 regular + 8 playoffs
+        self.assertEqual(total, 38)  # 30 regular + 8 playoffs
         self.assertEqual(self.state['status'], 'completed')
         self.assertIsNotNone(self.state['champion'])
         self.assertIsNotNone(self.state['runner_up'])
