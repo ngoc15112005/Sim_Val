@@ -121,19 +121,21 @@ class TestCampaignMajor(unittest.TestCase):
         # Should be consistent
         self.assertIsNotNone(champ_state_after)
 
-        # 8. Verify Campaign Circuit advanced to Stage 1
+        # 8. Verify Campaign Circuit advanced to Open Qualifier Stage 1
         db.session.refresh(campaign)
-        self.assertEqual(campaign.current_stage, 'stage1')
+        self.assertEqual(campaign.current_stage, 'oq_stage1')
 
-        # Verify Stage 1 record created with 12 teams per region
-        stage1_record = CampaignStage.query.filter_by(
-            campaign_id=campaign.id, stage_key='stage1'
+        # Verify OQ Stage 1 record created with 16 teams per region and 8 retained
+        oq_s1_record = CampaignStage.query.filter_by(
+            campaign_id=campaign.id, stage_key='oq_stage1'
         ).first()
-        self.assertIsNotNone(stage1_record)
-        s1_data = json.loads(stage1_record.stage_data)
-        self.assertIn('rosters', s1_data)
+        self.assertIsNotNone(oq_s1_record)
+        oq_data = json.loads(oq_s1_record.stage_data)
+        self.assertIn('retained_teams', oq_data)
+        self.assertIn('regions', oq_data)
         for r_slug in ['pacific', 'americas', 'emea', 'china']:
-            self.assertEqual(len(s1_data['rosters'][r_slug]), 12)
+            self.assertEqual(len(oq_data['retained_teams'][r_slug]), 8)
+            self.assertEqual(len(oq_data['regions'][r_slug]['teams']), 16)
 
         # 9. Test Web Routes after completion
         r_post = self.client.get(f'/campaign/{campaign.id}/stage/major')

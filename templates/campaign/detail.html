@@ -58,6 +58,8 @@
           VCT Major (Masters Bangkok - 8 Đội Tuyển Toàn Cầu)
         {% elif campaign.current_stage == 'stage1' %}
           VCT Regional Stage 1 (12 Đội / Khu Vực)
+        {% elif campaign.current_stage == 'ewc_qualifier' %}
+          EWC Regional Qualifier (Cơ Hội Đến Esports World Cup)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -71,6 +73,8 @@
           8 đội tuyển xuất sắc nhất thế giới tranh tài qua Vòng Thụy Sĩ (10 trận) và Double Elimination (6 trận) để giành ngôi Vương Masters Bangkok và 5 Championship Points.
         {% elif campaign.current_stage == 'stage1' %}
           12 đội tuyển mỗi khu vực bước vào giai đoạn Vòng Bảng & Playoffs Stage 1 để tích lũy điểm số và giành vé tới Masters Toronto & EWC!
+        {% elif campaign.current_stage == 'ewc_qualifier' %}
+          16 đội Phase 1 (Single Elim) tranh 2 suất tiến vào Phase 2 cùng 6 đội Stage 1 (Double Elim). Hai đội lọt vào Chung kết giành vé EWC!
         {% endif %}
       </p>
     </div>
@@ -93,9 +97,9 @@
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Kickoff
         </a>
-      {% elif campaign.current_stage == 'stage1' %}
-        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
-          🎮 Vào sàn đấu VCT Stage 1 ➔
+      {% elif campaign.current_stage == 'oq_stage1' %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage1" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Open Qualifier Stage 1 ➔
         </a>
         {% if major_data and major_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -105,10 +109,51 @@
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Kickoff
         </a>
-      {% else %}
+      {% elif campaign.current_stage == 'stage1' %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu VCT Stage 1 ➔
+        </a>
+        {% if oq_stage1_data and oq_stage1_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 1
+        </a>
+        {% endif %}
+        {% if major_data and major_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại VCT Major
+        </a>
+        {% endif %}
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Kickoff
+        </a>
+      {% elif campaign.current_stage == 'ewc_qualifier' %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu EWC Qualifier ➔
+        </a>
         {% if stage1_data and stage1_data.regional_results %}
-        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block;">
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại VCT Stage 1
+        </a>
+        {% endif %}
+        {% if oq_stage1_data and oq_stage1_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 1
+        </a>
+        {% endif %}
+      {% else %}
+        {% if ewc_qual_data and ewc_qual_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; display: inline-block;">
+          Xem lại EWC Qualifier
+        </a>
+        {% endif %}
+        {% if stage1_data and stage1_data.regional_results %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại VCT Stage 1
+        </a>
+        {% endif %}
+        {% if oq_stage1_data and oq_stage1_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 1
         </a>
         {% endif %}
         {% if major_data and major_data.result %}

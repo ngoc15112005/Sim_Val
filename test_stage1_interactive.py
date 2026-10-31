@@ -104,7 +104,9 @@ class TestStage1Interactive(unittest.TestCase):
 
         # Check qualifiers
         self.assertEqual(len(self.state['masters_qualifiers']), 3)
-        self.assertEqual(len(self.state['ewc_qualifiers']), 4)
+        self.assertEqual(len(self.state['ewc_qualifiers']), 2)  # Top 2 direct to EWC
+        self.assertEqual(len(self.state['ewc_phase2_teams']), 6)  # Ranks 3-8 to EWC Qualifier Phase 2
+        self.assertEqual(len(self.state['ewc_phase1_teams']), 4)  # Ranks 9-12 to EWC Qualifier Phase 1
         self.assertEqual(self.state['masters_qualifiers'][0]['regional_seed'], 1)
         self.assertEqual(self.state['masters_qualifiers'][1]['regional_seed'], 2)
         self.assertEqual(self.state['masters_qualifiers'][2]['regional_seed'], 3)

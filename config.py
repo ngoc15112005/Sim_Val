@@ -64,9 +64,11 @@ class Config:
 
     CIRCUIT_STAGES = [
         {'key': 'open_qualifier', 'name': 'Open Qualifier', 'type': 'regional', 'desc': '16 Non-partners → 4 Kickoff qualifiers per region'},
-        {'key': 'kickoff', 'name': 'Regional Kickoff', 'type': 'regional', 'desc': '8 Partners + 4 Qualifiers → Top 2 to Major'},
+        {'key': 'kickoff', 'name': 'Regional Kickoff', 'type': 'regional', 'desc': '8 Partners + 4 Qualifiers → Top 2 to Major, Top 8 safe for Stage 1'},
         {'key': 'major', 'name': 'VCT Major (Masters Bangkok)', 'type': 'international', 'desc': '8 World elite teams (Top 2 per region)'},
-        {'key': 'stage1', 'name': 'Regional Stage 1', 'type': 'regional', 'desc': '12 teams → Top 3 to Masters, Top 4 to EWC'},
+        {'key': 'oq_stage1', 'name': 'Open Qualifier Stage 1', 'type': 'regional', 'desc': '4 Kickoff bottom teams + 12 Challenger teams → 4 Stage 1 qualifiers'},
+        {'key': 'stage1', 'name': 'Regional Stage 1', 'type': 'regional', 'desc': '12 teams (8 Retained + 4 Qualifiers) → Top 3 to Masters, Top 2 to EWC'},
+        {'key': 'ewc_qualifier', 'name': 'EWC Regional Qualifier', 'type': 'regional', 'desc': 'Phase 1 (16 teams) + Phase 2 (8 teams) → 2 EWC berths'},
         {'key': 'master', 'name': 'VCT Masters (Masters Toronto)', 'type': 'international', 'desc': '12 International teams'},
         {'key': 'ewc', 'name': 'Esports World Cup (EWC)', 'type': 'international', 'desc': '16 World teams (GSL Groups + Playoffs)'},
         {'key': 'stage2', 'name': 'Regional Stage 2', 'type': 'regional', 'desc': '12 teams → Final Championship Points battle'},

@@ -45,6 +45,13 @@ from engine.format.stage1 import (
     sim_stage1_round,
     sim_stage1_remaining,
 )
+from engine.format.ewc_qualifier import (
+    init_ewc_qualifier_region_state,
+    resolve_ewc_qualifier_match,
+    sim_ewc_qualifier_round,
+    sim_ewc_qualifier_remaining,
+    simulate_ewc_qualifier,
+)
 
 
 
@@ -752,8 +759,8 @@ def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Di
 
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'stage1'
-        _prepare_stage1_stage(campaign)
+        campaign.current_stage = 'oq_stage1'
+        _prepare_oq_stage1_stage(campaign)
 
     stage.stage_data = json.dumps(data)
 
@@ -882,9 +889,9 @@ def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]]
     stage.completed_at = datetime.now(timezone.utc)
     stage.stage_data = json.dumps(data)
 
-    # Advance campaign circuit to Stage 1
-    campaign.current_stage = 'stage1'
-    _prepare_stage1_stage(campaign)
+    # Advance campaign circuit to Open Qualifier Stage 1
+    campaign.current_stage = 'oq_stage1'
+    _prepare_oq_stage1_stage(campaign)
 
     db.session.commit()
     return {
@@ -907,51 +914,326 @@ def override_major_match(campaign_id: int, round_name: str,
     return run_major_stage(campaign_id, manual_overrides=overrides)
 
 
-def _prepare_stage1_stage(campaign: Campaign):
-    """Assemble 12 teams per region for VCT Stage 1 (from Kickoff rosters & results)."""
-    stage1_record = CampaignStage.query.filter_by(
-        campaign_id=campaign.id, year=campaign.current_year, stage_key='stage1'
+def _prepare_oq_stage1_stage(campaign: Campaign):
+    """Assemble 16 teams per region for Open Qualifier Stage 1:
+    - 4 relegated teams from Kickoff (ranks 9-12)
+    - 12 non-Kickoff teams (the 12 teams that did not qualify from Open Qualifier 1)
+    - Top 8 from Kickoff stay safe and are stored as 'retained_teams'.
+    """
+    stage_record = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='oq_stage1'
     ).first()
 
     kickoff_stage = CampaignStage.query.filter_by(
         campaign_id=campaign.id, year=campaign.current_year, stage_key='kickoff'
     ).first()
 
+    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+    k_data = json.loads(kickoff_stage.stage_data) if (kickoff_stage and kickoff_stage.stage_data) else {}
+    k_regional = k_data.get('regional_results', {})
+
+    regions_data = {}
+    retained_all = {}
+
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        reg_k = k_regional.get(r_slug, {})
+        standings = reg_k.get('standings', [])
+
+        retained_teams = []
+        relegated_teams = []
+
+        if len(standings) >= 12:
+            retained_teams = [s['team'] for s in standings[:8]]
+            relegated_teams = [s['team'] for s in standings[8:12]]
+        else:
+            roster = k_data.get('rosters', {}).get(r_slug, [])
+            retained_teams = roster[:8]
+            relegated_teams = roster[8:12]
+
+        retained_ids = {t.get('id') or t.get('club_id') for t in retained_teams}
+        retained_all[r_slug] = retained_teams
+
+        region_obj = Region.query.filter_by(slug=r_slug).first()
+        all_clubs = Club.query.filter_by(region_id=region_obj.id, is_active=True).all() if region_obj else []
+
+        relegated_ids = {t.get('id') or t.get('club_id') for t in relegated_teams}
+        relegated_clubs = [c for c in all_clubs if c.id in relegated_ids]
+        challenger_clubs = [c for c in all_clubs if c.id not in retained_ids and c.id not in relegated_ids]
+
+        # Order: 4 relegated clubs (seeds 1-4) followed by 12 challenger clubs (seeds 5-16)
+        sorted_clubs = relegated_clubs + sorted(challenger_clubs, key=lambda c: -c.current_rating)
+
+        participants = []
+        for idx, c in enumerate(sorted_clubs):
+            cs = states.get(c.id)
+            participants.append({
+                'id': c.id,
+                'name': c.name,
+                'short_code': c.short_code,
+                'region_slug': r_slug,
+                'region': r_slug,
+                'is_partner': cs.is_partner if cs else False,
+                'story_rating': cs.story_rating if cs else c.current_rating,
+                'form_modifier': cs.form_modifier if cs else 0,
+                'effective_rating': cs.effective_rating if cs else c.current_rating,
+                'logo_url': c.logo_url,
+                'seed': idx + 1,
+            })
+
+        if len(participants) == 16:
+            reg_state = init_open_qualifier_region_state(r_slug, participants)
+            regions_data[r_slug] = reg_state
+
+    if not stage_record:
+        stage_record = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='oq_stage1',
+            stage_name=f'Open Qualifier Stage 1 {campaign.current_year}',
+            status='pending',
+            stage_data=json.dumps({
+                'regions': regions_data,
+                'retained_teams': retained_all,
+            }),
+        )
+        db.session.add(stage_record)
+    else:
+        curr_data = json.loads(stage_record.stage_data) if stage_record.stage_data else {}
+        curr_data['retained_teams'] = retained_all
+        if 'regions' not in curr_data or not curr_data['regions']:
+            curr_data['regions'] = regions_data
+        stage_record.stage_data = json.dumps(curr_data)
+
+
+def get_oq_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full Open Qualifier Stage 1 data for a campaign."""
+    stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage or not stage.stage_data:
+        return None
+    return json.loads(stage.stage_data)
+
+
+def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Update dynamic ratings and advance campaign to Stage 1 when all 4 regions complete."""
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    for r_slug in all_regions:
+        reg_res = data.get('regions', {}).get(r_slug)
+        if reg_res and reg_res.get('status') == 'completed':
+            if not reg_res.get('ratings_awarded'):
+                qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
+                for cid in qual_ids:
+                    if cid in club_states:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 2)
+                for s in reg_res.get('swiss_standings', []):
+                    cid = s['club_id']
+                    if s['wins'] == 0 and cid in club_states:
+                        club_states[cid].story_rating = max(60, club_states[cid].story_rating - 1)
+                reg_res['ratings_awarded'] = True
+
+    stage.stage_data = json.dumps(data)
+
+    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'stage1'
+        _prepare_stage1_stage(campaign)
+
+
+def resolve_oq_stage1_match(campaign_id: int, region_slug: str, match_id: str,
+                            winner_id: Optional[int] = None,
+                            maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve an Open Qualifier Stage 1 match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage:
+        raise ValueError("Open Qualifier Stage 1 not found")
+
+    data = get_oq_stage1_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    resolved = resolve_open_qualifier_match(
+        reg_data, match_id,
+        winner_id=winner_id,
+        maps=maps,
+        rating_lookup=rating_lookup,
+        form_lookup=form_lookup,
+    )
+    _check_and_finalize_oq_stage1(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'region_data': reg_data}
+
+
+def sim_oq_stage1_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate active round in Open Qualifier Stage 1 for a region."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage:
+        raise ValueError("Open Qualifier Stage 1 not found")
+
+    data = get_oq_stage1_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+    _check_and_finalize_oq_stage1(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'region_data': reg_data}
+
+
+def sim_oq_stage1_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all remaining matches for a single region in Open Qualifier Stage 1."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage:
+        raise ValueError("Open Qualifier Stage 1 not found")
+
+    data = get_oq_stage1_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+    _check_and_finalize_oq_stage1(campaign, stage, data)
+    db.session.commit()
+    return {'region_data': reg_data}
+
+
+def sim_oq_stage1_all(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all 4 regions in Open Qualifier Stage 1 to completion."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage:
+        raise ValueError("Open Qualifier Stage 1 not found")
+
+    data = get_oq_stage1_data(campaign_id)
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        if r_slug in data.get('regions', {}):
+            reg_data = data['regions'][r_slug]
+            sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_oq_stage1(campaign, stage, data)
+    db.session.commit()
+    return {'data': data}
+
+
+def _prepare_stage1_stage(campaign: Campaign):
+    """Assemble 12 teams per region for VCT Stage 1:
+    - 8 retained teams from Kickoff (Top 1-8)
+    - 4 promoted teams from Open Qualifier Stage 1 (or Kickoff fallback)
+    """
+    stage1_record = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='stage1'
+    ).first()
+
+    oq_stage1_rec = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='oq_stage1'
+    ).first()
+
+    kickoff_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='kickoff'
+    ).first()
+
+    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
     rosters = {}
     regional_results = {}
-    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
-    if kickoff_stage and kickoff_stage.stage_data:
-        try:
-            k_data = json.loads(kickoff_stage.stage_data)
+    oq_s1_data = json.loads(oq_stage1_rec.stage_data) if (oq_stage1_rec and oq_stage1_rec.stage_data) else {}
+    k_data = json.loads(kickoff_stage.stage_data) if (kickoff_stage and kickoff_stage.stage_data) else {}
+
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        prepared_roster = []
+
+        # Check if we have OQ Stage 1 results (8 retained + 4 qualified)
+        if oq_s1_data and 'retained_teams' in oq_s1_data and r_slug in oq_s1_data['retained_teams']:
+            retained = oq_s1_data['retained_teams'].get(r_slug, [])
+            reg_oq = oq_s1_data.get('regions', {}).get(r_slug, {})
+            promoted = reg_oq.get('qualified_teams', [])
+
+            # 8 retained teams (Kickoff rank 1..8)
+            for idx, t in enumerate(retained):
+                c_id = t.get('id') or t.get('club_id')
+                cs = states.get(c_id)
+                prepared_roster.append({
+                    'id': c_id,
+                    'name': t.get('name'),
+                    'short_code': t.get('short_code'),
+                    'region_slug': r_slug,
+                    'region': r_slug,
+                    'kickoff_rank': idx + 1,
+                    'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
+                    'form_modifier': cs.form_modifier if cs else 0,
+                    'effective_rating': cs.effective_rating if cs else 80,
+                    'logo_url': (cs.club.logo_url if cs and cs.club else None) or t.get('logo_url'),
+                })
+
+            # 4 promoted teams (Kickoff rank 9..12)
+            for idx, t in enumerate(promoted):
+                c_id = t.get('id') or t.get('club_id')
+                cs = states.get(c_id)
+                prepared_roster.append({
+                    'id': c_id,
+                    'name': t.get('name'),
+                    'short_code': t.get('short_code'),
+                    'region_slug': r_slug,
+                    'region': r_slug,
+                    'kickoff_rank': 9 + idx,
+                    'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
+                    'form_modifier': cs.form_modifier if cs else 0,
+                    'effective_rating': cs.effective_rating if cs else 80,
+                    'logo_url': (cs.club.logo_url if cs and cs.club else None) or t.get('logo_url'),
+                })
+
+        # Fallback if oq_stage1 wasn't run (e.g. older campaigns or tests)
+        if len(prepared_roster) != 12 and k_data:
             raw_rosters = k_data.get('rosters', {})
             k_regional = k_data.get('regional_results', {})
-            for r_slug in ['pacific', 'americas', 'emea', 'china']:
-                reg_roster = raw_rosters.get(r_slug, [])
-                reg_standings = k_regional.get(r_slug, {}).get('standings', [])
-                rank_map = {s['club_id']: s['rank'] for s in reg_standings if 'club_id' in s}
+            reg_roster = raw_rosters.get(r_slug, [])
+            reg_standings = k_regional.get(r_slug, {}).get('standings', [])
+            rank_map = {s['club_id']: s['rank'] for s in reg_standings if 'club_id' in s}
+            prepared_roster = []
+            for t in reg_roster:
+                c_id = t.get('id') or t.get('club_id')
+                cs = states.get(c_id)
+                prepared_roster.append({
+                    'id': c_id,
+                    'name': t.get('name'),
+                    'short_code': t.get('short_code'),
+                    'region_slug': r_slug,
+                    'region': r_slug,
+                    'kickoff_rank': rank_map.get(c_id, 12),
+                    'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
+                    'form_modifier': cs.form_modifier if cs else 0,
+                    'effective_rating': cs.effective_rating if cs else 80,
+                    'logo_url': (cs.club.logo_url if cs and cs.club else None) or t.get('logo_url'),
+                })
 
-                prepared_roster = []
-                for t in reg_roster:
-                    c_id = t.get('id') or t.get('club_id')
-                    cs = states.get(c_id)
-                    prepared_roster.append({
-                        'id': c_id,
-                        'name': t.get('name'),
-                        'short_code': t.get('short_code'),
-                        'region_slug': r_slug,
-                        'region': r_slug,
-                        'kickoff_rank': rank_map.get(c_id, 12),
-                        'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
-                        'form_modifier': cs.form_modifier if cs else 0,
-                        'effective_rating': cs.effective_rating if cs else 80,
-                        'logo_url': (cs.club.logo_url if cs and cs.club else None) or t.get('logo_url'),
-                    })
-                rosters[r_slug] = prepared_roster
-                if len(prepared_roster) == 12:
-                    regional_results[r_slug] = init_stage1_region_state(r_slug, prepared_roster)
-        except Exception:
-            rosters = {}
+        rosters[r_slug] = prepared_roster
+        if len(prepared_roster) == 12:
+            regional_results[r_slug] = init_stage1_region_state(r_slug, prepared_roster)
 
     if not stage1_record:
         stage1_record = CampaignStage(
@@ -1137,7 +1419,8 @@ def _check_and_finalize_stage1(campaign: Campaign, stage: CampaignStage, data: D
     if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'master'
+        campaign.current_stage = 'ewc_qualifier'
+        _prepare_ewc_qualifier_stage(campaign, data['regional_results'])
         _prepare_master_stage(campaign, data['regional_results'])
         _prepare_ewc_stage(campaign, data['regional_results'])
 
@@ -1246,6 +1529,291 @@ def sim_stage1_all_interactive(campaign_id: int) -> Dict[str, Any]:
     _check_and_finalize_stage1(campaign, stage, data)
     db.session.commit()
     return {'total_sim': total_sim, 'stage1_data': data}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EWC Regional Qualifier (Open Regional Qualifier) Implementation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _prepare_ewc_qualifier_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
+    stage_record = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='ewc_qualifier'
+    ).first()
+
+    regions_data = {}
+    direct_ewc_qualifiers = {}
+    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        reg_res = s1_regional_results.get(r_slug, {})
+        region_obj = Region.query.filter_by(slug=r_slug).first()
+        all_clubs = Club.query.filter_by(region_id=region_obj.id, is_active=True).all() if region_obj else []
+
+        direct_ewc_qualifiers[r_slug] = reg_res.get('ewc_direct_qualifiers', [])
+        p2_direct_teams = reg_res.get('ewc_phase2_teams', [])
+        p1_s1_teams = reg_res.get('ewc_phase1_teams', [])
+
+        s1_club_ids = {s['club_id'] for s in reg_res.get('standings', [])}
+        challenger_clubs = [c for c in all_clubs if c.id not in s1_club_ids]
+        sorted_challengers = sorted(challenger_clubs, key=lambda c: -c.current_rating)
+
+        p1_challenger_teams = []
+        for c in sorted_challengers:
+            cs = states.get(c.id)
+            p1_challenger_teams.append({
+                'id': c.id,
+                'name': c.name,
+                'short_code': c.short_code,
+                'region_slug': r_slug,
+                'region': r_slug,
+                'is_partner': cs.is_partner if cs else False,
+                'story_rating': cs.story_rating if cs else c.current_rating,
+                'form_modifier': cs.form_modifier if cs else 0,
+                'effective_rating': cs.effective_rating if cs else c.current_rating,
+                'logo_url': c.logo_url,
+            })
+
+        all_p1_teams = p1_s1_teams + p1_challenger_teams
+        if len(all_p1_teams) == 16 and len(p2_direct_teams) == 6:
+            reg_state = init_ewc_qualifier_region_state(r_slug, all_p1_teams, p2_direct_teams)
+            regions_data[r_slug] = reg_state
+
+    init_payload = {
+        'direct_ewc_qualifiers': direct_ewc_qualifiers,
+        'regions': regions_data,
+    }
+
+    if not stage_record:
+        stage_record = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='ewc_qualifier',
+            stage_name=f'EWC Regional Qualifier {campaign.current_year}',
+            status='pending',
+            stage_data=json.dumps(init_payload),
+        )
+        db.session.add(stage_record)
+    else:
+        stage_record.stage_data = json.dumps(init_payload)
+        stage_record.status = 'pending'
+
+
+def get_ewc_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve or auto-initialize EWC Qualifier stage data."""
+    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage or not stage.stage_data:
+        campaign = get_campaign(campaign_id)
+        if campaign:
+            s1_data = get_stage1_data(campaign_id)
+            if s1_data and s1_data.get('regional_results'):
+                _prepare_ewc_qualifier_stage(campaign, s1_data.get('regional_results', {}))
+                stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage or not stage.stage_data:
+        return None
+    return json.loads(stage.stage_data)
+
+
+def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_qual_data: Dict[str, Any]):
+    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+    s1_data = json.loads(stage1_record.stage_data) if stage1_record and stage1_record.stage_data else {}
+    s1_results = s1_data.get('regional_results', {})
+
+    ewc_roster = []
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        reg_s1 = s1_results.get(r_slug, {})
+        reg_eq = ewc_qual_data.get('regions', {}).get(r_slug, {})
+
+        champ_s1 = reg_s1.get('champion')
+        runner_s1 = reg_s1.get('runner_up')
+        champ_eq = reg_eq.get('champion')
+        runner_eq = reg_eq.get('runner_up')
+
+        qualified_slots = [
+            (champ_s1, 1, f"{r_slug.upper()} Stage 1 Champion"),
+            (runner_s1, 2, f"{r_slug.upper()} Stage 1 Runner-up"),
+            (champ_eq, 3, f"{r_slug.upper()} EWC Qualifier Champion"),
+            (runner_eq, 4, f"{r_slug.upper()} EWC Qualifier Runner-up"),
+        ]
+
+        for team_obj, pool_num, title in qualified_slots:
+            if team_obj:
+                c_id = team_obj.get('id') or team_obj.get('club_id')
+                cs = states.get(c_id)
+                ewc_roster.append({
+                    'id': c_id,
+                    'name': team_obj.get('name'),
+                    'short_code': team_obj.get('short_code'),
+                    'region_slug': r_slug,
+                    'region': r_slug,
+                    'regional_seed': pool_num,
+                    'pool': pool_num,
+                    'title': title,
+                    'story_rating': cs.story_rating if cs else team_obj.get('story_rating', 80),
+                    'form_modifier': cs.form_modifier if cs else 0,
+                    'effective_rating': cs.effective_rating if cs else 80,
+                    'logo_url': cs.club.logo_url if cs and cs.club else team_obj.get('logo_url'),
+                })
+
+    ewc_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='ewc'
+    ).first()
+
+    if not ewc_stage:
+        ewc_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='ewc',
+            stage_name=f'Esports World Cup (EWC) {campaign.current_year}',
+            status='pending',
+            stage_data=json.dumps({'roster': ewc_roster}),
+        )
+        db.session.add(ewc_stage)
+    else:
+        e_data = json.loads(ewc_stage.stage_data) if ewc_stage.stage_data else {}
+        e_data['roster'] = ewc_roster
+        ewc_stage.stage_data = json.dumps(e_data)
+
+
+def _check_and_finalize_ewc_qualifier(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    for r_slug, reg_data in data.get('regions', {}).items():
+        if reg_data.get('status') == 'completed' and not reg_data.get('rewards_awarded'):
+            champ = reg_data.get('champion')
+            runner = reg_data.get('runner_up')
+            if champ:
+                c_id = champ.get('id') or champ.get('club_id')
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+            if runner:
+                r_id = runner.get('id') or runner.get('club_id')
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+            reg_data['rewards_awarded'] = True
+
+    stage.stage_data = json.dumps(data)
+
+    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'master'
+        s1_record = CampaignStage.query.filter_by(
+            campaign_id=campaign.id, year=campaign.current_year, stage_key='stage1'
+        ).first()
+        _finalize_ewc_roster(campaign, s1_record, data)
+
+
+def resolve_ewc_qualifier_match_interactive(campaign_id: int, region_slug: str, match_id: str,
+                                            winner_id: Optional[int] = None,
+                                            maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single match in EWC Regional Qualifier (Phase 1 or Phase 2)."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage:
+        raise ValueError("EWC Qualifier stage not found")
+
+    data = get_ewc_qualifier_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    resolved = resolve_ewc_qualifier_match(
+        reg_data, match_id,
+        winner_id=winner_id,
+        maps=maps,
+        rating_lookup=rating_lookup,
+        form_lookup=form_lookup,
+    )
+
+    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'region_data': reg_data}
+
+
+def sim_ewc_qualifier_round_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate currently playable round for the region."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage:
+        raise ValueError("EWC Qualifier stage not found")
+
+    data = get_ewc_qualifier_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    resolved_matches = sim_ewc_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    db.session.commit()
+    return {'resolved_count': len(resolved_matches), 'region_data': reg_data}
+
+
+def sim_ewc_qualifier_region_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all remaining matches in one region until finished."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage:
+        raise ValueError("EWC Qualifier stage not found")
+
+    data = get_ewc_qualifier_data(campaign_id)
+    reg_data = data['regions'][region_slug]
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    count = sim_ewc_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    db.session.commit()
+    return {'simulated_count': count, 'region_data': reg_data}
+
+
+def sim_ewc_qualifier_all_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all remaining matches across all 4 regions in EWC Qualifier."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    if not stage:
+        raise ValueError("EWC Qualifier stage not found")
+
+    data = get_ewc_qualifier_data(campaign_id)
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    total_sim = 0
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        if r_slug in data.get('regions', {}):
+            reg_data = data['regions'][r_slug]
+            total_sim += sim_ewc_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    db.session.commit()
+    return {'total_sim': total_sim, 'ewc_qualifier_data': data}
+
+
+def run_ewc_qualifier_stage(campaign_id: int) -> CampaignStage:
+    """Convenience full runner for EWC Qualifier stage."""
+    sim_ewc_qualifier_all_interactive(campaign_id)
+    return get_stage_record(campaign_id, 'ewc_qualifier')
 
 
 # ─────────────────────────────────────────────────────────────────────────────

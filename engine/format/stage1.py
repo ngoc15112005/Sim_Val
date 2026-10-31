@@ -554,12 +554,33 @@ def advance_stage1_region(state: Dict[str, Any]) -> bool:
             {'team': third, 'regional_seed': 3, 'title': f"{state['region'].upper()} Stage 1 3rd Place"},
         ]
 
-        # EWC: Top 4
-        state['ewc_qualifiers'] = [
-            {'team': champ, 'pool': 1, 'title': f"{state['region'].upper()} Champion"},
-            {'team': runner, 'pool': 2, 'title': f"{state['region'].upper()} Runner-up"},
-            {'team': third, 'pool': 3, 'title': f"{state['region'].upper()} 3rd Place"},
-            {'team': fourth, 'pool': 4, 'title': f"{state['region'].upper()} 4th Place"},
+        # Direct EWC Qualifiers: Top 2 (Champion & Runner-up)
+        state['ewc_direct_qualifiers'] = [
+            {'team': champ, 'pool': 1, 'title': f"{state['region'].upper()} Stage 1 Champion"},
+            {'team': runner, 'pool': 2, 'title': f"{state['region'].upper()} Stage 1 Runner-up"},
+        ]
+        state['ewc_qualifiers'] = state['ewc_direct_qualifiers']
+
+        # Eliminated from group stage: Ranks 7-12
+        eliminated_groups = []
+        for s in state['alpha_standings'][3:]:
+            eliminated_groups.append(s)
+        for s in state['omega_standings'][3:]:
+            eliminated_groups.append(s)
+        eliminated_groups.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff']))
+
+        # Teams advancing to EWC Regional Qualifier:
+        # Phase 2: Ranks 3-8 (6 teams)
+        state['ewc_phase2_teams'] = [
+            t for t in [third, fourth, fifth_a, fifth_b,
+                        eliminated_groups[0]['team'] if len(eliminated_groups) > 0 else None,
+                        eliminated_groups[1]['team'] if len(eliminated_groups) > 1 else None]
+            if t is not None
+        ]
+
+        # Phase 1: Ranks 9-12 (4 teams)
+        state['ewc_phase1_teams'] = [
+            el['team'] for el in eliminated_groups[2:6]
         ]
 
         # Full 12 team standings
@@ -569,21 +590,13 @@ def advance_stage1_region(state: Dict[str, Any]) -> bool:
         if runner:
             standings.append({'rank': 2, 'team': runner, 'club_id': runner.get('id') or runner.get('club_id'), 'cp': 3, 'desc': 'Á quân Stage 1 (Vé Masters & EWC)'})
         if third:
-            standings.append({'rank': 3, 'team': third, 'club_id': third.get('id') or third.get('club_id'), 'cp': 2, 'desc': 'Hạng 3 Stage 1 (Vé Masters & EWC)'})
+            standings.append({'rank': 3, 'team': third, 'club_id': third.get('id') or third.get('club_id'), 'cp': 2, 'desc': 'Hạng 3 Stage 1 (Vé Masters & EWC Phase 2)'})
         if fourth:
-            standings.append({'rank': 4, 'team': fourth, 'club_id': fourth.get('id') or fourth.get('club_id'), 'cp': 1, 'desc': 'Hạng 4 Stage 1 (Vé EWC)'})
+            standings.append({'rank': 4, 'team': fourth, 'club_id': fourth.get('id') or fourth.get('club_id'), 'cp': 1, 'desc': 'Hạng 4 Stage 1 (Vé EWC Phase 2)'})
         if fifth_a:
-            standings.append({'rank': 5, 'team': fifth_a, 'club_id': fifth_a.get('id') or fifth_a.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Knockout)'})
+            standings.append({'rank': 5, 'team': fifth_a, 'club_id': fifth_a.get('id') or fifth_a.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Vé EWC Phase 2)'})
         if fifth_b:
-            standings.append({'rank': 6, 'team': fifth_b, 'club_id': fifth_b.get('id') or fifth_b.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Knockout)'})
-
-        # Eliminated from group stage: Ranks 7-12
-        eliminated_groups = []
-        for s in state['alpha_standings'][3:]:
-            eliminated_groups.append(s)
-        for s in state['omega_standings'][3:]:
-            eliminated_groups.append(s)
-        eliminated_groups.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff']))
+            standings.append({'rank': 6, 'team': fifth_b, 'club_id': fifth_b.get('id') or fifth_b.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Vé EWC Phase 2)'})
 
         for idx, el in enumerate(eliminated_groups):
             t = el['team']

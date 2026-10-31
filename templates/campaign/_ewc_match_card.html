@@ -1,0 +1,99 @@
+<div class="match-card card {% if m.status == 'completed' %}completed{% endif %}" style="padding: 12px; margin: 0; position: relative; border-radius: 8px; border: 1px solid {% if m.status == 'completed' %}rgba(34, 197, 94, 0.35){% else %}var(--border){% endif %}; background: var(--surface);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <span style="font-size: 0.75em; font-weight: bold; color: var(--dim); text-transform: uppercase;">
+      {{ m.label }} (BO{{ m.bo }})
+    </span>
+    {% if m.status == 'completed' %}
+      <span style="font-size: 0.72em; background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+        {% if m.is_manual %}✏️ Nhập tay{% else %}🎲 Đã đấu{% endif %}
+      </span>
+    {% elif m.team_a and m.team_b %}
+      <span style="font-size: 0.72em; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+        ⚡ Sẵn sàng
+      </span>
+    {% else %}
+      <span style="font-size: 0.72em; background: var(--border); color: var(--dim); padding: 2px 6px; border-radius: 4px;">
+        ⏳ Đợi đối thủ
+      </span>
+    {% endif %}
+  </div>
+
+  <!-- Team A Row -->
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-radius: 4px; margin-bottom: 4px; background: {% if m.status == 'completed' and m.winner_id == m.team_a_id %}rgba(34, 197, 94, 0.15){% else %}transparent{% endif %};">
+    <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+      {% if m.team_a %}
+        {% if m.team_a.logo_url %}
+        <img src="{{ m.team_a.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+        {% endif %}
+        <span style="font-size: 0.9em; font-weight: {% if m.status == 'completed' and m.winner_id == m.team_a_id %}bold{% else %}normal{% endif %}; color: {% if m.status == 'completed' and m.winner_id == m.team_a_id %}#fff{% elif m.status == 'completed' %}var(--dim){% else %}var(--text){% endif %};">
+          {{ m.team_a.short_code or m.team_a.name }}
+          <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.effective_rating or m.team_a.story_rating or 80 }})</span>
+        </span>
+      {% else %}
+        <span style="font-size: 0.85em; color: var(--dim); font-style: italic;">
+          {% if m.team_a_source.type == 'match_winner' %}
+            Thắng {{ m.team_a_source.value|upper }}
+          {% elif m.team_a_source.type == 'match_loser' %}
+            Thua {{ m.team_a_source.value|upper }}
+          {% else %}
+            Đội A
+          {% endif %}
+        </span>
+      {% endif %}
+    </div>
+    <div style="font-weight: bold; font-size: 1.1em; color: {% if m.status == 'completed' and m.winner_id == m.team_a_id %}#4ade80{% else %}var(--text){% endif %};">
+      {% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}
+    </div>
+  </div>
+
+  <!-- Team B Row -->
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; border-radius: 4px; margin-bottom: 8px; background: {% if m.status == 'completed' and m.winner_id == m.team_b_id %}rgba(34, 197, 94, 0.15){% else %}transparent{% endif %};">
+    <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+      {% if m.team_b %}
+        {% if m.team_b.logo_url %}
+        <img src="{{ m.team_b.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+        {% endif %}
+        <span style="font-size: 0.9em; font-weight: {% if m.status == 'completed' and m.winner_id == m.team_b_id %}bold{% else %}normal{% endif %}; color: {% if m.status == 'completed' and m.winner_id == m.team_b_id %}#fff{% elif m.status == 'completed' %}var(--dim){% else %}var(--text){% endif %};">
+          {{ m.team_b.short_code or m.team_b.name }}
+          <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.effective_rating or m.team_b.story_rating or 80 }})</span>
+        </span>
+      {% else %}
+        <span style="font-size: 0.85em; color: var(--dim); font-style: italic;">
+          {% if m.team_b_source.type == 'match_winner' %}
+            Thắng {{ m.team_b_source.value|upper }}
+          {% elif m.team_b_source.type == 'match_loser' %}
+            Thua {{ m.team_b_source.value|upper }}
+          {% else %}
+            Đội B
+          {% endif %}
+        </span>
+      {% endif %}
+    </div>
+    <div style="font-weight: bold; font-size: 1.1em; color: {% if m.status == 'completed' and m.winner_id == m.team_b_id %}#4ade80{% else %}var(--text){% endif %};">
+      {% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div style="display: flex; gap: 6px; justify-content: flex-end; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06);">
+    {% if m.team_a and m.team_b %}
+      {% if m.status == 'completed' %}
+        <button type="button" class="btn-sm btn-manual" style="padding: 3px 8px; font-size: 0.75em; border-radius: 4px;"
+                onclick="openManualModal('{{ m.id }}', '{{ m.label }}', {{ m.bo }}, {{ m.team_a.id }}, '{{ m.team_a.short_code or m.team_a.name }}', {{ m.team_a_score }}, {{ m.team_b.id }}, '{{ m.team_b.short_code or m.team_b.name }}', {{ m.team_b_score }})">
+          ✏️ Sửa
+        </button>
+      {% else %}
+        <button type="button" class="btn-sm" style="padding: 3px 8px; font-size: 0.75em; background: #3b82f6; color: #fff; border: none; border-radius: 4px; cursor: pointer;"
+                onclick="simSingleMatch('{{ m.id }}')">
+          🎲 Roll
+        </button>
+        <button type="button" class="btn-sm btn-manual" style="padding: 3px 8px; font-size: 0.75em; border-radius: 4px;"
+                onclick="openManualModal('{{ m.id }}', '{{ m.label }}', {{ m.bo }}, {{ m.team_a.id }}, '{{ m.team_a.short_code or m.team_a.name }}', {{ m.team_a_score }}, {{ m.team_b.id }}, '{{ m.team_b.short_code or m.team_b.name }}', {{ m.team_b_score }})">
+          ✏️ Nhập tay
+        </button>
+      {% endif %}
+    {% else %}
+      <span style="font-size: 0.72em; color: var(--dim); padding: 3px 0;">Chưa xác định cặp đấu</span>
+    {% endif %}
+  </div>
+</div>

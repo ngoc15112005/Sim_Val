@@ -7,9 +7,11 @@ from services.campaign_service import (
     run_open_qualifier_stage,
     run_kickoff_stage,
     run_major_stage,
+    sim_oq_stage1_all,
     get_stage1_data,
     sim_stage1_region_interactive,
     sim_stage1_all_interactive,
+    run_ewc_qualifier_stage,
     get_championship_leaderboard,
 )
 
@@ -43,6 +45,8 @@ class TestCampaignStage1Integration(unittest.TestCase):
         run_kickoff_stage(cid)
         # Advance Major
         run_major_stage(cid)
+        # Advance Open Qualifier Stage 1
+        sim_oq_stage1_all(cid)
 
         # Campaign should now be at 'stage1'
         campaign = Campaign.query.get(cid)
@@ -120,8 +124,8 @@ class TestCampaignStage1Integration(unittest.TestCase):
         stage1_rec = CampaignStage.query.filter_by(campaign_id=cid, stage_key='stage1').first()
         self.assertEqual(stage1_rec.status, 'completed')
 
-        # Campaign moved to 'master' (Masters Toronto)
-        self.assertEqual(campaign.current_stage, 'master')
+        # Campaign moved to 'ewc_qualifier'
+        self.assertEqual(campaign.current_stage, 'ewc_qualifier')
 
         # Verify Masters Toronto record prepared with 12 teams (3 per region)
         master_rec = CampaignStage.query.filter_by(campaign_id=cid, stage_key='master').first()
@@ -129,7 +133,20 @@ class TestCampaignStage1Integration(unittest.TestCase):
         m_data = json.loads(master_rec.stage_data)
         self.assertEqual(len(m_data['roster']), 12)
 
-        # Verify EWC record prepared with 16 teams (4 per region)
+        # Verify EWC Qualifier record prepared
+        ewc_qual_rec = CampaignStage.query.filter_by(campaign_id=cid, stage_key='ewc_qualifier').first()
+        self.assertIsNotNone(ewc_qual_rec)
+        eq_data = json.loads(ewc_qual_rec.stage_data)
+        self.assertIn('regions', eq_data)
+        self.assertEqual(len(eq_data['regions']['pacific']['phase1_teams']), 16)
+        self.assertEqual(len(eq_data['regions']['pacific']['phase2_direct_teams']), 6)
+
+        # Run EWC Qualifier to completion
+        run_ewc_qualifier_stage(cid)
+        campaign = Campaign.query.get(cid)
+        self.assertEqual(campaign.current_stage, 'master')
+
+        # Verify EWC record now has all 16 teams (4 per region)
         ewc_rec = CampaignStage.query.filter_by(campaign_id=cid, stage_key='ewc').first()
         self.assertIsNotNone(ewc_rec)
         e_data = json.loads(ewc_rec.stage_data)
@@ -137,7 +154,6 @@ class TestCampaignStage1Integration(unittest.TestCase):
 
         # Check that CP points were awarded properly
         pacific_lb = get_championship_leaderboard(cid, region_slug='pacific')
-        # Top team has points from Kickoff / Major / Stage 1
         self.assertGreater(pacific_lb[0]['championship_points'], 0)
 
 

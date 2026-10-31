@@ -1,0 +1,787 @@
+{% extends "base.html" %}
+{% block title %}Open Qualifier Stage 1 - {{ campaign.name }}{% endblock %}
+{% block content %}
+
+{% set regions_data = oq_data.regions if oq_data and oq_data.regions else {} %}
+
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+      {{ campaign.name }} • Vòng Tuyển Chọn Mở Stage 1
+    </div>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">Open Qualifier Stage 1 (4 đội rớt hạng + 12 đội Challengers)</h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      Thể thức: Thụy Sĩ (Swiss 33 trận) + Double Elimination Playoffs (10 trận) = <strong>43 trận/khu vực</strong>. Chọn 4 đội thăng hạng lên VCT Stage 1 cùng 8 đội trụ hạng.
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    {% if campaign.current_stage != 'open_qualifier' %}
+    <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+      Tới sàn đấu VCT Stage 1 ➔
+    </a>
+    {% endif %}
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Mùa giải
+    </a>
+  </div>
+</div>
+
+<!-- Regional Tabs & Simulation Action Bar -->
+<div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div class="region-tabs" style="display: flex; gap: 8px;">
+      {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+      {% set reg = regions_data.get(r_slug) %}
+      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchOqRegion('{{ r_slug }}')">
+        {{ r_slug|upper }}
+        {% if reg and reg.status == 'completed' %}
+          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong ✓</span>
+        {% elif reg and reg.current_stage == 'playoffs' %}
+          <span style="font-size: 0.75em; background: #8b5cf6; color: #fff; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Playoffs</span>
+        {% elif reg %}
+          <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Swiss Vòng {{ reg.current_swiss_round }}</span>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <button type="button" id="btn-sim-round" class="btn-sm" onclick="simCurrentRound()" style="padding: 9px 16px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
+      </button>
+      <button type="button" id="btn-sim-region" class="btn-sm" onclick="simSelectedRegion()" style="padding: 9px 16px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim cả khu vực
+      </button>
+      <button type="button" id="btn-sim-all" class="btn-sm btn-manual" onclick="simAllRegions()" style="padding: 9px 16px; font-weight: bold; border-radius: 6px;">
+        🌟 Sim cả 4 khu vực
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Regional Views -->
+{% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+{% set reg = regions_data.get(r_slug) %}
+<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
+
+  {% if reg %}
+
+  <!-- Qualified to Kickoff Banner (when finished) -->
+  {% if reg.status == 'completed' and reg.qualified_teams %}
+  <div class="card" style="border: 2px solid #22c55e; background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+    <h2 style="color: #4ade80; margin: 0 0 6px; font-size: 1.35em;">
+      🎉 4 ĐỘI TUYỂN GIÀNH VÉ THAM DỰ VCT KICKOFF ({{ r_slug|upper }})
+    </h2>
+    <p style="color: var(--dim); font-size: 0.9em; margin-bottom: 14px;">
+      Vòng loại kết thúc! Bốn đội tuyển này đã xuất sắc vượt qua 43 trận đấu để gia nhập 8 đội Partner tại VCT Kickoff.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+      {% for q in reg.qualified_teams %}
+      <div class="qualifier-card" style="display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px;">
+        <div style="font-size: 1.4em; font-weight: 800; color: #4ade80; width: 32px; text-align: center;">
+          #{{ loop.index }}
+        </div>
+        {% if q.logo_url %}
+        <img src="{{ q.logo_url }}" alt="" style="width: 38px; height: 38px; object-fit: contain;" onerror="this.style.display='none'">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; font-size: 1.1em; color: #fff;">{{ q.name }} <span style="font-size: 0.8em; color: var(--dim);">({{ q.short_code }})</span></div>
+          <div style="font-size: 0.85em; color: #4ade80;">
+            Vé Stage 1 Suất #{{ loop.index }}
+            {% if loop.index <= 2 %} (Nhánh Thắng Upper R2) {% else %} (Nhánh Thua Lower Qual) {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Swiss Stage Standings Table -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+      <div>
+        <h2 style="margin: 0; font-size: 1.25em; color: var(--accent);">Bảng Xếp Hạng Vòng Thụy Sĩ (Swiss Stage)</h2>
+        <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+          Đạt <strong>3 trận thắng</strong>: Vào Playoffs • Nhận <strong>3 trận thua</strong>: Bị loại. Tiêu chí phụ: Buchholz & Hiệu số map.
+        </p>
+      </div>
+      <div>
+        <span class="badge" style="font-size: 0.85em; {% if reg.current_stage == 'playoffs' or reg.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4);{% endif %}">
+          {% if reg.status == 'completed' %}
+            Đã hoàn thành vòng loại
+          {% elif reg.current_stage == 'playoffs' %}
+            Đang đấu Playoffs
+          {% else %}
+            Đang đấu Swiss Vòng {{ reg.current_swiss_round }}/5
+          {% endif %}
+        </span>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th style="width: 45px; text-align: center;">#</th>
+            <th class="team-col">Đội tuyển</th>
+            <th style="text-align: center;">Thắng - Thua</th>
+            <th style="text-align: center;">Buchholz</th>
+            <th style="text-align: center;">Map W-L</th>
+            <th style="text-align: center;">Hiệu số</th>
+            <th style="text-align: center;">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in reg.swiss_standings %}
+          <tr style="{% if s.advanced %}background: rgba(34, 197, 94, 0.08);{% elif s.eliminated %}background: rgba(239, 68, 68, 0.06);{% endif %}">
+            <td style="text-align: center; color: var(--dim);">{{ loop.index }}</td>
+            <td>
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
+                {% if s.team.logo_url %}
+                <img class="team-logo-sm" src="{{ s.team.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% endif %}
+                <strong style="color: #fff;">{{ s.team.name }}</strong>
+                <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+              </div>
+            </td>
+            <td style="text-align: center; font-weight: bold; font-size: 1.05em;">
+              <span style="color: #4ade80;">{{ s.wins }}</span> - <span style="color: #f87171;">{{ s.losses }}</span>
+            </td>
+            <td style="text-align: center; color: var(--dim);">{{ s.buchholz }}</td>
+            <td style="text-align: center; color: var(--dim);">{{ s.maps_won }}-{{ s.maps_lost }}</td>
+            <td style="text-align: center; font-weight: bold; {% if s.map_diff > 0 %}color: #4ade80;{% elif s.map_diff < 0 %}color: #f87171;{% else %}color: var(--dim);{% endif %}">
+              {% if s.map_diff > 0 %}+{{ s.map_diff }}{% else %}{{ s.map_diff }}{% endif %}
+            </td>
+            <td style="text-align: center;">
+              {% if s.advanced %}
+              <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: bold;">
+                ✓ Vào Playoffs
+              </span>
+              {% elif s.eliminated %}
+              <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">
+                Bị loại
+              </span>
+              {% else %}
+              <span style="color: var(--dim); font-size: 0.85em;">Đang đấu</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Swiss Matches by Round -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div style="margin-bottom: 16px;">
+      <h2 style="margin: 0; font-size: 1.25em; color: var(--accent);">Chi tiết các trận đấu Vòng Thụy Sĩ (Swiss)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        Bấm <strong>✏️ Nhập tay</strong> để tự gõ tỷ số theo ý bạn trước khi đấu, hoặc <strong>🎲 Roll</strong> để hệ thống tự mô phỏng riêng trận đó.
+      </p>
+    </div>
+
+    {% for r_num in [1, 2, 3, 4, 5] %}
+    {% set r_matches = reg.swiss_matches | selectattr('round', 'equalto', r_num) | list %}
+    {% if r_matches %}
+    <div class="swiss-round-block" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h3 style="margin: 0; font-size: 1.05em; color: #fff; text-transform: uppercase;">
+            Vòng {{ r_num }} ({{ r_matches|length }} trận)
+          </h3>
+          <span style="font-size: 0.8em; color: var(--dim);">
+            {% if r_num == 1 %}Tất cả đội 0-0 (BO1){% elif r_num == 2 %}Nhánh 1-0 & Nhánh 0-1 (BO1){% elif r_num == 3 %}Nhánh 2-0 (BO3), Nhánh 1-1 (BO1), Nhánh 0-2 (BO3){% elif r_num == 4 %}Nhánh 2-1 & Nhánh 1-2 (Tất cả BO3){% elif r_num == 5 %}Trận sinh tử 2-2 (BO3){% endif %}
+          </span>
+        </div>
+
+        {% set pending_count = r_matches | selectattr('status', 'equalto', 'pending') | list | length %}
+        {% if pending_count > 0 %}
+        <button type="button" class="btn-sm" onclick="simCurrentRound()" style="padding: 6px 14px; font-size: 0.85em; background: #3b82f6; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+          ⚡ Sim vòng {{ r_num }} ({{ pending_count }} trận pending)
+        </button>
+        {% else %}
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">Vòng {{ r_num }} đã xong ✓</span>
+        {% endif %}
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px;">
+        {% for m in r_matches %}
+        <div class="oq-match-card" style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78em; color: var(--dim);">
+            <span>
+              <strong style="color: #fff;">{{ m.label }}</strong>
+              <span style="background: var(--bg); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-weight: bold;">BO{{ m.bo }}</span>
+              {% if m.is_manual %}
+              <span style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 4px;">✍️ Đã nhập</span>
+              {% endif %}
+            </span>
+            <div style="display: flex; gap: 4px;">
+              {% if m.status == 'pending' %}
+              <button type="button" class="btn-sm" onclick="rollOqMatch('{{ m.id }}')" title="Roll ngẫu nhiên trận này" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fff; border-radius: 4px; cursor: pointer;">
+                🎲 Roll
+              </button>
+              <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #60a5fa; border-radius: 4px; cursor: pointer;">
+                ✏️ Nhập tay
+              </button>
+              {% else %}
+              <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fbbf24; border-radius: 4px; cursor: pointer;">
+                ✏️ Sửa
+              </button>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Team A -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; {% if m.status == 'completed' and m.winner_id == m.team_a.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if m.team_a.logo_url %}
+              <img src="{{ m.team_a.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+              {% endif %}
+              <span style="font-size: 0.9em;">{{ m.team_a.name }}</span>
+              <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.short_code }})</span>
+            </div>
+            <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}</span>
+          </div>
+
+          <!-- Team B -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; margin-top: 2px; {% if m.status == 'completed' and m.winner_id == m.team_b.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if m.team_b.logo_url %}
+              <img src="{{ m.team_b.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+              {% endif %}
+              <span style="font-size: 0.9em;">{{ m.team_b.name }}</span>
+              <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.short_code }})</span>
+            </div>
+            <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}</span>
+          </div>
+
+          {% if m.status == 'completed' and m.maps %}
+          <div style="display: flex; gap: 6px; margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--border); font-size: 0.75em; color: var(--dim); flex-wrap: wrap;">
+            <span>Tỷ số map:</span>
+            {% for map_item in m.maps %}
+            <span style="background: var(--bg); padding: 1px 6px; border-radius: 3px; color: #fff;">
+              M{{ map_item.map_number }}: {{ map_item.team_a_score }}-{{ map_item.team_b_score }}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Playoffs Double Elimination Stage (when reached) -->
+  {% if reg.playoff_matches %}
+  <div class="card" style="margin-bottom: 24px;">
+    <div style="margin-bottom: 16px;">
+      <h2 style="margin: 0; font-size: 1.25em; color: var(--accent);">Giai đoạn 2: Vòng Playoffs (Double Elimination 10 trận BO3)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        8 đội vượt qua vòng Swiss tranh <strong>4 tấm vé đi VCT Kickoff</strong>. (2 vé từ Bán kết Nhánh thắng Upper R2, 2 vé từ Chung kết Nhánh thua Lower Qual).
+      </p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+      <!-- Upper Bracket -->
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+        <h3 style="font-size: 0.95em; color: #4ade80; margin: 0 0 12px; text-transform: uppercase;">
+          🌿 Nhánh Thắng (Upper Bracket)
+        </h3>
+        {% for m in reg.playoff_matches %}
+        {% if m.round_type == 'upper' %}
+          <div class="oq-match-card" style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78em; color: var(--dim);">
+              <span>
+                <strong style="color: #fff;">{{ m.label }}</strong>
+                <span style="background: var(--bg); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-weight: bold;">BO{{ m.bo }}</span>
+                {% if m.qualifier_slot %}
+                <span style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 1px 5px; border-radius: 3px; font-weight: bold; margin-left: 4px;">★ Tranh vé #{{ m.qualifier_slot }}</span>
+                {% endif %}
+              </span>
+              <div style="display: flex; gap: 4px;">
+                {% if m.status == 'pending' and m.team_a and m.team_b %}
+                <button type="button" class="btn-sm" onclick="rollOqMatch('{{ m.id }}')" title="Roll trận này" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fff; border-radius: 4px; cursor: pointer;">
+                  🎲 Roll
+                </button>
+                <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #60a5fa; border-radius: 4px; cursor: pointer;">
+                  ✏️ Nhập tay
+                </button>
+                {% elif m.status == 'completed' %}
+                <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fbbf24; border-radius: 4px; cursor: pointer;">
+                  ✏️ Sửa
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Team A -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; {% if m.status == 'completed' and m.winner_id == m.team_a.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if m.team_a and m.team_a.logo_url %}
+                <img src="{{ m.team_a.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+                {% endif %}
+                <span style="font-size: 0.9em;">{% if m.team_a %}{{ m.team_a.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.short_code }})</span>{% else %}<span style="color: var(--dim);">{{ m.placeholder_a or 'TBD' }}</span>{% endif %}</span>
+              </div>
+              <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}</span>
+            </div>
+
+            <!-- Team B -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; margin-top: 2px; {% if m.status == 'completed' and m.winner_id == m.team_b.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if m.team_b and m.team_b.logo_url %}
+                <img src="{{ m.team_b.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+                {% endif %}
+                <span style="font-size: 0.9em;">{% if m.team_b %}{{ m.team_b.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.short_code }})</span>{% else %}<span style="color: var(--dim);">{{ m.placeholder_b or 'TBD' }}</span>{% endif %}</span>
+              </div>
+              <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}</span>
+            </div>
+
+            {% if m.status == 'completed' and m.maps %}
+            <div style="display: flex; gap: 6px; margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--border); font-size: 0.75em; color: var(--dim); flex-wrap: wrap;">
+              <span>Tỷ số map:</span>
+              {% for map_item in m.maps %}
+              <span style="background: var(--bg); padding: 1px 6px; border-radius: 3px; color: #fff;">
+                M{{ map_item.map_number }}: {{ map_item.team_a_score }}-{{ map_item.team_b_score }}
+              </span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+
+      <!-- Lower Bracket -->
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+        <h3 style="font-size: 0.95em; color: #f87171; margin: 0 0 12px; text-transform: uppercase;">
+          🔥 Nhánh Thua (Lower Bracket)
+        </h3>
+        {% for m in reg.playoff_matches %}
+        {% if m.round_type == 'lower' %}
+          <div class="oq-match-card" style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78em; color: var(--dim);">
+              <span>
+                <strong style="color: #fff;">{{ m.label }}</strong>
+                <span style="background: var(--bg); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-weight: bold;">BO{{ m.bo }}</span>
+                {% if m.qualifier_slot %}
+                <span style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 1px 5px; border-radius: 3px; font-weight: bold; margin-left: 4px;">★ Tranh vé #{{ m.qualifier_slot }}</span>
+                {% endif %}
+              </span>
+              <div style="display: flex; gap: 4px;">
+                {% if m.status == 'pending' and m.team_a and m.team_b %}
+                <button type="button" class="btn-sm" onclick="rollOqMatch('{{ m.id }}')" title="Roll trận này" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fff; border-radius: 4px; cursor: pointer;">
+                  🎲 Roll
+                </button>
+                <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #60a5fa; border-radius: 4px; cursor: pointer;">
+                  ✏️ Nhập tay
+                </button>
+                {% elif m.status == 'completed' %}
+                <button type="button" class="btn-sm" onclick="openOqManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 6px; background: transparent; border: 1px solid var(--border); color: #fbbf24; border-radius: 4px; cursor: pointer;">
+                  ✏️ Sửa
+                </button>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Team A -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; {% if m.status == 'completed' and m.winner_id == m.team_a.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if m.team_a and m.team_a.logo_url %}
+                <img src="{{ m.team_a.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+                {% endif %}
+                <span style="font-size: 0.9em;">{% if m.team_a %}{{ m.team_a.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.short_code }})</span>{% else %}<span style="color: var(--dim);">{{ m.placeholder_a or 'TBD' }}</span>{% endif %}</span>
+              </div>
+              <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}</span>
+            </div>
+
+            <!-- Team B -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; margin-top: 2px; {% if m.status == 'completed' and m.winner_id == m.team_b.id %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if m.team_b and m.team_b.logo_url %}
+                <img src="{{ m.team_b.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+                {% endif %}
+                <span style="font-size: 0.9em;">{% if m.team_b %}{{ m.team_b.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.short_code }})</span>{% else %}<span style="color: var(--dim);">{{ m.placeholder_b or 'TBD' }}</span>{% endif %}</span>
+              </div>
+              <span style="font-size: 1.1em; font-weight: 800;">{% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}</span>
+            </div>
+
+            {% if m.status == 'completed' and m.maps %}
+            <div style="display: flex; gap: 6px; margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--border); font-size: 0.75em; color: var(--dim); flex-wrap: wrap;">
+              <span>Tỷ số map:</span>
+              {% for map_item in m.maps %}
+              <span style="background: var(--bg); padding: 1px 6px; border-radius: 3px; color: #fff;">
+                M{{ map_item.map_number }}: {{ map_item.team_a_score }}-{{ map_item.team_b_score }}
+              </span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+</div>
+{% endfor %}
+
+<!-- Manual Score Input Modal (Chuẩn giống Tournament Single Mode) -->
+<div id="oq-manual-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; padding: 16px;">
+  <div class="card" style="width: 100%; max-width: 500px; border: 2px solid var(--accent); background: var(--bg); box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+      <h3 id="modal-match-title" style="margin: 0; font-size: 1.15em; color: var(--accent);">Nhập kết quả trận đấu</h3>
+      <button type="button" onclick="closeOqManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
+    </div>
+
+    <!-- Match Teams Display -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: var(--surface); padding: 12px; border-radius: 8px;">
+      <div style="text-align: left; flex: 1;">
+        <div id="modal-team-a-code" style="font-size: 0.8em; color: var(--dim);">TEAM A</div>
+        <div id="modal-team-a-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team A</div>
+      </div>
+      <div style="font-weight: bold; color: var(--accent); padding: 0 12px; font-size: 1.1em;">VS</div>
+      <div style="text-align: right; flex: 1;">
+        <div id="modal-team-b-code" style="font-size: 0.8em; color: var(--dim);">TEAM B</div>
+        <div id="modal-team-b-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team B</div>
+      </div>
+    </div>
+
+    <!-- Quick Winner Selection -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">CHỌN NHANH ĐỘI THẮNG:</div>
+      <div id="modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Filled dynamically by JS -->
+      </div>
+    </div>
+
+    <!-- Detailed Map Inputs -->
+    <div style="margin-bottom: 16px; border-top: 1px dashed var(--border); padding-top: 12px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">HOẶC TỰ NHẬP ĐIỂM SỐ CHI TIẾT TỪNG MAP:</div>
+      <div id="modal-maps-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Filled dynamically by JS based on BO -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+      <button type="button" onclick="closeOqManualModal()" class="btn-sm btn-manual" style="padding: 8px 16px; border-radius: 6px;">
+        Hủy
+      </button>
+      <button type="button" id="btn-save-manual-score" onclick="submitOqCustomScore()" class="btn-start" style="padding: 8px 20px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        💾 Lưu kết quả trận đấu
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeOqRegion = '{{ selected_region or "pacific" }}';
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamAName = '';
+let currentModalTeamBId = null;
+let currentModalTeamBName = '';
+let currentModalBo = 1;
+
+function switchOqRegion(rSlug) {
+  activeOqRegion = rSlug;
+  document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.oq-region-view').forEach(v => v.classList.remove('active'));
+
+  event.target.closest('.region-tab-btn').classList.add('active');
+  const view = document.getElementById(`oq-view-${rSlug}`);
+  if (view) view.classList.add('active');
+}
+
+async function rollOqMatch(matchId) {
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage1/match/sim`, {
+      region_slug: activeOqRegion,
+      match_id: matchId
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function simCurrentRound() {
+  const btn = document.getElementById('btn-sim-round');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng vòng...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage1/sim-round`, {
+      region_slug: activeOqRegion
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '⚡ Sim vòng hiện tại';
+  }
+}
+
+async function simSelectedRegion() {
+  if (!confirm(`Bạn có chắc muốn mô phỏng toàn bộ các trận còn lại của khu vực ${activeOqRegion.toUpperCase()}?`)) return;
+
+  const btn = document.getElementById('btn-sim-region');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng khu vực...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage1/sim-region`, {
+      region_slug: activeOqRegion
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim cả khu vực';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔥 Sim cả khu vực';
+  }
+}
+
+async function simAllRegions() {
+  if (!confirm("Bạn có chắc muốn mô phỏng tất cả 4 khu vực Open Qualifier (chọn ra 16 đội vào Kickoff)?")) return;
+
+  const btn = document.getElementById('btn-sim-all');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mô phỏng cả 4 khu vực...';
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage1/sim`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
+      btn.disabled = false;
+      btn.textContent = '🌟 Sim cả 4 khu vực';
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🌟 Sim cả 4 khu vực';
+  }
+}
+
+function openOqManualModal(matchId, matchLabel, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamAName = teamAName;
+  currentModalTeamBId = teamBId;
+  currentModalTeamBName = teamBName;
+  currentModalBo = bo || 1;
+
+  document.getElementById('modal-match-title').textContent = `${matchLabel} (BO${currentModalBo})`;
+  document.getElementById('modal-team-a-code').textContent = teamACode;
+  document.getElementById('modal-team-a-name').textContent = teamAName;
+  document.getElementById('modal-team-b-code').textContent = teamBCode;
+  document.getElementById('modal-team-b-name').textContent = teamBName;
+
+  // Build quick buttons
+  const quickContainer = document.getElementById('modal-quick-buttons');
+  if (currentModalBo === 1) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitOqQuickWinner(${teamAId}, 13, 9)" style="padding: 10px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px;">
+        <strong>${teamACode}</strong> Thắng (13 - 9)
+      </button>
+      <button type="button" class="btn-start" onclick="submitOqQuickWinner(${teamBId}, 9, 13)" style="padding: 10px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px;">
+        <strong>${teamBCode}</strong> Thắng (9 - 13)
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitOqQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitOqQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitOqQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitOqQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  // Build map inputs
+  const mapsContainer = document.getElementById('modal-maps-container');
+  const numMaps = currentModalBo === 1 ? 1 : 3;
+  let mapsHtml = '';
+  for (let i = 1; i <= numMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 8px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-map-${i}-a" min="0" max="99" placeholder="13" style="width: 60px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1.1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-map-${i}-b" min="0" max="99" placeholder="9" style="width: 60px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1.1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+
+  document.getElementById('oq-manual-modal').style.display = 'flex';
+}
+
+function closeOqManualModal() {
+  document.getElementById('oq-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
+}
+
+async function submitOqQuickWinner(winnerId, scoreA, scoreB) {
+  const maps = [{
+    map_number: 1,
+    team_a_score: scoreA,
+    team_b_score: scoreB,
+    winner_id: winnerId
+  }];
+  await sendOqManualRequest(winnerId, maps);
+}
+
+async function submitOqQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendOqManualRequest(winnerId, maps);
+}
+
+async function submitOqCustomScore() {
+  const numMaps = currentModalBo === 1 ? 1 : 3;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= numMaps; i++) {
+    const valA = document.getElementById(`inp-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (currentModalBo === 3 && maps.length >= 2 && (winsA >= 2 || winsB >= 2)) {
+        break; // 2-0 done
+      }
+      if (maps.length === 0) {
+        alert(`Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.`);
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (currentModalBo === 3 && (winsA >= 2 || winsB >= 2)) {
+      break;
+    }
+  }
+
+  if (winsA === winsB) {
+    alert("Tỉ số map đang hòa! Vui lòng nhập thêm ván quyết định.");
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendOqManualRequest(winnerId, maps);
+}
+
+async function sendOqManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage1/match/manual`, {
+      region_slug: activeOqRegion,
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
+  }
+}
+</script>
+
+<style>
+.oq-region-view { display: none; }
+.oq-region-view.active { display: block; }
+</style>
+{% endblock %}
