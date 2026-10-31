@@ -315,6 +315,9 @@ def register_routes(app):
         get_ewc_qualifier_data, resolve_ewc_qualifier_match_interactive,
         sim_ewc_qualifier_round_interactive, sim_ewc_qualifier_region_interactive,
         sim_ewc_qualifier_all_interactive,
+        get_master_data, resolve_master_match_interactive,
+        sim_master_round_interactive, sim_master_tournament_interactive,
+        run_master_stage,
     )
 
     @app.route('/campaigns')
@@ -350,6 +353,7 @@ def register_routes(app):
         oq_stage1_data = get_oq_stage1_data(campaign_id)
         stage1_data = get_stage1_data(campaign_id)
         ewc_qual_data = get_ewc_qualifier_data(campaign_id)
+        master_data = get_master_data(campaign_id)
 
         stages_info = []
         current_found = False
@@ -380,6 +384,7 @@ def register_routes(app):
             oq_stage1_data=oq_stage1_data,
             stage1_data=stage1_data,
             ewc_qual_data=ewc_qual_data,
+            master_data=master_data,
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
@@ -1080,6 +1085,87 @@ def register_routes(app):
 
         try:
             res = sim_ewc_qualifier_all_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/campaign/<int:campaign_id>/stage/master')
+    def campaign_master_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        master_data = get_master_data(campaign_id)
+        cp_leaderboards = {
+            r: get_championship_leaderboard(campaign_id, region_slug=r)
+            for r in ['pacific', 'americas', 'emea', 'china']
+        }
+
+        return render_template(
+            'campaign/master.html',
+            campaign=campaign,
+            master_data=master_data,
+            cp_leaderboards=cp_leaderboards,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/master/match/sim', methods=['POST'])
+    def api_campaign_master_match_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        if not match_id:
+            return jsonify({'error': 'match_id is required'}), 400
+
+        try:
+            res = resolve_master_match_interactive(campaign_id, match_id, winner_id=None)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/master/match/manual', methods=['POST'])
+    def api_campaign_master_match_manual(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not match_id or not winner_id:
+            return jsonify({'error': 'match_id and winner_id are required'}), 400
+
+        try:
+            res = resolve_master_match_interactive(campaign_id, match_id, winner_id=int(winner_id), maps=maps)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/master/sim-round', methods=['POST'])
+    def api_campaign_master_sim_round(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_master_round_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/master/sim-all', methods=['POST'])
+    def api_campaign_master_sim_all(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_master_tournament_interactive(campaign_id)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400

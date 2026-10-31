@@ -60,6 +60,8 @@
           VCT Regional Stage 1 (12 Đội / Khu Vực)
         {% elif campaign.current_stage == 'ewc_qualifier' %}
           EWC Regional Qualifier (Cơ Hội Đến Esports World Cup)
+        {% elif campaign.current_stage == 'master' %}
+          VCT Masters (Masters Toronto — 12 Đội Tuyển Tinh Hoa Toàn Cầu)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -75,6 +77,8 @@
           12 đội tuyển mỗi khu vực bước vào giai đoạn Vòng Bảng & Playoffs Stage 1 để tích lũy điểm số và giành vé tới Masters Toronto & EWC!
         {% elif campaign.current_stage == 'ewc_qualifier' %}
           16 đội Phase 1 (Single Elim) tranh 2 suất tiến vào Phase 2 cùng 6 đội Stage 1 (Double Elim). Hai đội lọt vào Chung kết giành vé EWC!
+        {% elif campaign.current_stage == 'master' %}
+          4 Quán quân Stage 1 vào thẳng Tứ kết Playoffs. 8 Á quân & Hạng 3 tranh tài qua Vòng Thụy Sĩ (Swiss 10 trận) để giành 4 suất còn lại vào Double Elimination Playoffs (14 trận). Quán quân nhận 7 Championship Points!
         {% endif %}
       </p>
     </div>
@@ -140,7 +144,31 @@
           Xem lại OQ Stage 1
         </a>
         {% endif %}
+      {% elif campaign.current_stage == 'master' %}
+        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Masters Toronto ➔
+        </a>
+        {% if ewc_qual_data and ewc_qual_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại EWC Qualifier
+        </a>
+        {% endif %}
+        {% if stage1_data and stage1_data.regional_results %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại VCT Stage 1
+        </a>
+        {% endif %}
+        {% if oq_stage1_data and oq_stage1_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 1
+        </a>
+        {% endif %}
       {% else %}
+        {% if master_data and master_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block;">
+          Xem lại Masters Toronto
+        </a>
+        {% endif %}
         {% if ewc_qual_data and ewc_qual_data.regions %}
         <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; display: inline-block;">
           Xem lại EWC Qualifier
@@ -170,6 +198,25 @@
       {% endif %}
     </div>
   </div>
+
+  {% if master_data and master_data.result and master_data.result.champion %}
+  <div class="master-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
+        🏆 VCT Masters Toronto Kết Thúc
+      </span>
+      <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
+        Nhà Vô Địch Thế Giới: <span style="color: #fbbf24;">{{ master_data.result.champion.name }} ({{ master_data.result.champion.short_code }})</span> (+7 CP)
+      </h3>
+      <div style="font-size: 0.85em; color: var(--dim);">
+        Á quân: <strong style="color: #fff;">{{ master_data.result.runner_up.name }} ({{ master_data.result.runner_up.short_code }})</strong> (+5 CP) • Hạng 3: (+4 CP) • Hạng 4: (+3 CP) • Hạng 5-6: (+2 CP)
+      </div>
+    </div>
+    <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
+      Xem toàn bộ sàn đấu Masters Toronto ➔
+    </a>
+  </div>
+  {% endif %}
 
   {% if stage1_data and stage1_data.regional_results %}
   {% set any_s1_done = false %}

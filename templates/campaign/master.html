@@ -1,0 +1,687 @@
+{% extends "base.html" %}
+{% block title %}VCT Masters (Masters Toronto) - {{ campaign.name }}{% endblock %}
+{% block content %}
+
+{% set res = master_data.result if master_data and master_data.result else None %}
+{% set roster = master_data.roster if master_data and master_data.roster else [] %}
+
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+      {{ campaign.name }} • VCT Masters Toronto
+    </div>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Masters (Masters Toronto)</h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      12 Đội tuyển tinh hoa toàn cầu (Top 3 Stage 1 từ 4 khu vực) • 4 Quán quân vào thẳng Playoffs • 8 Đội tranh Vòng Thụy Sĩ (10 trận) & Double Elimination (14 trận)
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    {% if res and res.status == 'completed' %}
+    <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+      Tiếp tục mùa giải ➔
+    </a>
+    {% endif %}
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Hub Mùa giải
+    </a>
+  </div>
+</div>
+
+<!-- Simulation Control Bar -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
+        {% if res and res.status == 'completed' %}ĐÃ HOÀN THÀNH (24 TRẬN){% else %}ĐANG DIỄN RA (12 ĐỘI TINH HOA){% endif %}
+      </span>
+      <span style="font-size: 0.9em; color: var(--dim); margin-left: 10px;">
+        Hệ thống điểm: <strong>1st (+7 CP)</strong> • <strong>2nd (+5 CP)</strong> • <strong>3rd (+4 CP)</strong> • <strong>4th (+3 CP)</strong> • <strong>5th-6th (+2 CP)</strong>
+      </span>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button type="button" id="btn-sim-master-round" class="btn-start" onclick="simMasterRound()" style="padding: 10px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
+      </button>
+      <button type="button" id="btn-sim-master" class="btn-start" onclick="simMasterTournament()" style="padding: 10px 22px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim toàn bộ Masters Toronto
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if res and res.status == 'completed' and res.champion %}
+<!-- Masters Toronto Champions Podium Banner -->
+<div class="card" style="border: 2px solid #eab308; background: linear-gradient(135deg, rgba(234, 179, 8, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+    <div>
+      <span style="background: #eab308; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 0.8em; text-transform: uppercase;">
+        🏆 Nhà Vô Địch Thế Giới Masters Toronto
+      </span>
+      <h2 style="font-size: 1.8em; margin: 8px 0 2px; color: #fff; display: flex; align-items: center; gap: 10px;">
+        {% if res.champion.logo_url %}
+        <img src="{{ res.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
+        {% endif %}
+        {{ res.champion.name }} ({{ res.champion.short_code }})
+        <span class="badge" style="font-size: 0.55em; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4);">
+          +7 CHAMPIONSHIP POINTS
+        </span>
+      </h2>
+      <div style="font-size: 0.9em; color: var(--dim);">
+        Đại diện khu vực: <strong style="text-transform: uppercase; color: #fff;">{{ res.champion.region_slug or res.champion.region }}</strong> • Á quân: <strong style="color: #fff;">{{ res.runner_up.name }} ({{ res.runner_up.short_code }}) (+5 CP)</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Standings & Points Table -->
+  <div class="table-scroll">
+    <table class="swiss-standings-table">
+      <thead>
+        <tr>
+          <th style="width: 90px; text-align: center;">Thứ hạng</th>
+          <th class="team-col">Đội tuyển</th>
+          <th>Khu vực</th>
+          <th>Danh hiệu / Vòng đấu</th>
+          <th style="text-align: center; color: var(--yellow);">Championship Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in res.standings %}
+        <tr style="{% if s.rank == 1 %}background: rgba(234, 179, 8, 0.15);{% elif s.rank == 2 %}background: rgba(148, 163, 184, 0.1);{% elif s.rank == 3 %}background: rgba(205, 127, 50, 0.1);{% elif s.rank == 4 %}background: rgba(59, 130, 246, 0.05);{% endif %}">
+          <td style="text-align: center;">
+            {% if s.rank == 1 %}
+            <span class="badge" style="background: #eab308; color: #000; font-weight: 800;">1st 🥇</span>
+            {% elif s.rank == 2 %}
+            <span class="badge" style="background: #94a3b8; color: #000; font-weight: 800;">2nd 🥈</span>
+            {% elif s.rank == 3 %}
+            <span class="badge" style="background: #cd7f32; color: #fff; font-weight: 800;">3rd 🥉</span>
+            {% elif s.rank == 4 %}
+            <span class="badge" style="background: var(--surface); color: #fff;">4th</span>
+            {% elif s.rank in [5, 6] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">5th-6th</span>
+            {% elif s.rank in [7, 8] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">7th-8th</span>
+            {% else %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">9th-12th</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if s.team.logo_url %}
+              <img src="{{ s.team.logo_url }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
+              {% endif %}
+              <strong style="color: #fff;">{{ s.team.name }}</strong>
+              <span style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+            </div>
+          </td>
+          <td>
+            <span class="badge" style="text-transform: uppercase; background: rgba(255, 255, 255, 0.08);">
+              {{ s.team.region_slug or s.team.region }}
+            </span>
+          </td>
+          <td style="color: var(--dim);">{{ s.desc }}</td>
+          <td style="text-align: center; font-weight: bold; font-size: 1.05em;">
+            {% if s.cp > 0 %}
+            <span style="color: #fbbf24;">+{{ s.cp }} CP</span>
+            {% else %}
+            <span style="color: var(--dim);">0 CP</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- 4 Direct Qualifiers (Stage 1 Champions - Bye to Upper Quarterfinals) -->
+<div class="card" style="margin-bottom: 24px; border: 1px solid rgba(234, 179, 8, 0.4); background: linear-gradient(135deg, rgba(234, 179, 8, 0.04) 0%, rgba(15, 23, 42, 0.5) 100%);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+    <div>
+      <h3 style="color: #fbbf24; margin: 0; font-size: 1.15em; display: flex; align-items: center; gap: 8px;">
+        ⭐ 4 Quán Quân Stage 1 — Vào Thẳng Tứ Kết Nhánh Thắng (Playoffs Direct Seeds)
+      </h3>
+      <p style="font-size: 0.85em; color: var(--dim); margin: 3px 0 0;">
+        4 nhà vô địch khu vực được miễn Vòng Thụy Sĩ và xếp hạt giống 1-4 tại vòng Tứ kết nhánh thắng.
+      </p>
+    </div>
+    <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold;">
+      Direct to Playoffs
+    </span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+    {% for t in (res.direct_teams if res and res.direct_teams else roster[:4]) %}
+    <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        {% if t.logo_url %}
+        <img src="{{ t.logo_url }}" alt="" style="width: 28px; height: 28px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff;">{{ t.name }} <span style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span></div>
+          <div style="font-size: 0.75em; color: var(--dim);">
+            <span class="badge" style="font-size: 0.7em; background: rgba(59, 130, 246, 0.15); color: #60a5fa; text-transform: uppercase;">{{ t.region_slug or t.region }}</span>
+            <span style="color: #fbbf24; margin-left: 4px;">Quán quân Stage 1</span>
+          </div>
+        </div>
+      </div>
+      <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: bold;">
+        Seed #{{ t.bracket_seed or loop.index }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if res %}
+<!-- GIAI ĐOẠN 1: SWISS STAGE (8 Teams - 10 Matches) -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 1: Vòng Thụy Sĩ (Swiss Stage — 10 trận BO3)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        8 Đội tuyển (Á quân & Hạng 3 Stage 1). Đội đạt <strong>2 chiến thắng</strong> vào Playoffs • Đội nhận <strong>2 thất bại</strong> bị loại.
+      </p>
+    </div>
+    <span class="badge" style="{% if res.swiss_qualifiers|length == 4 %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.swiss_qualifiers|length == 4 %}Swiss Hoàn Thành (4 Đội Vào Playoffs){% else %}Vòng Thụy Sĩ Đang Diễn Ra{% endif %}
+    </span>
+  </div>
+
+  <!-- Swiss Standings Table -->
+  <div style="margin-bottom: 20px;">
+    <h3 style="font-size: 1em; color: #fff; margin-bottom: 8px;">Bảng xếp hạng Vòng Thụy Sĩ:</h3>
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th style="width: 50px; text-align: center;">#</th>
+            <th class="team-col">Đội tuyển</th>
+            <th>Khu vực</th>
+            <th style="text-align: center;">Thắng - Thua</th>
+            <th style="text-align: center;">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in res.swiss_standings %}
+          <tr style="{% if s.advanced %}background: rgba(34, 197, 94, 0.08);{% elif s.eliminated %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+            <td style="text-align: center; color: var(--dim);">{{ loop.index }}</td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if s.team.logo_url %}
+                <img src="{{ s.team.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+                {% endif %}
+                <strong style="color: #fff;">{{ s.team.name }}</strong>
+                <span style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+              </div>
+            </td>
+            <td>
+              <span class="badge" style="text-transform: uppercase; background: rgba(255, 255, 255, 0.08);">
+                {{ s.team.region_slug or s.team.region }}
+              </span>
+            </td>
+            <td style="text-align: center; font-weight: bold; font-size: 1.05em;">
+              <span style="color: #4ade80;">{{ s.wins }}</span> - <span style="color: #f87171;">{{ s.losses }}</span>
+            </td>
+            <td style="text-align: center;">
+              {% if s.advanced %}
+              <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: bold;">
+                ✓ Vào Playoffs (Seed {{ s.team.bracket_seed or (loop.index + 4) }})
+              </span>
+              {% elif s.eliminated %}
+              <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171;">
+                Bị loại
+              </span>
+              {% else %}
+              <span class="badge" style="background: var(--surface); color: var(--dim);">
+                Đang đấu
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Swiss Matches by Round -->
+  <h3 style="font-size: 1em; color: #fff; margin-bottom: 12px;">Chi tiết các trận đấu Vòng Thụy Sĩ:</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+    <!-- Round 1 -->
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: var(--yellow); margin: 0 0 10px; text-transform: uppercase;">
+        Vòng 1 (4 trận — Seed 2 vs Seed 3 Chéo Khu Vực)
+      </h4>
+      {% for m in res.swiss_matches %}
+      {% if m.round == 1 %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Round 2 -->
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #60a5fa; margin: 0 0 10px; text-transform: uppercase;">
+        Vòng 2 (4 trận: 2 trận 1-0 & 2 trận 0-1)
+      </h4>
+      {% for m in res.swiss_matches %}
+      {% if m.round == 2 %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+      {% if res.current_swiss_round < 2 and (not res.swiss_matches or res.swiss_matches|length <= 4) %}
+      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
+        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 1
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Round 3 -->
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #f87171; margin: 0 0 10px; text-transform: uppercase;">
+        Vòng 3 Quyết định (2 trận 1-1 tranh vé vớt)
+      </h4>
+      {% for m in res.swiss_matches %}
+      {% if m.round == 3 %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+      {% if res.current_swiss_round < 3 and (not res.swiss_matches or res.swiss_matches|length <= 8) %}
+      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
+        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 2
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- GIAI ĐOẠN 2: PLAYOFFS (8 Teams - 14 Matches) -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 8 đội — 14 trận)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        4 Quán quân Stage 1 + 4 Đội xuất sắc vượt qua Swiss tranh tài để tìm ra Nhà Vô Địch Masters Toronto.
+      </p>
+    </div>
+    <span class="badge" style="{% if res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.status == 'completed' %}Playoffs Đã Hoàn Thành{% elif res.current_stage == 'playoffs' %}Playoffs Đang Diễn Ra{% else %}Chờ Vòng Thụy Sĩ Kết Thúc{% endif %}
+    </span>
+  </div>
+
+  {% if res.playoff_matches %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+    <!-- Upper Bracket -->
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #3b82f6; margin: 0 0 10px; text-transform: uppercase;">
+        ▲ Nhánh Thắng (Upper Bracket — 7 trận)
+      </h4>
+      <div style="font-size: 0.8em; color: var(--dim); margin-bottom: 6px;">Tứ kết Nhánh thắng:</div>
+      {% for m in res.playoff_matches %}
+      {% if m.round_name in ['upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4'] %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+
+      <div style="font-size: 0.8em; color: var(--dim); margin: 10px 0 6px;">Bán kết & Chung kết Nhánh thắng:</div>
+      {% for m in res.playoff_matches %}
+      {% if m.round_name in ['upper_semifinal_1', 'upper_semifinal_2', 'upper_final'] %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Lower Bracket -->
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase;">
+        ▼ Nhánh Thua (Lower Bracket — 6 trận)
+      </h4>
+      <div style="font-size: 0.8em; color: var(--dim); margin-bottom: 6px;">Vòng 1 & Tứ kết Nhánh thua:</div>
+      {% for m in res.playoff_matches %}
+      {% if m.round_name in ['lower_round1_1', 'lower_round1_2', 'lower_quarterfinal_1', 'lower_quarterfinal_2'] %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+
+      <div style="font-size: 0.8em; color: var(--dim); margin: 10px 0 6px;">Bán kết & Chung kết Nhánh thua:</div>
+      {% for m in res.playoff_matches %}
+      {% if m.round_name in ['lower_semifinal', 'lower_final'] %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Grand Final -->
+    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(255, 70, 85, 0.12)); border: 2px solid #eab308; border-radius: 8px; padding: 12px;">
+      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase; text-align: center;">
+        👑 CHUNG KẾT TỔNG MASTERS TORONTO (BO5)
+      </h4>
+      <p style="font-size: 0.8em; color: var(--dim); text-align: center; margin-bottom: 12px;">
+        Quán quân Nhánh thắng vs Quán quân Nhánh thua. Đội chiến thắng trở thành Tân Vương Thế Giới (+7 CP).
+      </p>
+      {% for m in res.playoff_matches %}
+      {% if m.round_name == 'grand_final' %}
+        {% include "campaign/_master_match_card.html" %}
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div style="color: var(--dim); text-align: center; padding: 24px 0;">
+    ⏳ Giai đoạn Playoffs sẽ bắt đầu ngay khi Vòng Thụy Sĩ hoàn tất (chọn đủ 4 đội).
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Modal Nhập tay kết quả trận đấu Masters Toronto -->
+<div id="master-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="card" style="width: 500px; max-width: 95vw; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 id="master-modal-title" style="margin: 0; font-size: 1.15em; color: #fff;">✏️ Nhập kết quả trận đấu</h3>
+      <button type="button" onclick="closeMasterManualModal()" style="background: none; border: none; color: var(--dim); font-size: 1.3em; cursor: pointer;">&times;</button>
+    </div>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 16px; text-align: center;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 4px;" id="master-modal-match-label">Trận đấu</div>
+      <div style="font-size: 1.2em; font-weight: bold; color: #fff; display: flex; justify-content: center; align-items: center; gap: 12px;">
+        <span id="master-modal-team-a">Đội A</span>
+        <span style="color: var(--yellow); font-size: 0.85em;">VS</span>
+        <span id="master-modal-team-b">Đội B</span>
+      </div>
+    </div>
+
+    <!-- Quick pick buttons -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        ⚡ Chọn nhanh tỷ số trận đấu:
+      </label>
+      <div id="master-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <!-- Detailed map score input -->
+    <div style="margin-bottom: 20px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        🎯 Tùy chỉnh chi tiết round từng map (tùy chọn):
+      </label>
+      <div id="master-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn-sm btn-manual" onclick="closeMasterManualModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-save-master-manual-score" class="btn-start" onclick="submitMasterCustomScore()" style="padding: 8px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        💾 Lưu kết quả trận đấu
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamBId = null;
+let currentModalBo = 3;
+
+async function rollMasterMatch(matchId) {
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/master/match/sim`, {
+      match_id: matchId
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function simMasterRound() {
+  const btn = document.getElementById('btn-sim-master-round');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/master/sim-round`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng này"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Sim vòng hiện tại';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  }
+}
+
+async function simMasterTournament() {
+  if (!confirm("Bạn có chắc chắn muốn mô phỏng toàn bộ các trận còn lại của VCT Masters Toronto không?")) {
+    return;
+  }
+  const btn = document.getElementById('btn-sim-master');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng Masters Toronto...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/master/sim-all`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng Masters Toronto"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔥 Sim toàn bộ Masters Toronto';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim toàn bộ Masters Toronto';
+    }
+  }
+}
+
+function openMasterManualModal(matchId, label, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamBId = teamBId;
+  currentModalBo = bo || 3;
+
+  document.getElementById('master-modal-match-label').textContent = `${label} (BO${currentModalBo})`;
+  document.getElementById('master-modal-team-a').textContent = `${teamAName} (${teamACode})`;
+  document.getElementById('master-modal-team-b').textContent = `${teamBName} (${teamBCode})`;
+
+  const quickContainer = document.getElementById('master-modal-quick-buttons');
+  if (currentModalBo === 5) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 2
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 2
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitMasterQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  const mapsContainer = document.getElementById('master-modal-maps-container');
+  const maxMaps = currentModalBo;
+  let mapsHtml = '';
+  for (let i = 1; i <= maxMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-master-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-master-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+  document.getElementById('master-manual-modal').style.display = 'flex';
+}
+
+function closeMasterManualModal() {
+  document.getElementById('master-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
+}
+
+async function submitMasterQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendMasterManualRequest(winnerId, maps);
+}
+
+async function submitMasterCustomScore() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = document.getElementById(`inp-master-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-master-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendMasterManualRequest(winnerId, maps);
+}
+
+async function sendMasterManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-master-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/master/match/manual`, {
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
+  }
+}
+</script>
+{% endblock %}

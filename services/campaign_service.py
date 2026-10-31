@@ -52,6 +52,14 @@ from engine.format.ewc_qualifier import (
     sim_ewc_qualifier_remaining,
     simulate_ewc_qualifier,
 )
+from engine.format.master_sim import (
+    simulate_master_tournament,
+    init_master_state,
+    resolve_master_match,
+    advance_master_state,
+    sim_master_round,
+    sim_master_remaining,
+)
 
 
 
@@ -1306,6 +1314,8 @@ def _prepare_master_stage(campaign: Campaign, s1_regional_results: Dict[str, Any
                 'logo_url': cs.club.logo_url if cs and cs.club else t.get('logo_url'),
             })
 
+    init_state = init_master_state(master_roster) if len(master_roster) == 12 else None
+
     if not master_stage:
         master_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -1313,12 +1323,14 @@ def _prepare_master_stage(campaign: Campaign, s1_regional_results: Dict[str, Any
             stage_key='master',
             stage_name=f'VCT Masters {campaign.current_year} (Masters Toronto)',
             status='pending',
-            stage_data=json.dumps({'roster': master_roster}),
+            stage_data=json.dumps({'roster': master_roster, 'result': init_state} if init_state else {'roster': master_roster}),
         )
         db.session.add(master_stage)
     else:
         m_data = json.loads(master_stage.stage_data) if master_stage.stage_data else {}
         m_data['roster'] = master_roster
+        if init_state and ('result' not in m_data or not m_data['result']):
+            m_data['result'] = init_state
         master_stage.stage_data = json.dumps(m_data)
 
 
@@ -1814,6 +1826,144 @@ def run_ewc_qualifier_stage(campaign_id: int) -> CampaignStage:
     """Convenience full runner for EWC Qualifier stage."""
     sim_ewc_qualifier_all_interactive(campaign_id)
     return get_stage_record(campaign_id, 'ewc_qualifier')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VCT Masters (Masters Toronto) Stage Execution & Interactive Resolving
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_master_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full Masters Toronto data (roster, matches, standings) for a campaign."""
+    stage = get_stage_record(campaign_id, 'master')
+    if not stage or not stage.stage_data:
+        return None
+    data = json.loads(stage.stage_data)
+    roster = data.get('roster', [])
+
+    if roster and len(roster) == 12 and ('result' not in data or not data['result'] or not data['result'].get('swiss_matches')):
+        data['result'] = init_master_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return data
+
+
+def _check_and_finalize_master(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Award CP, story ratings, and advance campaign when Masters Toronto completes."""
+    res = data.get('result')
+    if res and res.get('status') == 'completed':
+        if not res.get('rewards_awarded'):
+            cp_awards = []
+            for s in res.get('standings', []):
+                cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+                if cid:
+                    cp_awards.append({
+                        'club_id': cid,
+                        'rank': s['rank'],
+                    })
+            award_stage_cp(campaign.id, 'master', cp_awards)
+
+            club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+            if res.get('champion'):
+                champ = res['champion']
+                champ_id = champ.get('id') if isinstance(champ, dict) else champ
+                if champ_id in club_states:
+                    club_states[champ_id].story_rating = min(99, club_states[champ_id].story_rating + 5)
+            if res.get('runner_up'):
+                runner = res['runner_up']
+                runner_id = runner.get('id') if isinstance(runner, dict) else runner
+                if runner_id in club_states:
+                    club_states[runner_id].story_rating = min(99, club_states[runner_id].story_rating + 3)
+            for s in res.get('standings', []):
+                cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+                if cid and cid in club_states:
+                    if s.get('rank') == 3:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 2)
+                    elif s.get('rank') == 4:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 1)
+
+            res['rewards_awarded'] = True
+
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'ewc'
+
+    stage.stage_data = json.dumps(data)
+
+
+def resolve_master_match_interactive(campaign_id: int, match_id: str,
+                                     winner_id: Optional[int] = None,
+                                     maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single Masters Toronto match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'master')
+    if not stage:
+        raise ValueError("Masters stage not found")
+
+    data = get_master_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("Masters Toronto data not initialized")
+
+    master_data = data['result']
+    resolved = resolve_master_match(master_data, match_id, winner_id=winner_id, maps=maps)
+
+    _check_and_finalize_master(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'master_data': master_data}
+
+
+def sim_master_round_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all currently playable pending matches in the active round/wave of Masters Toronto."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'master')
+    if not stage:
+        raise ValueError("Masters stage not found")
+
+    data = get_master_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("Masters Toronto data not initialized")
+
+    master_data = data['result']
+    sim_count = sim_master_round(master_data)
+
+    _check_and_finalize_master(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'master_data': master_data}
+
+
+def sim_master_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all remaining matches in Masters Toronto until Grand Final completes."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'master')
+    if not stage:
+        raise ValueError("Masters stage not found")
+
+    data = get_master_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("Masters Toronto data not initialized")
+
+    master_data = data['result']
+    sim_master_remaining(master_data)
+
+    _check_and_finalize_master(campaign, stage, data)
+    db.session.commit()
+    return {'master_data': master_data}
+
+
+def run_master_stage(campaign_id: int) -> Dict[str, Any]:
+    """Execute VCT Masters (Masters Toronto) 12-team international tournament."""
+    sim_master_tournament_interactive(campaign_id)
+    stage = get_stage_record(campaign_id, 'master')
+    return json.loads(stage.stage_data) if stage and stage.stage_data else {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
