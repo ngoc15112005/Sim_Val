@@ -247,61 +247,69 @@
   </div>
 
   <!-- Swiss Matches by Round -->
-  <h3 style="font-size: 1em; color: #fff; margin-bottom: 12px;">Chi tiết các trận đấu Vòng Thụy Sĩ:</h3>
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
-    <!-- Round 1 -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: var(--yellow); margin: 0 0 10px; text-transform: uppercase;">
-        Vòng 1 (4 trận — Seed 2 vs Seed 3 Chéo Khu Vực)
-      </h4>
-      {% for m in res.swiss_matches %}
-      {% if m.round == 1 %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
-    </div>
-
-    <!-- Round 2 -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: #60a5fa; margin: 0 0 10px; text-transform: uppercase;">
-        Vòng 2 (4 trận: 2 trận 1-0 & 2 trận 0-1)
-      </h4>
-      {% for m in res.swiss_matches %}
-      {% if m.round == 2 %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
-      {% if res.current_swiss_round < 2 and (not res.swiss_matches or res.swiss_matches|length <= 4) %}
-      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
-        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 1
+  <div class="swiss-matches-section">
+    <h3 style="font-size: 1em; color: #fff; margin-bottom: 12px;">Chi tiết các trận đấu Vòng Thụy Sĩ:</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+      <!-- Round 1 -->
+      <div class="swiss-round-block">
+        <div class="round-header">
+          <span>Vòng 1 (Seed 2 vs 3 Chéo Khu Vực)</span>
+        </div>
+        <div class="round-matches" style="display: flex; flex-direction: column; gap: 8px;">
+          {% for m in res.swiss_matches %}
+          {% if m.round == 1 %}
+            <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+          {% endif %}
+          {% endfor %}
+        </div>
       </div>
-      {% endif %}
-    </div>
 
-    <!-- Round 3 -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: #f87171; margin: 0 0 10px; text-transform: uppercase;">
-        Vòng 3 Quyết định (2 trận 1-1 tranh vé vớt)
-      </h4>
-      {% for m in res.swiss_matches %}
-      {% if m.round == 3 %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
-      {% if res.current_swiss_round < 3 and (not res.swiss_matches or res.swiss_matches|length <= 8) %}
-      <div style="color: var(--dim); font-size: 0.85em; text-align: center; padding: 20px 0;">
-        ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 2
+      <!-- Round 2 -->
+      <div class="swiss-round-block">
+        <div class="round-header">
+          <span>Vòng 2 (Nhánh 1-0 & Nhánh 0-1)</span>
+        </div>
+        <div class="round-matches" style="display: flex; flex-direction: column; gap: 8px;">
+          {% for m in res.swiss_matches %}
+          {% if m.round == 2 %}
+            <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+          {% endif %}
+          {% endfor %}
+          {% if res.current_swiss_round < 2 and (not res.swiss_matches or res.swiss_matches|length <= 4) %}
+          <div style="color: var(--dim); font-size: 0.82em; text-align: center; padding: 20px 0;">
+            ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 1
+          </div>
+          {% endif %}
+        </div>
       </div>
-      {% endif %}
+
+      <!-- Round 3 -->
+      <div class="swiss-round-block">
+        <div class="round-header">
+          <span>Vòng 3 Quyết định (Nhánh 1-1)</span>
+        </div>
+        <div class="round-matches" style="display: flex; flex-direction: column; gap: 8px;">
+          {% for m in res.swiss_matches %}
+          {% if m.round == 3 %}
+            <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+          {% endif %}
+          {% endfor %}
+          {% if res.current_swiss_round < 3 and (not res.swiss_matches or res.swiss_matches|length <= 8) %}
+          <div style="color: var(--dim); font-size: 0.82em; text-align: center; padding: 20px 0;">
+            ⏳ Sẽ bốc thăm sau khi hoàn thành Vòng 2
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- GIAI ĐOẠN 2: PLAYOFFS (8 Teams - 14 Matches) -->
-<div class="card" style="margin-bottom: 24px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+<div class="card bracket-card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
     <div>
-      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 8 đội — 14 trận)</h2>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.25em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 8 đội — 14 trận)</h2>
       <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
         4 Quán quân Stage 1 + 4 Đội xuất sắc vượt qua Swiss tranh tài để tìm ra Nhà Vô Địch Masters Toronto.
       </p>
@@ -312,60 +320,113 @@
   </div>
 
   {% if res.playoff_matches %}
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
-    <!-- Upper Bracket -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: #3b82f6; margin: 0 0 10px; text-transform: uppercase;">
-        ▲ Nhánh Thắng (Upper Bracket — 7 trận)
-      </h4>
-      <div style="font-size: 0.8em; color: var(--dim); margin-bottom: 6px;">Tứ kết Nhánh thắng:</div>
-      {% for m in res.playoff_matches %}
-      {% if m.round_name in ['upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4'] %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
+  <div class="playoff-tree is-8team" id="playoff-tree-master">
+    <!-- UPPER BRACKET -->
+    <div class="upper-bracket">
+      <div class="bracket-label">Upper Bracket</div>
+      <div class="bracket-rounds">
+        <!-- Upper Quarterfinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Quarters</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4'] %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
 
-      <div style="font-size: 0.8em; color: var(--dim); margin: 10px 0 6px;">Bán kết & Chung kết Nhánh thắng:</div>
-      {% for m in res.playoff_matches %}
-      {% if m.round_name in ['upper_semifinal_1', 'upper_semifinal_2', 'upper_final'] %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
+        <!-- Upper Semifinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Semis</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['upper_semifinal_1', 'upper_semifinal_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Upper Final -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Final</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'upper_final' %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Lower Bracket -->
-    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase;">
-        ▼ Nhánh Thua (Lower Bracket — 6 trận)
-      </h4>
-      <div style="font-size: 0.8em; color: var(--dim); margin-bottom: 6px;">Vòng 1 & Tứ kết Nhánh thua:</div>
-      {% for m in res.playoff_matches %}
-      {% if m.round_name in ['lower_round1_1', 'lower_round1_2', 'lower_quarterfinal_1', 'lower_quarterfinal_2'] %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
+    <!-- LOWER BRACKET -->
+    <div class="lower-bracket">
+      <div class="bracket-label">Lower Bracket</div>
+      <div class="bracket-rounds">
+        <!-- Lower Round 1 -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower R1</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['lower_round1_1', 'lower_round1_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
 
-      <div style="font-size: 0.8em; color: var(--dim); margin: 10px 0 6px;">Bán kết & Chung kết Nhánh thua:</div>
-      {% for m in res.playoff_matches %}
-      {% if m.round_name in ['lower_semifinal', 'lower_final'] %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
-    </div>
+        <!-- Lower Quarterfinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Quarters</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['lower_quarterfinal_1', 'lower_quarterfinal_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
 
-    <!-- Grand Final -->
-    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.12), rgba(255, 70, 85, 0.12)); border: 2px solid #eab308; border-radius: 8px; padding: 12px;">
-      <h4 style="font-size: 0.9em; color: #eab308; margin: 0 0 10px; text-transform: uppercase; text-align: center;">
-        👑 CHUNG KẾT TỔNG MASTERS TORONTO (BO5)
-      </h4>
-      <p style="font-size: 0.8em; color: var(--dim); text-align: center; margin-bottom: 12px;">
-        Quán quân Nhánh thắng vs Quán quân Nhánh thua. Đội chiến thắng trở thành Tân Vương Thế Giới (+7 CP).
-      </p>
-      {% for m in res.playoff_matches %}
-      {% if m.round_name == 'grand_final' %}
-        {% include "campaign/_master_match_card.html" %}
-      {% endif %}
-      {% endfor %}
+        <!-- Lower Semifinal -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Semi</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'lower_semifinal' %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Lower Final -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Final</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'lower_final' %}
+              <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Grand Final -->
+      <div class="bracket-column grand-final-column">
+        <div class="round-header"><span>Grand Final (BO5)</span></div>
+        <div class="round-matches">
+          {% for m in res.playoff_matches %}
+          {% if m.round_name == 'grand_final' %}
+            <div class="match-box-wrapper">{% include "campaign/_master_match_card.html" %}</div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
   {% else %}

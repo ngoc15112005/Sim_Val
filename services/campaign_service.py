@@ -60,6 +60,14 @@ from engine.format.master_sim import (
     sim_master_round,
     sim_master_remaining,
 )
+from engine.format.ewc_sim import (
+    simulate_ewc_tournament,
+    init_ewc_state,
+    resolve_ewc_match,
+    advance_ewc_state,
+    sim_ewc_round,
+    sim_ewc_remaining,
+)
 
 
 
@@ -1365,6 +1373,8 @@ def _prepare_ewc_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
                 'logo_url': cs.club.logo_url if cs and cs.club else t.get('logo_url'),
             })
 
+    init_state = init_ewc_state(ewc_roster) if len(ewc_roster) == 16 else None
+
     if not ewc_stage:
         ewc_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -1372,12 +1382,14 @@ def _prepare_ewc_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
             stage_key='ewc',
             stage_name=f'Esports World Cup (EWC) {campaign.current_year}',
             status='pending',
-            stage_data=json.dumps({'roster': ewc_roster}),
+            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state} if init_state else {'roster': ewc_roster}),
         )
         db.session.add(ewc_stage)
     else:
         e_data = json.loads(ewc_stage.stage_data) if ewc_stage.stage_data else {}
         e_data['roster'] = ewc_roster
+        if init_state and ('result' not in e_data or not e_data['result']):
+            e_data['result'] = init_state
         ewc_stage.stage_data = json.dumps(e_data)
 
 
@@ -1670,6 +1682,8 @@ def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_q
         campaign_id=campaign.id, year=campaign.current_year, stage_key='ewc'
     ).first()
 
+    init_state = init_ewc_state(ewc_roster) if len(ewc_roster) == 16 else None
+
     if not ewc_stage:
         ewc_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -1677,12 +1691,14 @@ def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_q
             stage_key='ewc',
             stage_name=f'Esports World Cup (EWC) {campaign.current_year}',
             status='pending',
-            stage_data=json.dumps({'roster': ewc_roster}),
+            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state} if init_state else {'roster': ewc_roster}),
         )
         db.session.add(ewc_stage)
     else:
         e_data = json.loads(ewc_stage.stage_data) if ewc_stage.stage_data else {}
         e_data['roster'] = ewc_roster
+        if init_state and ('result' not in e_data or not e_data['result']):
+            e_data['result'] = init_state
         ewc_stage.stage_data = json.dumps(e_data)
 
 
@@ -1963,6 +1979,155 @@ def run_master_stage(campaign_id: int) -> Dict[str, Any]:
     """Execute VCT Masters (Masters Toronto) 12-team international tournament."""
     sim_master_tournament_interactive(campaign_id)
     stage = get_stage_record(campaign_id, 'master')
+    return json.loads(stage.stage_data) if stage and stage.stage_data else {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Esports World Cup (EWC) Stage Execution & Interactive Resolving
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _prepare_stage2_stage(campaign: Campaign):
+    """Assemble 12 teams per region for VCT Stage 2 (retained from Stage 1)."""
+    s2_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='stage2'
+    ).first()
+    if not s2_stage:
+        s2_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='stage2',
+            stage_name=f'VCT Stage 2 {campaign.current_year}',
+            status='pending',
+            stage_data=json.dumps({}),
+        )
+        db.session.add(s2_stage)
+
+
+def get_ewc_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full EWC data (roster, groups, playoffs, standings) for a campaign."""
+    stage = get_stage_record(campaign_id, 'ewc')
+    if not stage or not stage.stage_data:
+        return None
+    data = json.loads(stage.stage_data)
+    roster = data.get('roster', [])
+
+    if roster and len(roster) == 16 and ('result' not in data or not data['result'] or not data['result'].get('groups')):
+        data['result'] = init_ewc_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return data
+
+
+def _check_and_finalize_ewc(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Award story ratings and advance campaign when EWC completes."""
+    res = data.get('result')
+    if res and res.get('status') == 'completed':
+        if not res.get('rewards_awarded'):
+            club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+            if res.get('champion'):
+                champ = res['champion']
+                c_id = champ.get('id') if isinstance(champ, dict) else champ
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 5)
+            if res.get('runner_up'):
+                runner = res['runner_up']
+                r_id = runner.get('id') if isinstance(runner, dict) else runner
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 3)
+            if res.get('third_place'):
+                third = res['third_place']
+                t_id = third.get('id') if isinstance(third, dict) else third
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 2)
+            if res.get('fourth_place'):
+                fourth = res['fourth_place']
+                f_id = fourth.get('id') if isinstance(fourth, dict) else fourth
+                if f_id in club_states:
+                    club_states[f_id].story_rating = min(99, club_states[f_id].story_rating + 1)
+
+            res['rewards_awarded'] = True
+
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'stage2'
+        _prepare_stage2_stage(campaign)
+
+    stage.stage_data = json.dumps(data)
+
+
+def resolve_ewc_match_interactive(campaign_id: int, match_id: str,
+                                  winner_id: Optional[int] = None,
+                                  maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single EWC match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc')
+    if not stage:
+        raise ValueError("EWC stage not found")
+
+    data = get_ewc_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("EWC data not initialized")
+
+    ewc_data = data['result']
+    resolved = resolve_ewc_match(ewc_data, match_id, winner_id=winner_id, maps=maps)
+
+    _check_and_finalize_ewc(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'ewc_data': ewc_data}
+
+
+def sim_ewc_round_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all currently playable pending matches in the active round/wave of EWC."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc')
+    if not stage:
+        raise ValueError("EWC stage not found")
+
+    data = get_ewc_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("EWC data not initialized")
+
+    ewc_data = data['result']
+    sim_count = sim_ewc_round(ewc_data)
+
+    _check_and_finalize_ewc(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'ewc_data': ewc_data}
+
+
+def sim_ewc_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all remaining matches in EWC until Grand Final completes."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'ewc')
+    if not stage:
+        raise ValueError("EWC stage not found")
+
+    data = get_ewc_data(campaign_id)
+    if not data or not data.get('result'):
+        raise ValueError("EWC data not initialized")
+
+    ewc_data = data['result']
+    sim_ewc_remaining(ewc_data)
+
+    _check_and_finalize_ewc(campaign, stage, data)
+    db.session.commit()
+    return {'ewc_data': ewc_data}
+
+
+def run_ewc_stage(campaign_id: int) -> Dict[str, Any]:
+    """Execute Esports World Cup (EWC) 16-team international tournament."""
+    sim_ewc_tournament_interactive(campaign_id)
+    stage = get_stage_record(campaign_id, 'ewc')
     return json.loads(stage.stage_data) if stage and stage.stage_data else {}
 
 

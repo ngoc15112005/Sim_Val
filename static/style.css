@@ -279,6 +279,14 @@ li a:hover { text-decoration: underline; }
     position: relative;
 }
 
+/* 12-Team Heights (Kickoff) */
+.playoff-tree.is-12team .upper-bracket .round-matches {
+    height: 380px;
+}
+.playoff-tree.is-12team .lower-bracket .round-matches {
+    height: 380px;
+}
+
 /* 8-Team Heights (Master / Champion) */
 .playoff-tree.is-8team .upper-bracket .round-matches {
     height: 350px;

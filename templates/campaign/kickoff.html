@@ -148,12 +148,12 @@
   </div>
 
   <!-- Double Elimination Bracket Layout (22 Matches) -->
-  <div class="card" style="margin-bottom: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+  <div class="card bracket-card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
       <div>
-        <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Cây Nhánh Đấu Double Elimination (22 trận)</h2>
+        <h2 style="color: var(--accent); margin: 0; font-size: 1.25em;">Cây Nhánh Đấu Double Elimination (22 trận)</h2>
         <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-          Bạn có quyền bấm <strong>🎲 Roll</strong> để sim từng trận hoặc <strong>✏️ Nhập tay</strong> chỉnh tỷ số chi tiết ngay từ đầu!
+          Định dạng chuẩn VCT 2025 • Top 2 đội (Nhà Vô Địch & Á Quân) giành vé tham dự VCT Major Bangkok.
         </p>
       </div>
       <div>
@@ -164,120 +164,139 @@
       </div>
     </div>
 
-    <!-- UPPER BRACKET -->
-    <div style="margin-bottom: 24px;">
-      <h3 style="color: #3b82f6; font-size: 1.1em; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
-        ▲ Nhánh Thắng (Upper Bracket - 11 trận)
-      </h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
-        <!-- Upper Round 1 (4 matches) -->
-        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: var(--dim); font-size: 0.85em; margin-bottom: 8px;">
-            Upper Round 1 (Partner vs Open Qualifier)
+    <div class="playoff-tree is-12team" id="playoff-tree-{{ r_slug }}">
+      <!-- UPPER BRACKET -->
+      <div class="upper-bracket">
+        <div class="bracket-label">Upper Bracket</div>
+        <div class="bracket-rounds">
+          <!-- Upper Round 1 -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper R1</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['UB_R1_M1', 'UB_R1_M2', 'UB_R1_M3', 'UB_R1_M4'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {% for m in reg_res.matches %}
-            {% if m.match_code in ['UB_R1_M1', 'UB_R1_M2', 'UB_R1_M3', 'UB_R1_M4'] %}
-            {% include 'campaign/_kickoff_match_card.html' %}
-            {% endif %}
-            {% endfor %}
+
+          <!-- Upper Quarterfinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Quarters</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['UB_QF_M1', 'UB_QF_M2', 'UB_QF_M3', 'UB_QF_M4'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Upper Semifinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Semis</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['UB_SF_M1', 'UB_SF_M2'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Upper Final -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Final</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code == 'UB_Final' %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOWER BRACKET -->
+      <div class="lower-bracket">
+        <div class="bracket-label">Lower Bracket</div>
+        <div class="bracket-rounds">
+          <!-- Lower Round 1 -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower R1</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['LB_R1_M1', 'LB_R1_M2', 'LB_R1_M3', 'LB_R1_M4'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Round 2 -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower R2</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['LB_R2_M1', 'LB_R2_M2'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Quarterfinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Quarters</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code in ['LB_R3_M1', 'LB_R3_M2'] %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Semifinal -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Semi</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code == 'LB_Semi' %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Final -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Final (BO5)</span></div>
+            <div class="round-matches">
+              {% for m in reg_res.matches %}
+              {% if m.match_code == 'LB_Final' %}
+              <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
+              {% endif %}
+              {% endfor %}
+            </div>
           </div>
         </div>
 
-        <!-- Upper Quarterfinals (4 matches) -->
-        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: #fbbf24; font-size: 0.85em; margin-bottom: 8px;">
-            Tứ kết Nhánh thắng (4 Byes nhập cuộc)
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Grand Final Column -->
+        <div class="bracket-column grand-final-column">
+          <div class="round-header"><span>Grand Final (BO5)</span></div>
+          <div class="round-matches">
             {% for m in reg_res.matches %}
-            {% if m.match_code in ['UB_QF_M1', 'UB_QF_M2', 'UB_QF_M3', 'UB_QF_M4'] %}
-            {% include 'campaign/_kickoff_match_card.html' %}
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Upper Semifinals & Upper Final -->
-        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: #4ade80; font-size: 0.85em; margin-bottom: 8px;">
-            Bán kết & Chung kết Nhánh thắng
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {% for m in reg_res.matches %}
-            {% if m.match_code in ['UB_SF_M1', 'UB_SF_M2', 'UB_Final'] %}
-            {% include 'campaign/_kickoff_match_card.html' %}
+            {% if m.match_code == 'Grand_Final' %}
+            <div class="match-box-wrapper">{% include 'campaign/_kickoff_match_card.html' %}</div>
             {% endif %}
             {% endfor %}
           </div>
         </div>
       </div>
     </div>
-
-    <!-- LOWER BRACKET -->
-    <div style="margin-bottom: 24px;">
-      <h3 style="color: #eab308; font-size: 1.1em; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px;">
-        ▼ Nhánh Thua (Lower Bracket - 10 trận)
-      </h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
-        <!-- Lower Round 1 & Round 2 -->
-        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: var(--dim); font-size: 0.85em; margin-bottom: 8px;">
-            Lower R1 (Thua loại) & Lower R2
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {% for m in reg_res.matches %}
-            {% if m.match_code in ['LB_R1_M1', 'LB_R1_M2', 'LB_R1_M3', 'LB_R1_M4', 'LB_R2_M1', 'LB_R2_M2'] %}
-            {% include 'campaign/_kickoff_match_card.html' %}
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Lower Round 3 & Lower Semi -->
-        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: #fbbf24; font-size: 0.85em; margin-bottom: 8px;">
-            Tứ kết & Bán kết Nhánh thua
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {% for m in reg_res.matches %}
-            {% if m.match_code in ['LB_R3_M1', 'LB_R3_M2', 'LB_Semi'] %}
-            {% include 'campaign/_kickoff_match_card.html' %}
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Lower Final (BO5) -->
-        <div style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 12px;">
-          <div style="font-weight: bold; color: #4ade80; font-size: 0.85em; margin-bottom: 8px;">
-            Chung kết Nhánh thua (BO5 - Tranh vé Major 2)
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            {% for m in reg_res.matches %}
-            {% if m.match_code == 'LB_Final' %}
-            {% include 'campaign/_kickoff_match_card.html' %}
-            {% endif %}
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- GRAND FINAL (BO5) -->
-    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(255, 70, 85, 0.15)); border: 2px solid #eab308; border-radius: 10px; padding: 16px;">
-      <div style="text-align: center; margin-bottom: 10px;">
-        <span style="background: #eab308; color: #000; font-weight: 800; font-size: 0.85em; padding: 2px 10px; border-radius: 4px; text-transform: uppercase;">
-          👑 CHUNG KẾT TỔNG VCT KICKOFF (BO5)
-        </span>
-      </div>
-      {% for m in reg_res.matches %}
-      {% if m.match_code == 'Grand_Final' %}
-      {% include 'campaign/_kickoff_match_card.html' %}
-      {% endif %}
-      {% endfor %}
-    </div>
-
   </div>
   {% endif %}
 

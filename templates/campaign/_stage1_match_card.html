@@ -1,85 +1,70 @@
-<div class="stage1-match-card" style="padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78em; color: var(--dim);">
-    <span>
-      <strong style="color: #fff;">{{ m.label }}</strong>
-      <span style="background: var(--bg); padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-weight: bold;">BO{{ m.bo }}</span>
-      {% if m.is_major_decider %}
-      <span style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 1px 5px; border-radius: 3px; font-weight: bold; margin-left: 4px;">Vé Masters</span>
-      {% endif %}
-      {% if m.is_manual %}
-      <span style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; padding: 1px 4px; border-radius: 3px; font-weight: bold; margin-left: 4px;">Nhập tay</span>
-      {% endif %}
-    </span>
-
-    <div style="display: flex; gap: 4px;">
-      {% if m.status == 'pending' and m.team_a and m.team_b %}
-      <button type="button" class="btn-sm" onclick="rollStage1Match('{{ m.match_id }}')" style="font-size: 0.75em; padding: 2px 8px; background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80; border-radius: 4px; cursor: pointer;">
-        🎲 Roll
-      </button>
-      <button type="button" class="btn-sm" onclick="openStage1ManualModal('{{ m.match_id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id or m.team_a.club_id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id or m.team_b.club_id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 8px; background: transparent; border: 1px solid var(--border); color: #60a5fa; border-radius: 4px; cursor: pointer;">
-        ✏️ Nhập tay
-      </button>
-      {% elif m.status == 'completed' %}
-      <button type="button" class="btn-sm" onclick="openStage1ManualModal('{{ m.match_id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id or m.team_a.club_id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id or m.team_b.club_id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" style="font-size: 0.75em; padding: 2px 8px; background: transparent; border: 1px solid var(--border); color: #fbbf24; border-radius: 4px; cursor: pointer;">
-        ✏️ Sửa
-      </button>
-      {% endif %}
-    </div>
-  </div>
-
+<div class="match-box status-{{ m.status }} round-{{ m.round_name or '' }} {% if m.is_major_decider %}major-decider-box{% endif %}" data-match-id="{{ m.match_id }}" data-round-name="{{ m.round_name or '' }}">
   <!-- Team A -->
-  <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; {% if m.status == 'completed' and m.winner_id == (m.team_a.id or m.team_a.club_id) %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      {% if m.team_a and m.team_a.logo_url %}
-      <img src="{{ m.team_a.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+  <div class="match-team-row team-a {% if m.status == 'completed' and m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}winner{% endif %}">
+    <div class="team-meta">
+      {% if m.status == 'completed' and m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}
+      <span class="winner-arrow">&#9654;</span>
       {% endif %}
-      <span style="font-size: 0.9em;">
+      {% if m.team_a and m.team_a.logo_url %}
+      <img class="team-logo-sm" src="{{ m.team_a.logo_url }}" alt="" onerror="this.style.display='none'">
+      {% endif %}
+      <span class="team-name" title="{{ m.team_a.name if m.team_a else (m.team_a_source_label or 'TBD') }}">
         {% if m.team_a %}
-          {{ m.team_a.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_a.short_code }})</span>
-          {% if m.team_a.group %}
-          <span class="badge" style="font-size: 0.7em; background: rgba(255, 255, 255, 0.08);">Bảng {{ m.team_a.group }}</span>
-          {% endif %}
+          {{ m.team_a.short_code or m.team_a.name }}
+          {% if m.team_a.group %}<span class="badge" style="font-size: 0.65em; padding: 0 3px;">{{ m.team_a.group }}</span>{% endif %}
         {% else %}
-          <span style="color: var(--dim);">{{ m.team_a_source_label or 'TBD' }}</span>
+          <span style="color: var(--dim); font-style: italic;">{{ m.team_a_source_label or 'TBD' }}</span>
         {% endif %}
       </span>
     </div>
-    <span style="font-size: 1.1em; font-weight: 800;">
+    <span class="team-score-box {% if m.status == 'completed' %}{% if m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}win{% else %}loss{% endif %}{% endif %}">
       {% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}
     </span>
   </div>
 
   <!-- Team B -->
-  <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-radius: 4px; margin-top: 3px; {% if m.status == 'completed' and m.winner_id == (m.team_b.id or m.team_b.club_id) %}background: rgba(34, 197, 94, 0.12); font-weight: bold; color: #4ade80;{% else %}color: var(--text);{% endif %}">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      {% if m.team_b and m.team_b.logo_url %}
-      <img src="{{ m.team_b.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'">
+  <div class="match-team-row team-b {% if m.status == 'completed' and m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}winner{% endif %}">
+    <div class="team-meta">
+      {% if m.status == 'completed' and m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}
+      <span class="winner-arrow">&#9654;</span>
       {% endif %}
-      <span style="font-size: 0.9em;">
+      {% if m.team_b and m.team_b.logo_url %}
+      <img class="team-logo-sm" src="{{ m.team_b.logo_url }}" alt="" onerror="this.style.display='none'">
+      {% endif %}
+      <span class="team-name" title="{{ m.team_b.name if m.team_b else (m.team_b_source_label or 'TBD') }}">
         {% if m.team_b %}
-          {{ m.team_b.name }} <span style="font-size: 0.75em; color: var(--dim);">({{ m.team_b.short_code }})</span>
-          {% if m.team_b.group %}
-          <span class="badge" style="font-size: 0.7em; background: rgba(255, 255, 255, 0.08);">Bảng {{ m.team_b.group }}</span>
-          {% endif %}
+          {{ m.team_b.short_code or m.team_b.name }}
+          {% if m.team_b.group %}<span class="badge" style="font-size: 0.65em; padding: 0 3px;">{{ m.team_b.group }}</span>{% endif %}
         {% else %}
-          <span style="color: var(--dim);">{{ m.team_b_source_label or 'TBD' }}</span>
+          <span style="color: var(--dim); font-style: italic;">{{ m.team_b_source_label or 'TBD' }}</span>
         {% endif %}
       </span>
     </div>
-    <span style="font-size: 1.1em; font-weight: 800;">
+    <span class="team-score-box {% if m.status == 'completed' %}{% if m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}win{% else %}loss{% endif %}{% endif %}">
       {% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}
     </span>
   </div>
 
-  <!-- Map Scores Summary -->
+  <!-- Map Scores Detail -->
   {% if m.status == 'completed' and m.maps %}
-  <div style="display: flex; gap: 6px; margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--border); font-size: 0.75em; color: var(--dim); flex-wrap: wrap;">
-    <span>Tỷ số map:</span>
+  <div class="match-maps-detail" title="Tỷ số các map">
     {% for map_item in m.maps %}
-    <span style="background: var(--bg); padding: 1px 6px; border-radius: 3px; color: #fff;">
-      M{{ map_item.map_number }}: {{ map_item.team_a_score }}-{{ map_item.team_b_score }}
-    </span>
+    <span class="map-pill">{{ map_item.team_a_score }}-{{ map_item.team_b_score }}</span>
     {% endfor %}
   </div>
   {% endif %}
+
+  <!-- Match Actions -->
+  <div class="match-actions">
+    {% if m.team_a and m.team_b %}
+    <button class="match-edit-btn" type="button" onclick="openStage1ManualModal('{{ m.match_id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id or m.team_a.club_id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id or m.team_b.club_id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" title="{% if m.status == 'completed' %}Sửa kết quả{% else %}Nhập tay{% endif %}">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    {% endif %}
+    {% if m.status == 'pending' and m.team_a and m.team_b %}
+    <button class="match-roll-btn" type="button" onclick="rollStage1Match('{{ m.match_id }}')" title="Roll ngẫu nhiên">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.99.99 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.4 12 10.65l5.96-3.25L12 4.15zM5 8.79v6.86l5 2.81V11.6L5 8.79zm7 9.67l5-2.81V8.79l-5 2.81v6.86z"/></svg>
+    </button>
+    {% endif %}
+  </div>
 </div>

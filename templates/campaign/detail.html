@@ -62,6 +62,8 @@
           EWC Regional Qualifier (Cơ Hội Đến Esports World Cup)
         {% elif campaign.current_stage == 'master' %}
           VCT Masters (Masters Toronto — 12 Đội Tuyển Tinh Hoa Toàn Cầu)
+        {% elif campaign.current_stage == 'ewc' %}
+          Esports World Cup — Riyadh (16 Đội Tuyển Toàn Cầu)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -79,6 +81,8 @@
           16 đội Phase 1 (Single Elim) tranh 2 suất tiến vào Phase 2 cùng 6 đội Stage 1 (Double Elim). Hai đội lọt vào Chung kết giành vé EWC!
         {% elif campaign.current_stage == 'master' %}
           4 Quán quân Stage 1 vào thẳng Tứ kết Playoffs. 8 Á quân & Hạng 3 tranh tài qua Vòng Thụy Sĩ (Swiss 10 trận) để giành 4 suất còn lại vào Double Elimination Playoffs (14 trận). Quán quân nhận 7 Championship Points!
+        {% elif campaign.current_stage == 'ewc' %}
+          16 đội tuyển tranh tài qua 4 bảng GSL (20 trận BO3) để chọn ra 8 đội vào Vòng Playoffs Single Elimination (8 trận). Nhà Vô Địch Thế Giới nâng cao chiếc Cúp EWC danh giá!
         {% endif %}
       </p>
     </div>
@@ -163,6 +167,20 @@
           Xem lại OQ Stage 1
         </a>
         {% endif %}
+      {% elif campaign.current_stage == 'ewc' %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Esports World Cup ➔
+        </a>
+        {% if master_data and master_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Masters Toronto
+        </a>
+        {% endif %}
+        {% if ewc_qual_data and ewc_qual_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại EWC Qualifier
+        </a>
+        {% endif %}
       {% else %}
         {% if master_data and master_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block;">
@@ -198,6 +216,25 @@
       {% endif %}
     </div>
   </div>
+
+  {% if ewc_data and ewc_data.result and ewc_data.result.champion %}
+  <div class="ewc-quick-summary" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
+        🏆 Esports World Cup Kết Thúc
+      </span>
+      <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
+        Nhà Vô Địch EWC: <span style="color: #4ade80;">{{ ewc_data.result.champion.name }} ({{ ewc_data.result.champion.short_code }})</span> (+5 Rating)
+      </h3>
+      <div style="font-size: 0.85em; color: var(--dim);">
+        Á quân: <strong style="color: #fff;">{{ ewc_data.result.runner_up.name }} ({{ ewc_data.result.runner_up.short_code }})</strong> (+3) • Hạng 3: <strong style="color: #fff;">{{ ewc_data.result.third_place.name }}</strong> (+2)
+      </div>
+    </div>
+    <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
+      Xem toàn bộ sàn đấu EWC ➔
+    </a>
+  </div>
+  {% endif %}
 
   {% if master_data and master_data.result and master_data.result.champion %}
   <div class="master-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">

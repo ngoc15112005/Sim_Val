@@ -154,61 +154,102 @@
     <div>
       <!-- Section 1: Playoffs (if started or completed) -->
       {% if cur_reg.current_phase in ['playoffs', 'completed'] or cur_reg.status == 'completed' %}
-      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 1.15em; color: #fbbf24;">
-            ⚔️ Giai đoạn 2: Vòng Playoffs (6 Đội Double Elimination)
-          </h3>
-          <span style="font-size: 0.8em; color: var(--dim);">8 Trận • BO3 (Chung kết BO5)</span>
+      <div class="card bracket-card" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="margin: 0; font-size: 1.15em; color: #fbbf24;">
+              ⚔️ Giai đoạn 2: Vòng Playoffs (6 Đội Hybrid Double Elimination)
+            </h3>
+            <div style="font-size: 0.8em; color: var(--dim); margin-top: 2px;">
+              Top 3 mỗi bảng tranh tài • 3 đội đứng đầu giành vé VCT Masters Toronto & Esports World Cup.
+            </div>
+          </div>
+          <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">8 Trận • Chung kết BO5</span>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
-          <!-- Knockout Round -->
-          <div>
-            <div style="font-size: 0.8em; color: var(--dim); font-weight: bold; margin-bottom: 6px; text-transform: uppercase;">
-              Knockout Round 1 (Thua loại, Hạng 5-6)
+        <div class="playoff-tree is-8team" id="playoff-tree-stage1-{{ active_region }}">
+          <!-- UPPER BRACKET -->
+          <div class="upper-bracket">
+            <div class="bracket-label">Upper Bracket</div>
+            <div class="bracket-rounds">
+              <!-- Knockout Round -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Knockout R1</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'ko' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Upper Semifinals -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Upper Semis</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'upper_sf' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Upper Final -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Upper Final</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'upper_final' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
             </div>
-            {% for m in cur_reg.playoff_matches %}
-              {% if m.round_type == 'ko' %}
-                {% include 'campaign/_stage1_match_card.html' %}
-              {% endif %}
-            {% endfor %}
           </div>
 
-          <!-- Upper Semifinals -->
-          <div>
-            <div style="font-size: 0.8em; color: var(--dim); font-weight: bold; margin-bottom: 6px; text-transform: uppercase;">
-              Bán kết Nhánh thắng (Alpha #1 & Omega #1 Byes)
-            </div>
-            {% for m in cur_reg.playoff_matches %}
-              {% if m.round_type == 'upper_sf' %}
-                {% include 'campaign/_stage1_match_card.html' %}
-              {% endif %}
-            {% endfor %}
-          </div>
+          <!-- LOWER BRACKET -->
+          <div class="lower-bracket">
+            <div class="bracket-label">Lower Bracket</div>
+            <div class="bracket-rounds">
+              <!-- Lower Semifinal -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Lower Semi</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'lower_sf' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
 
-          <!-- Upper Final & Lower Semifinal -->
-          <div>
-            <div style="font-size: 0.8em; color: var(--dim); font-weight: bold; margin-bottom: 6px; text-transform: uppercase;">
-              Chung kết Nhánh thắng & Bán kết Nhánh thua
+              <!-- Lower Final -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Lower Final (BO5)</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'lower_final' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
             </div>
-            {% for m in cur_reg.playoff_matches %}
-              {% if m.round_type in ['upper_final', 'lower_sf'] %}
-                {% include 'campaign/_stage1_match_card.html' %}
-              {% endif %}
-            {% endfor %}
-          </div>
 
-          <!-- Lower Final & Grand Final -->
-          <div>
-            <div style="font-size: 0.8em; color: var(--dim); font-weight: bold; margin-bottom: 6px; text-transform: uppercase;">
-              Chung kết Nhánh thua (BO5) & Chung kết Tổng (BO5)
+            <!-- Grand Final -->
+            <div class="bracket-column grand-final-column">
+              <div class="round-header"><span>Grand Final (BO5)</span></div>
+              <div class="round-matches">
+                {% for m in cur_reg.playoff_matches %}
+                  {% if m.round_type == 'grand_final' %}
+                    <div class="match-box-wrapper">{% include 'campaign/_stage1_match_card.html' %}</div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             </div>
-            {% for m in cur_reg.playoff_matches %}
-              {% if m.round_type in ['lower_final', 'grand_final'] %}
-                {% include 'campaign/_stage1_match_card.html' %}
-              {% endif %}
-            {% endfor %}
           </div>
         </div>
       </div>

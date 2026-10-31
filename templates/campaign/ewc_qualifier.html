@@ -154,10 +154,10 @@
   </div>
 
   <!-- PHASE 2: DOUBLE ELIMINATION (8 TEAMS) -->
-  <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(139, 92, 246, 0.3);">
+  <div class="card bracket-card" style="margin-bottom: 24px; border: 1px solid rgba(139, 92, 246, 0.3);">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
       <div>
-        <h2 style="margin: 0; color: #a78bfa; font-size: 1.3em;">
+        <h2 style="margin: 0; color: #a78bfa; font-size: 1.25em;">
           ⚔️ Giai Đoạn 2: Vòng Loại Khu Vực 8 Đội (Double Elimination)
         </h2>
         <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">
@@ -177,48 +177,122 @@
       </div>
     </div>
 
-    <!-- Upper Bracket Matches -->
-    <h3 style="color: #60a5fa; font-size: 1.05em; margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      ▲ Nhánh Thắng (Upper Bracket)
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 20px;">
-      {% for m in reg.phase2_matches %}
-        {% if m.round_type == 'upper' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
-    </div>
+    <div class="playoff-tree is-8team" id="playoff-tree-p2-{{ r_slug }}">
+      <!-- UPPER BRACKET -->
+      <div class="upper-bracket">
+        <div class="bracket-label">Upper Bracket</div>
+        <div class="bracket-rounds">
+          <!-- Upper Quarterfinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Quarters</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name in ['p2_ub_qf1', 'p2_ub_qf2', 'p2_ub_qf3', 'p2_ub_qf4'] %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
 
-    <!-- Lower Bracket Matches -->
-    <h3 style="color: #f87171; font-size: 1.05em; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      ▼ Nhánh Thua (Lower Bracket)
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 20px;">
-      {% for m in reg.phase2_matches %}
-        {% if m.round_type == 'lower' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
-    </div>
+          <!-- Upper Semifinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Semis</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name in ['p2_ub_sf1', 'p2_ub_sf2'] %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
 
-    <!-- Grand Final Match -->
-    <h3 style="color: #fbbf24; font-size: 1.05em; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      ★ Tổng Chung Kết (Grand Final - Tranh Vô Địch & Phân Hạt Giống Pool 3 / Pool 4)
-    </h3>
-    <div style="max-width: 500px;">
-      {% for m in reg.phase2_matches %}
-        {% if m.round_type == 'final' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
+          <!-- Upper Final (Tranh vé EWC) -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Upper Final (Vé EWC #1)</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name == 'p2_ub_f' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOWER BRACKET -->
+      <div class="lower-bracket">
+        <div class="bracket-label">Lower Bracket</div>
+        <div class="bracket-rounds">
+          <!-- Lower Round 1 -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower R1</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name in ['p2_lb_r1_m1', 'p2_lb_r1_m2'] %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Quarterfinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Quarters</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name in ['p2_lb_qf1', 'p2_lb_qf2'] %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Semifinal -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Semi</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name == 'p2_lb_sf' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Lower Final (Tranh vé EWC) -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Lower Final (Vé EWC #2)</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase2_matches %}
+                {% if m.round_name == 'p2_lb_f' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Grand Final -->
+        <div class="bracket-column grand-final-column">
+          <div class="round-header"><span>Grand Final (Pool 3/4)</span></div>
+          <div class="round-matches">
+            {% for m in reg.phase2_matches %}
+              {% if m.round_name == 'p2_gf' or m.round_type == 'final' %}
+                <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- PHASE 1: OPEN PRELIMINARY (16 TEAMS SINGLE ELIMINATION) -->
-  <div class="card" style="margin-bottom: 24px; border: 1px solid rgba(234, 179, 8, 0.3);">
+  <div class="card bracket-card" style="margin-bottom: 24px; border: 1px solid rgba(234, 179, 8, 0.3);">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
       <div>
-        <h2 style="margin: 0; color: #facc15; font-size: 1.3em;">
+        <h2 style="margin: 0; color: #facc15; font-size: 1.25em;">
           🔥 Giai Đoạn 1: Tuyển Chọn Mở 16 Đội (Phase 1 – Open Preliminary)
         </h2>
         <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">
@@ -238,40 +312,46 @@
       </div>
     </div>
 
-    <!-- Semifinals (Deciders) -->
-    <h3 style="color: #4ade80; font-size: 1.05em; margin: 10px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      🎯 Vòng Bán Kết (2 Trận Tranh Vé Vào Phase 2)
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 24px;">
-      {% for m in reg.phase1_matches %}
-        {% if m.round_type == 'sf' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
-    </div>
+    <div class="playoff-tree is-single-elim" id="playoff-tree-p1-{{ r_slug }}">
+      <div class="upper-bracket">
+        <div class="bracket-rounds">
+          <!-- Round of 16 -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Round of 16 (8 trận)</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase1_matches %}
+                {% if m.round_type == 'r16' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
 
-    <!-- Quarterfinals -->
-    <h3 style="color: #93c5fd; font-size: 1.05em; margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      ⚡ Vòng Tứ Kết (4 Trận)
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 24px;">
-      {% for m in reg.phase1_matches %}
-        {% if m.round_type == 'qf' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
-    </div>
+          <!-- Quarterfinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Tứ kết (4 trận)</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase1_matches %}
+                {% if m.round_type == 'qf' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
 
-    <!-- Round of 16 -->
-    <h3 style="color: var(--dim); font-size: 1.05em; margin: 16px 0 10px; text-transform: uppercase; letter-spacing: 0.5px;">
-      📋 Vòng 1/8 (8 Trận Khởi Động)
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
-      {% for m in reg.phase1_matches %}
-        {% if m.round_type == 'r16' %}
-          {% include 'campaign/_ewc_match_card.html' %}
-        {% endif %}
-      {% endfor %}
+          <!-- Semifinals -->
+          <div class="bracket-column">
+            <div class="round-header"><span>Bán kết (Tranh 2 vé Phase 2)</span></div>
+            <div class="round-matches">
+              {% for m in reg.phase1_matches %}
+                {% if m.round_type == 'sf' %}
+                  <div class="match-box-wrapper">{% include 'campaign/_ewc_match_card.html' %}</div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

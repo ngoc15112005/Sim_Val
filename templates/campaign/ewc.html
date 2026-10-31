@@ -1,0 +1,650 @@
+{% extends "base.html" %}
+{% block title %}Esports World Cup (EWC) - {{ campaign.name }}{% endblock %}
+{% block content %}
+
+{% set res = ewc_data.result if ewc_data and ewc_data.result else None %}
+{% set roster = ewc_data.roster if ewc_data and ewc_data.roster else [] %}
+
+<nav class="breadcrumb">
+  <a href="/campaign/{{ campaign.id }}">Hub Mùa giải</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Esports World Cup (Riyadh)</span>
+</nav>
+
+<div class="tour-header card" style="margin-bottom: 20px;">
+  <div class="tour-header-main" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+        {{ campaign.name }} • Riyadh Masters
+      </div>
+      <h1 style="font-size: 1.8em; margin: 4px 0; color: #fff;">Esports World Cup (EWC)</h1>
+      <div style="font-size: 0.9em; color: var(--dim);">
+        16 Đội tuyển tinh hoa toàn cầu • 4 Bảng GSL (20 trận BO3) & Playoffs Single Elimination (8 trận)
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      {% if res and res.status == 'completed' %}
+      <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        Tiếp tục sang Stage 2 ➔
+      </a>
+      {% endif %}
+      <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+        ⬅️ Về Hub Mùa giải
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Simulation Control Bar -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
+        {% if res and res.status == 'completed' %}ĐÃ HOÀN THÀNH (28 TRẬN){% else %}ĐANG DIỄN RA (16 ĐỘI THẾ GIỚI){% endif %}
+      </span>
+      <span style="font-size: 0.9em; color: var(--dim); margin-left: 10px;">
+        Giải đấu Siêu Cúp Thế Giới: <strong>0 Championship Points</strong> • Cúp Vô Địch & Thưởng Story Rating (+5 / +3 / +2 / +1)
+      </span>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button type="button" id="btn-sim-ewc-round" class="btn-start" onclick="simEWCRound()" style="padding: 10px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
+      </button>
+      <button type="button" id="btn-sim-ewc" class="btn-start" onclick="simEWCTournament()" style="padding: 10px 22px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim toàn bộ EWC
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if res and res.status == 'completed' and res.champion %}
+<!-- EWC Champions Podium Banner -->
+<div class="card" style="border: 2px solid #22c55e; background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+    <div>
+      <span style="background: #22c55e; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 0.8em; text-transform: uppercase;">
+        🏆 Nhà Vô Địch Esports World Cup
+      </span>
+      <h2 style="font-size: 1.8em; margin: 8px 0 2px; color: #fff; display: flex; align-items: center; gap: 10px;">
+        {% if res.champion.logo_url %}
+        <img src="{{ res.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
+        {% endif %}
+        {{ res.champion.name }} ({{ res.champion.short_code }})
+        <span class="badge" style="font-size: 0.55em; background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);">
+          EWC TROPHY + 5 RATING
+        </span>
+      </h2>
+      <div style="font-size: 0.9em; color: var(--dim);">
+        Đại diện: <strong style="text-transform: uppercase; color: #fff;">{{ res.champion.region_slug or res.champion.region }}</strong> • Á quân: <strong style="color: #fff;">{{ res.runner_up.name }} ({{ res.runner_up.short_code }})</strong> • Hạng 3: <strong style="color: #fff;">{{ res.third_place.name }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Standings Table -->
+  <div class="table-scroll">
+    <table class="swiss-standings-table">
+      <thead>
+        <tr>
+          <th style="width: 80px; text-align: center;">Thứ hạng</th>
+          <th class="team-col">Đội tuyển</th>
+          <th>Khu vực</th>
+          <th>Thành tích</th>
+          <th>Phần thưởng Story</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in res.standings %}
+        <tr style="{% if s.rank == 1 %}background: rgba(34, 197, 94, 0.15);{% elif s.rank == 2 %}background: rgba(148, 163, 184, 0.1);{% elif s.rank == 3 %}background: rgba(205, 127, 50, 0.1);{% elif s.rank == 4 %}background: rgba(59, 130, 246, 0.05);{% endif %}">
+          <td style="text-align: center;">
+            {% if s.rank == 1 %}
+            <span class="badge" style="background: #22c55e; color: #000; font-weight: 800;">1st 🥇</span>
+            {% elif s.rank == 2 %}
+            <span class="badge" style="background: #94a3b8; color: #000; font-weight: 800;">2nd 🥈</span>
+            {% elif s.rank == 3 %}
+            <span class="badge" style="background: #cd7f32; color: #fff; font-weight: 800;">3rd 🥉</span>
+            {% elif s.rank == 4 %}
+            <span class="badge" style="background: var(--surface); color: #fff;">4th</span>
+            {% elif s.rank in [5, 6, 7, 8] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">5th-8th</span>
+            {% else %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">9th-16th</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if s.team.logo_url %}
+              <img src="{{ s.team.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;">
+              {% endif %}
+              <strong style="color: #fff;">{{ s.team.name }}</strong>
+              <span style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+            </div>
+          </td>
+          <td>
+            <span class="badge" style="text-transform: uppercase; background: rgba(255, 255, 255, 0.08);">
+              {{ s.team.region_slug or s.team.region }}
+            </span>
+          </td>
+          <td style="color: var(--dim);">{{ s.desc }}</td>
+          <td>
+            {% if s.rank == 1 %}
+            <strong style="color: #4ade80;">🏆 Siêu Cúp + 5 Rating</strong>
+            {% elif s.rank == 2 %}
+            <strong style="color: #60a5fa;">🥈 Á quân + 3 Rating</strong>
+            {% elif s.rank == 3 %}
+            <strong style="color: #fbbf24;">🥉 Hạng 3 + 2 Rating</strong>
+            {% elif s.rank == 4 %}
+            <strong style="color: var(--dim);">Hạng 4 + 1 Rating</strong>
+            {% else %}
+            <span style="color: var(--dim);">--</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if res %}
+<!-- GIAI ĐOẠN 1: VÒNG BẢNG GSL (4 GROUPS - 20 MATCHES) -->
+<section class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 1: Vòng Bảng GSL (4 Bảng đấu — 20 trận BO3)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        16 đội chia làm 4 bảng theo thể thức nhánh kép GSL. Top 2 mỗi bảng (Nhất & Nhì) giành quyền vào Vòng Playoffs.
+      </p>
+    </div>
+    <span class="badge" style="{% if res.current_stage == 'playoffs' or res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.current_stage == 'playoffs' or res.status == 'completed' %}Vòng Bảng Hoàn Thành (8 Đội Vào Playoffs){% else %}Vòng Bảng Đang Diễn Ra{% endif %}
+    </span>
+  </div>
+
+  <div class="gsl-container">
+    {% for label, grp in res.groups.items() %}
+    <div class="group-card card" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 0;">
+      <div class="group-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+        <span class="group-title" style="font-weight: 800; font-size: 1.1em; color: var(--yellow);">BẢNG {{ label }}</span>
+        {% if grp.status == 'completed' %}
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; font-size: 0.75em;">Hoàn thành</span>
+        {% else %}
+        <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.75em;">Đang đấu</span>
+        {% endif %}
+      </div>
+
+      <!-- Liquipedia Group Standings Table -->
+      <div class="table-scroll" style="margin-bottom: 14px;">
+        <table class="group-standings-table" style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
+              <th style="width: 25px;">#</th>
+              <th>Đội tuyển</th>
+              <th style="width: 50px; text-align: center;">W-L</th>
+              <th style="width: 50px; text-align: center;">Diff</th>
+              <th style="width: 90px; text-align: center;">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in grp.standings %}
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); {% if s.status == 'qualified' %}background: rgba(34, 197, 94, 0.08);{% elif s.status == 'eliminated' %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+              <td style="color: var(--dim);">{{ loop.index }}</td>
+              <td style="padding: 6px 0;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  {% if s.team.logo_url %}
+                  <img src="{{ s.team.logo_url }}" alt="" style="width: 18px; height: 18px; object-fit: contain;">
+                  {% endif %}
+                  <strong style="color: #fff;">{{ s.team.short_code }}</strong>
+                  <span style="font-size: 0.8em; color: var(--dim);">{{ s.team.name }}</span>
+                </div>
+              </td>
+              <td style="text-align: center; font-weight: bold;">
+                <span style="color: #4ade80;">{{ s.wins }}</span> - <span style="color: #f87171;">{{ s.losses }}</span>
+              </td>
+              <td style="text-align: center; color: var(--dim);">{{ '%+d'|format(s.map_diff) }}</td>
+              <td style="text-align: center;">
+                {% if s.status == 'qualified' %}
+                <span class="status-text qualified" style="color: #4ade80; font-weight: bold; font-size: 0.8em;">✓ Playoffs</span>
+                {% elif s.status == 'eliminated' %}
+                <span class="status-text eliminated" style="color: #f87171; font-size: 0.8em;">Loại</span>
+                {% else %}
+                <span class="status-text pending" style="color: var(--dim); font-size: 0.8em;">--</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Liquipedia GSL Match Flow -->
+      <div class="group-matches-flow">
+        <!-- Opening Matches -->
+        <div class="gsl-stage">
+          <div class="stage-label">Trận Mở Màn (Opening Matches)</div>
+          {% set op1 = grp.matches['group' ~ label ~ '_opening1'] %}
+          {% set op2 = grp.matches['group' ~ label ~ '_opening2'] %}
+          {% set m = op1 %}
+          {% include 'campaign/_ewc_match_card.html' with context %}
+          {% set m = op2 %}
+          {% include 'campaign/_ewc_match_card.html' with context %}
+        </div>
+
+        <!-- Winners & Elimination Matches -->
+        <div class="gsl-stage" style="margin-top: 8px;">
+          <div class="stage-label">Trận Nhánh Thắng & Nhánh Thua</div>
+          {% set wm = grp.matches['group' ~ label ~ '_winners_match'] %}
+          {% set em = grp.matches['group' ~ label ~ '_elimination_match'] %}
+          {% set m = wm %}
+          {% include 'campaign/_ewc_match_card.html' with context %}
+          {% set m = em %}
+          {% include 'campaign/_ewc_match_card.html' with context %}
+        </div>
+
+        <!-- Decider Match -->
+        <div class="gsl-stage" style="margin-top: 8px;">
+          <div class="stage-label">Trận Quyết Định (Decider Match)</div>
+          {% set dm = grp.matches['group' ~ label ~ '_decider_match'] %}
+          {% set m = dm %}
+          {% include 'campaign/_ewc_match_card.html' with context %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- GIAI ĐOẠN 2: VÒNG PLAYOFFS (8 TEAMS SINGLE ELIMINATION - 8 MATCHES) -->
+<section class="card bracket-card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 2: Vòng Playoffs (Single Elimination 8 đội — 8 trận)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        4 Nhất bảng đối đầu 4 Nhì bảng (ràng buộc nhánh đối diện). Đấu loại trực tiếp tranh Ngôi Vương Thế Giới.
+      </p>
+    </div>
+    <span class="badge" style="{% if res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.status == 'completed' %}Playoffs Đã Hoàn Thành{% elif res.current_stage == 'playoffs' %}Playoffs Đang Diễn Ra{% else %}Chờ Vòng Bảng Kết Thúc{% endif %}
+    </span>
+  </div>
+
+  {% if res.playoff_matches %}
+  <div class="playoff-tree is-single-elim" id="playoff-tree">
+    <div class="upper-bracket">
+      <div class="bracket-rounds">
+        <!-- Column 1: Quarterfinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Tứ kết</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['quarterfinal_1', 'quarterfinal_2', 'quarterfinal_3', 'quarterfinal_4'] %}
+            <div class="match-box-wrapper">
+              {% include 'campaign/_ewc_match_card.html' with context %}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Column 2: Semifinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Bán kết</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['semifinal_1', 'semifinal_2'] %}
+            <div class="match-box-wrapper">
+              {% include 'campaign/_ewc_match_card.html' with context %}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Column 3: Finals (Grand Final & 3rd Place) -->
+        <div class="bracket-column grand-final-column">
+          <div class="round-header"><span>Grand Final (BO5)</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'grand_final' %}
+            <div class="match-box-wrapper">
+              {% include 'campaign/_ewc_match_card.html' with context %}
+            </div>
+            {% endif %}
+            {% endfor %}
+
+            <!-- 3rd Place Match -->
+            <div style="margin-top: 14px;">
+              <div class="round-header">
+                <span>Tranh Hạng 3</span>
+              </div>
+              {% for m in res.playoff_matches %}
+              {% if m.round_name == 'third_place_match' %}
+              <div class="match-box-wrapper">
+                {% include 'campaign/_ewc_match_card.html' with context %}
+              </div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div style="color: var(--dim); text-align: center; padding: 24px 0;">
+    ⏳ Giai đoạn Playoffs sẽ bắt đầu ngay khi 4 bảng đấu GSL hoàn tất (chọn đủ 8 đội).
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- Modal Nhập tay kết quả trận đấu EWC -->
+<div id="ewc-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="card" style="width: 500px; max-width: 95vw; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 id="ewc-modal-title" style="margin: 0; font-size: 1.15em; color: #fff;">✏️ Nhập kết quả trận đấu</h3>
+      <button type="button" onclick="closeEWCManualModal()" style="background: none; border: none; color: var(--dim); font-size: 1.3em; cursor: pointer;">&times;</button>
+    </div>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 16px; text-align: center;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 4px;" id="ewc-modal-match-label">Trận đấu</div>
+      <div style="font-size: 1.2em; font-weight: bold; color: #fff; display: flex; justify-content: center; align-items: center; gap: 12px;">
+        <span id="ewc-modal-team-a">Đội A</span>
+        <span style="color: var(--yellow); font-size: 0.85em;">VS</span>
+        <span id="ewc-modal-team-b">Đội B</span>
+      </div>
+    </div>
+
+    <!-- Quick pick buttons -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        ⚡ Chọn nhanh tỷ số trận đấu:
+      </label>
+      <div id="ewc-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <!-- Detailed map score input -->
+    <div style="margin-bottom: 20px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        🎯 Tùy chỉnh chi tiết round từng map (tùy chọn):
+      </label>
+      <div id="ewc-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn-sm btn-manual" onclick="closeEWCManualModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-save-ewc-manual-score" class="btn-start" onclick="submitEWCCustomScore()" style="padding: 8px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        💾 Lưu kết quả trận đấu
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamBId = null;
+let currentModalBo = 3;
+
+async function rollEWCMatch(matchId) {
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/ewc/match/sim`, {
+      match_id: matchId
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function simEWCRound() {
+  const btn = document.getElementById('btn-sim-ewc-round');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/ewc/sim-round`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng này"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Sim vòng hiện tại';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  }
+}
+
+async function simEWCTournament() {
+  if (!confirm("Bạn có chắc chắn muốn mô phỏng toàn bộ các trận còn lại của Esports World Cup không?")) {
+    return;
+  }
+  const btn = document.getElementById('btn-sim-ewc');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng EWC...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/ewc/sim-all`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng EWC"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔥 Sim toàn bộ EWC';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim toàn bộ EWC';
+    }
+  }
+}
+
+function openEWCManualModal(matchId, label, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamBId = teamBId;
+  currentModalBo = bo || 3;
+
+  document.getElementById('ewc-modal-match-label').textContent = `${label} (BO${currentModalBo})`;
+  document.getElementById('ewc-modal-team-a').textContent = `${teamAName} (${teamACode})`;
+  document.getElementById('ewc-modal-team-b').textContent = `${teamBName} (${teamBCode})`;
+
+  const quickContainer = document.getElementById('ewc-modal-quick-buttons');
+  if (currentModalBo === 5) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 2
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 2
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitEWCQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  const mapsContainer = document.getElementById('ewc-modal-maps-container');
+  const maxMaps = currentModalBo;
+  let mapsHtml = '';
+  for (let i = 1; i <= maxMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-ewc-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-ewc-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+  document.getElementById('ewc-manual-modal').style.display = 'flex';
+}
+
+function closeEWCManualModal() {
+  document.getElementById('ewc-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
+}
+
+async function submitEWCQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendEWCManualRequest(winnerId, maps);
+}
+
+async function submitEWCCustomScore() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = document.getElementById(`inp-ewc-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-ewc-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendEWCManualRequest(winnerId, maps);
+}
+
+async function sendEWCManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-ewc-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/ewc/match/manual`, {
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
+  }
+}
+</script>
+{% endblock %}
