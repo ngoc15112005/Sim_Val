@@ -14,7 +14,14 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any
 from models import db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason
 from config import Config
-from engine.format.open_qualifier import simulate_open_qualifier
+from engine.format.open_qualifier import (
+    init_open_qualifier_region_state,
+    resolve_open_qualifier_match,
+    advance_open_qualifier_region,
+    sim_open_qualifier_round,
+    sim_open_qualifier_remaining,
+    simulate_open_qualifier,
+)
 from engine.format.kickoff import simulate_kickoff_tournament
 from engine.format.major_sim import simulate_major_tournament
 
@@ -66,6 +73,9 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
         stage_data=json.dumps({'regions': {}}),
     )
     db.session.add(oq_stage)
+    db.session.flush()
+
+    init_campaign_open_qualifier(campaign.id)
 
     db.session.commit()
     return campaign
@@ -119,106 +129,193 @@ def get_stage_record(campaign_id: int, stage_key: str, year: Optional[int] = Non
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Open Qualifier Execution
+# Open Qualifier Interactive & Batch Execution
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_open_qualifier_stage(campaign_id: int, region_slug: Optional[str] = None) -> Dict[str, Any]:
-    """Execute Open Qualifier simulation for one region or all regions in the campaign.
-    
-    Each region:
-    - 16 non-partner clubs participate.
-    - Simulates 43 matches (33 Swiss + 10 Playoffs).
-    - Yields 4 qualified teams for Kickoff.
-    - Dynamically updates story ratings for standout performers.
+def init_campaign_open_qualifier(campaign_id: int) -> Dict[str, Any]:
+    """Initialize Swiss Round 1 pending matches and standings for all 4 regions."""
+    stage = get_stage_record(campaign_id, 'open_qualifier')
+    if not stage:
+        return {'regions': {}}
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
+    if 'regions' not in data:
+        data['regions'] = {}
+
+    for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        if r_slug not in data['regions']:
+            club_states = CampaignClubState.query.filter_by(
+                campaign_id=campaign_id, is_partner=False
+            ).join(Club).join(Region).filter(Region.slug == r_slug).all()
+
+            if len(club_states) == 16:
+                teams_data = [
+                    {
+                        'id': cs.club.id,
+                        'name': cs.club.name,
+                        'short_code': cs.club.short_code,
+                        'region_slug': r_slug,
+                        'story_rating': cs.story_rating,
+                        'form_modifier': cs.form_modifier,
+                        'effective_rating': cs.effective_rating,
+                        'logo_url': cs.club.logo_url,
+                    }
+                    for cs in club_states
+                ]
+                data['regions'][r_slug] = init_open_qualifier_region_state(r_slug, teams_data)
+
+    stage.stage_data = json.dumps(data)
+    db.session.commit()
+    return data
+
+
+def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full Open Qualifier data for all regions in a campaign.
+    Auto-initializes any uninitialized region with Swiss Round 1 matches in 'pending' status.
     """
+    stage = get_stage_record(campaign_id, 'open_qualifier')
+    if not stage or not stage.stage_data:
+        return None
+    try:
+        data = json.loads(stage.stage_data)
+    except Exception:
+        data = {'regions': {}}
+
+    regions = data.get('regions', {})
+    if any(r not in regions for r in ['pacific', 'americas', 'emea', 'china']):
+        data = init_campaign_open_qualifier(campaign_id)
+    return data
+
+
+def _check_and_finalize_oq_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Helper to update dynamic ratings and advance campaign if all 4 regions are finished."""
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    for r_slug in all_regions:
+        reg_res = data.get('regions', {}).get(r_slug)
+        if reg_res and reg_res.get('status') == 'completed':
+            if not reg_res.get('ratings_awarded'):
+                qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
+                for cid in qual_ids:
+                    if cid in club_states:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 2)
+                for s in reg_res.get('swiss_standings', []):
+                    cid = s['club_id']
+                    if s['wins'] == 0 and cid in club_states:
+                        club_states[cid].story_rating = max(60, club_states[cid].story_rating - 1)
+                reg_res['ratings_awarded'] = True
+
+    stage.stage_data = json.dumps(data)
+
+    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'kickoff'
+        _prepare_kickoff_stage(campaign, data['regions'])
+
+
+def resolve_oq_match(campaign_id: int, region_slug: str, match_id: str,
+                     winner_id: Optional[int] = None,
+                     maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve an Open Qualifier match by manual input or single simulation roll."""
     campaign = get_campaign(campaign_id)
     if not campaign:
         raise ValueError(f"Campaign {campaign_id} not found")
 
     stage = get_stage_record(campaign_id, 'open_qualifier')
     if not stage:
-        stage = CampaignStage(
-            campaign_id=campaign_id,
-            year=campaign.current_year,
-            stage_key='open_qualifier',
-            stage_name=f'Open Qualifier {campaign.current_year}',
-            status='in_progress',
-            stage_data=json.dumps({'regions': {}}),
-        )
-        db.session.add(stage)
-        db.session.flush()
+        raise ValueError("Open Qualifier stage not found")
 
     data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
-    regions_to_run = [region_slug] if region_slug else ['pacific', 'americas', 'emea', 'china']
+    if region_slug not in data.get('regions', {}):
+        init_campaign_open_qualifier(campaign_id)
+        data = json.loads(stage.stage_data)
 
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    resolved = resolve_open_qualifier_match(
+        reg_data, match_id,
+        winner_id=winner_id,
+        maps=maps,
+        rating_lookup=rating_lookup,
+        form_lookup=form_lookup,
+    )
+
+    _check_and_finalize_oq_regions(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'region_data': reg_data}
+
+
+def sim_oq_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all current playable pending matches in the active round of a region."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'open_qualifier')
+    if not stage:
+        raise ValueError("Open Qualifier stage not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
+    if region_slug not in data.get('regions', {}):
+        init_campaign_open_qualifier(campaign_id)
+        data = json.loads(stage.stage_data)
+
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_oq_regions(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'region_data': reg_data}
+
+
+def sim_oq_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+    """Simulate all remaining matches for a single region until completed."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'open_qualifier')
+    if not stage:
+        raise ValueError("Open Qualifier stage not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
+    if region_slug not in data.get('regions', {}):
+        init_campaign_open_qualifier(campaign_id)
+        data = json.loads(stage.stage_data)
+
+    reg_data = data['regions'][region_slug]
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
+
+    sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+
+    _check_and_finalize_oq_regions(campaign, stage, data)
+    db.session.commit()
+    return {'region_data': reg_data}
+
+
+def run_open_qualifier_stage(campaign_id: int, region_slug: Optional[str] = None) -> Dict[str, Any]:
+    """Execute Open Qualifier simulation for one region or all regions (backward compatible)."""
+    regions_to_run = [region_slug] if region_slug else ['pacific', 'americas', 'emea', 'china']
     results_summary = {}
 
     for r_slug in regions_to_run:
-        club_states = CampaignClubState.query.filter_by(
-            campaign_id=campaign_id, is_partner=False
-        ).join(Club).join(Region).filter(Region.slug == r_slug).all()
-
-        if len(club_states) != 16:
-            raise ValueError(f"Region {r_slug} has {len(club_states)} non-partner teams (expected 16)")
-
-        teams_data = [
-            {
-                'id': cs.club.id,
-                'name': cs.club.name,
-                'short_code': cs.club.short_code,
-                'region_slug': r_slug,
-                'story_rating': cs.story_rating,
-                'form_modifier': cs.form_modifier,
-                'logo_url': cs.club.logo_url,
-            }
-            for cs in club_states
-        ]
-
-        rating_lookup = {cs.club.id: cs.story_rating for cs in club_states}
-        form_lookup = {cs.club.id: cs.form_modifier for cs in club_states}
-
-        # Run 43-match Open Qualifier pure simulation
-        sim_res = simulate_open_qualifier(
-            r_slug, teams_data, rating_lookup=rating_lookup, form_lookup=form_lookup
-        )
-
-        # Apply dynamic story rating updates:
-        # - 4 qualifiers earn +2 rating (or +1)
-        # - Swiss 3-0 teams get extra +1
-        # - 0-3 teams lose 1 rating
-        qual_ids = {t['id'] for t in sim_res['qualified_teams']}
-        for cs in club_states:
-            if cs.club.id in qual_ids:
-                cs.story_rating = min(99, cs.story_rating + 2)
-            else:
-                # Check Swiss record
-                for s in sim_res['swiss_standings']:
-                    if s['club_id'] == cs.club.id:
-                        if s['wins'] == 0:
-                            cs.story_rating = max(60, cs.story_rating - 1)
-                        break
-
-        data['regions'][r_slug] = sim_res
+        res = sim_oq_region(campaign_id, r_slug)
+        r_data = res['region_data']
         results_summary[r_slug] = {
-            'qualified_teams': sim_res['qualified_teams'],
-            'total_matches': sim_res['total_matches_count'],
+            'qualified_teams': r_data.get('qualified_teams', []),
+            'total_matches': r_data.get('total_matches_count', 43),
         }
-
-    stage.stage_data = json.dumps(data)
-
-    # Check if all 4 regions are finished
-    all_regions = ['pacific', 'americas', 'emea', 'china']
-    if all(r in data['regions'] for r in all_regions):
-        stage.status = 'completed'
-        stage.completed_at = datetime.now(timezone.utc)
-
-        # Advance campaign to Kickoff
-        campaign.current_stage = 'kickoff'
-
-        # Initialize Kickoff stage record with the 12 teams for each region
-        _prepare_kickoff_stage(campaign, data['regions'])
-
-    db.session.commit()
     return results_summary
 
 
@@ -280,12 +377,7 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
         kickoff_stage.stage_data = json.dumps(current_data)
 
 
-def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieve full Open Qualifier data for all regions in a campaign."""
-    stage = get_stage_record(campaign_id, 'open_qualifier')
-    if not stage or not stage.stage_data:
-        return None
-    return json.loads(stage.stage_data)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -539,102 +539,452 @@ def simulate_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: in
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Master Regional Simulation Function
+# Interactive State Engine for Open Qualifier
+# (Supports Match-by-match Roll, Manual score input, Sim Round, and Sim All)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_playoff_label(round_name: str) -> str:
+    labels = {
+        'upper_r1_m1': 'Tứ kết Nhánh thắng 1 (Seed 1 vs 8)',
+        'upper_r1_m2': 'Tứ kết Nhánh thắng 2 (Seed 4 vs 5)',
+        'upper_r1_m3': 'Tứ kết Nhánh thắng 3 (Seed 2 vs 7)',
+        'upper_r1_m4': 'Tứ kết Nhánh thắng 4 (Seed 3 vs 6)',
+        'upper_r2_m5': 'Bán kết Nhánh thắng 1 (Tranh vé Kickoff #1)',
+        'upper_r2_m6': 'Bán kết Nhánh thắng 2 (Tranh vé Kickoff #2)',
+        'lower_r1_m7': 'Vòng 1 Nhánh thua 1 (Loại trực tiếp)',
+        'lower_r1_m8': 'Vòng 1 Nhánh thua 2 (Loại trực tiếp)',
+        'lower_qual_m9': 'Chung kết Nhánh thua 1 (Tranh vé Kickoff #3)',
+        'lower_qual_m10': 'Chung kết Nhánh thua 2 (Tranh vé Kickoff #4)',
+    }
+    return labels.get(round_name, round_name)
+
+
+def init_open_qualifier_region_state(region_slug: str, teams: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Initialize state for Open Qualifier in one region:
+    - 16 teams normalized
+    - Swiss Round 1 (8 BO1 matches) generated in 'pending' status
+    - Initial standings (all 0-0)
+    - Ready for match-by-match interaction (Roll, Manual Score, Sim Round, Sim All)
+    """
+    if len(teams) != 16:
+        raise ValueError(f"Open Qualifier requires 16 teams, received {len(teams)}")
+
+    normalized_teams = []
+    for t in teams:
+        norm = dict(t)
+        norm['id'] = norm.get('id') or norm.get('club_id')
+        normalized_teams.append(norm)
+
+    # Generate Round 1 pairings
+    r1_pairings = generate_swiss_round_pairings(normalized_teams, 1, [])
+    swiss_matches = []
+    for idx, p in enumerate(r1_pairings):
+        match_id = f"oq_{region_slug}_swiss_r1_m{idx + 1}"
+        swiss_matches.append({
+            'id': match_id,
+            'stage': 'swiss',
+            'round': 1,
+            'round_name': f"swiss_r1_m{idx + 1}",
+            'label': f"Swiss Vòng 1 - Trận {idx + 1}",
+            'match_order': idx + 1,
+            'bo': p['bo'],
+            'status': 'pending',
+            'team_a': p['team_a'],
+            'team_b': p['team_b'],
+            'team_a_id': p['team_a']['id'],
+            'team_b_id': p['team_b']['id'],
+            'team_a_score': 0,
+            'team_b_score': 0,
+            'winner_id': None,
+            'loser_id': None,
+            'winner': None,
+            'loser': None,
+            'maps': [],
+            'is_manual': False,
+            'record_group': p.get('record_group', '0-0'),
+            'is_decider': p.get('is_decider', False),
+        })
+
+    standings = compute_swiss_standings(normalized_teams, [])
+
+    return {
+        'region_slug': region_slug,
+        'status': 'in_progress',          # 'in_progress' or 'completed'
+        'current_stage': 'swiss',          # 'swiss' or 'playoffs'
+        'current_swiss_round': 1,         # 1..5
+        'teams': normalized_teams,
+        'swiss_matches': swiss_matches,
+        'swiss_standings': standings,
+        'swiss_qualifiers': [],
+        'swiss_eliminated': [],
+        'playoff_matches': [],
+        'qualified_teams': [],
+        'total_matches_count': 0,
+    }
+
+
+def resolve_open_qualifier_match(region_data: Dict[str, Any], match_id: str,
+                                winner_id: Optional[int] = None,
+                                maps: Optional[List[Dict[str, Any]]] = None,
+                                rating_lookup: Optional[Dict[int, int]] = None,
+                                form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
+    """Resolve an Open Qualifier match by either manual score or simulation roll."""
+    match_obj = None
+    for m in region_data.get('swiss_matches', []):
+        if m['id'] == match_id:
+            match_obj = m
+            break
+    if not match_obj:
+        for m in region_data.get('playoff_matches', []):
+            if m['id'] == match_id:
+                match_obj = m
+                break
+
+    if not match_obj:
+        raise ValueError(f"Match with id {match_id} not found in region {region_data.get('region_slug')}")
+
+    if not match_obj.get('team_a') or not match_obj.get('team_b'):
+        raise ValueError(f"Match {match_id} does not have both teams determined yet")
+
+    if region_data.get('status') == 'completed':
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giai đoạn Open Qualifier của khu vực này đã hoàn thành!")
+
+    # Guard against invalid mid-tournament edits that would break format progression
+    if match_obj.get('status') == 'completed':
+        if match_obj.get('stage') == 'swiss':
+            if region_data.get('current_stage') == 'playoffs':
+                if any(m.get('status') == 'completed' for m in region_data.get('playoff_matches', [])):
+                    raise ValueError("Không thể sửa trận Swiss này vì giai đoạn Playoffs đã có trận hoàn thành!")
+                # Reset playoffs back to pending Swiss
+                region_data['current_stage'] = 'swiss'
+                region_data['playoff_matches'] = []
+                region_data['swiss_qualifiers'] = []
+                region_data['swiss_eliminated'] = []
+
+            current_r = match_obj.get('round', 1)
+            later_matches = [m for m in region_data.get('swiss_matches', []) if m.get('round', 1) > current_r]
+            if any(m.get('status') == 'completed' for m in later_matches):
+                raise ValueError(f"Không thể sửa trận Swiss Vòng {current_r} vì các vòng sau đã diễn ra!")
+            if later_matches:
+                # Remove unplayed subsequent rounds so pairings re-evaluate cleanly
+                region_data['swiss_matches'] = [m for m in region_data['swiss_matches'] if m.get('round', 1) <= current_r]
+                region_data['current_swiss_round'] = current_r
+
+        elif match_obj.get('stage') == 'playoffs':
+            r_name = match_obj.get('round_name')
+            playoffs = region_data.get('playoff_matches', [])
+            dependent = [
+                m for m in playoffs
+                if (m.get('team_a_source', {}).get('value') == r_name or m.get('team_b_source', {}).get('value') == r_name)
+            ]
+            if any(m.get('status') == 'completed' for m in dependent):
+                raise ValueError("Không thể sửa trận đấu này vì trận đấu kế tiếp của nhánh đã hoàn thành!")
+
+    t_a = match_obj['team_a']
+    t_b = match_obj['team_b']
+    id_a = t_a['id']
+    id_b = t_b['id']
+    bo = match_obj.get('bo', 1)
+
+    r_a = (rating_lookup.get(id_a) if rating_lookup else None) or t_a.get('story_rating') or t_a.get('current_rating') or 80
+    r_b = (rating_lookup.get(id_b) if rating_lookup else None) or t_b.get('story_rating') or t_b.get('current_rating') or 80
+
+    if winner_id is not None:
+        # Manual input
+        if winner_id not in (id_a, id_b):
+            raise ValueError(f"winner_id {winner_id} is neither team A ({id_a}) nor team B ({id_b})")
+
+        winner = t_a if winner_id == id_a else t_b
+        loser = t_b if winner == t_a else t_a
+        target_wins = 1 if bo == 1 else 2
+
+        if maps:
+            wins_a = sum(1 for map_item in maps if map_item['team_a_score'] > map_item['team_b_score'])
+            wins_b = sum(1 for map_item in maps if map_item['team_b_score'] > map_item['team_a_score'])
+            resolved_maps = maps
+        else:
+            wins_a = target_wins if winner == t_a else 0
+            wins_b = target_wins if winner == t_b else 0
+            resolved_maps = []
+            for m_idx in range(target_wins):
+                sc_w, sc_l = _gen_map_score_internal(r_a if winner == t_a else r_b, r_b if winner == t_a else r_a)
+                resolved_maps.append({
+                    'map_number': m_idx + 1,
+                    'team_a_score': sc_w if winner == t_a else sc_l,
+                    'team_b_score': sc_l if winner == t_a else sc_w,
+                    'winner_id': winner_id,
+                })
+
+        match_obj.update({
+            'status': 'completed',
+            'team_a_score': wins_a,
+            'team_b_score': wins_b,
+            'winner_id': winner_id,
+            'loser_id': loser['id'],
+            'winner': winner,
+            'loser': loser,
+            'maps': resolved_maps,
+            'is_manual': True,
+        })
+    else:
+        # Simulation roll
+        sim = simulate_single_match(t_a, t_b, bo=bo, rating_lookup=rating_lookup, form_lookup=form_lookup)
+        match_obj.update({
+            'status': 'completed',
+            'team_a_score': sim['team_a_score'],
+            'team_b_score': sim['team_b_score'],
+            'winner_id': sim['winner_id'],
+            'loser_id': sim['loser_id'],
+            'winner': sim['winner'],
+            'loser': sim['loser'],
+            'maps': sim['maps'],
+            'is_manual': False,
+        })
+
+    # Advance progression
+    advance_open_qualifier_region(region_data)
+    return match_obj
+
+
+def advance_open_qualifier_region(region_data: Dict[str, Any]) -> bool:
+    """Advance the tournament state for an Open Qualifier region:
+    - Updates Swiss standings from completed matches
+    - If all matches in current Swiss round are completed, generates next Swiss round
+    - When Swiss stage finishes (8 advancers, 8 eliminated), transitions to Playoffs
+    - In Playoffs, resolves downstream placeholder slots as feeder matches finish
+    - When all 10 playoff matches finish, determines the 4 qualified teams
+    
+    Returns True if stage is fully completed.
+    """
+    teams = region_data['teams']
+    swiss_matches = region_data.get('swiss_matches', [])
+    completed_swiss = [m for m in swiss_matches if m['status'] == 'completed']
+
+    # Update standings
+    region_data['swiss_standings'] = compute_swiss_standings(teams, completed_swiss)
+
+    if region_data['current_stage'] == 'swiss':
+        current_r = region_data['current_swiss_round']
+        current_r_matches = [m for m in swiss_matches if m['round'] == current_r]
+
+        # Check if current round is 100% complete
+        if current_r_matches and all(m['status'] == 'completed' for m in current_r_matches):
+            advancing = [s['team'] for s in region_data['swiss_standings'] if s['advanced']]
+            eliminated = [s['team'] for s in region_data['swiss_standings'] if s['eliminated']]
+
+            if len(advancing) == 8 and len(eliminated) == 8:
+                # Swiss is complete -> Transition to Playoffs!
+                region_data['current_stage'] = 'playoffs'
+                region_data['swiss_qualifiers'] = advancing
+                region_data['swiss_eliminated'] = eliminated
+                _init_playoffs_for_region(region_data)
+            elif current_r < 5:
+                # Generate next Swiss round
+                next_r = current_r + 1
+                existing_next = [m for m in swiss_matches if m['round'] == next_r]
+                if not existing_next:
+                    pairings = generate_swiss_round_pairings(teams, next_r, completed_swiss)
+                    order_start = len(swiss_matches) + 1
+                    for idx, p in enumerate(pairings):
+                        match_id = f"oq_{region_data['region_slug']}_swiss_r{next_r}_m{idx + 1}"
+                        swiss_matches.append({
+                            'id': match_id,
+                            'stage': 'swiss',
+                            'round': next_r,
+                            'round_name': f"swiss_r{next_r}_m{idx + 1}",
+                            'label': f"Swiss Vòng {next_r} - Trận {idx + 1}",
+                            'match_order': order_start + idx,
+                            'bo': p['bo'],
+                            'status': 'pending',
+                            'team_a': p['team_a'],
+                            'team_b': p['team_b'],
+                            'team_a_id': p['team_a']['id'],
+                            'team_b_id': p['team_b']['id'],
+                            'team_a_score': 0,
+                            'team_b_score': 0,
+                            'winner_id': None,
+                            'loser_id': None,
+                            'winner': None,
+                            'loser': None,
+                            'maps': [],
+                            'is_manual': False,
+                            'record_group': p.get('record_group', ''),
+                            'is_decider': p.get('is_decider', False),
+                        })
+                    region_data['current_swiss_round'] = next_r
+
+    elif region_data['current_stage'] == 'playoffs':
+        _resolve_playoff_slots_for_region(region_data)
+
+    # Check overall completion
+    playoffs = region_data.get('playoff_matches', [])
+    if playoffs and all(m['status'] == 'completed' for m in playoffs):
+        qualifiers_dict = {}
+        for m in playoffs:
+            slot = m.get('qualifier_slot')
+            if slot and m['status'] == 'completed':
+                qualifiers_dict[slot] = m['winner']
+
+        if len(qualifiers_dict) == 4:
+            region_data['qualified_teams'] = [qualifiers_dict[i] for i in [1, 2, 3, 4]]
+            region_data['status'] = 'completed'
+            region_data['total_matches_count'] = len(swiss_matches) + len(playoffs)
+            return True
+
+    return False
+
+
+def _init_playoffs_for_region(region_data: Dict[str, Any]):
+    """Initialize the 10 playoff matches for the region."""
+    advancing = region_data['swiss_qualifiers']
+    seeds = {i + 1: advancing[i] for i in range(len(advancing))}
+
+    templates = get_playoff_bracket_templates()
+    playoff_matches = []
+    order_start = len(region_data.get('swiss_matches', [])) + 1
+
+    for idx, tpl in enumerate(templates):
+        match_id = f"oq_{region_data['region_slug']}_{tpl['round_name']}"
+        m_dict = {
+            'id': match_id,
+            'stage': 'playoffs',
+            'round_name': tpl['round_name'],
+            'round_type': tpl['round_type'],
+            'match_code': tpl['match_code'],
+            'label': _get_playoff_label(tpl['round_name']),
+            'match_order': order_start + idx,
+            'bo': tpl['bo'],
+            'status': 'pending',
+            'team_a_source': tpl['team_a_source'],
+            'team_b_source': tpl['team_b_source'],
+            'team_a': None,
+            'team_b': None,
+            'team_a_id': None,
+            'team_b_id': None,
+            'team_a_score': 0,
+            'team_b_score': 0,
+            'winner_id': None,
+            'loser_id': None,
+            'winner': None,
+            'loser': None,
+            'maps': [],
+            'is_manual': False,
+            'qualifier_slot': tpl.get('qualifier_slot'),
+        }
+        playoff_matches.append(m_dict)
+
+    region_data['playoff_matches'] = playoff_matches
+    _resolve_playoff_slots_for_region(region_data)
+
+
+def _resolve_playoff_slots_for_region(region_data: Dict[str, Any]):
+    """Resolve team_a and team_b for any playoff matches that have feeders completed."""
+    advancing = region_data.get('swiss_qualifiers', [])
+    seeds = {i + 1: advancing[i] for i in range(len(advancing))}
+
+    playoffs = region_data.get('playoff_matches', [])
+    completed_map = {m['round_name']: m for m in playoffs if m['status'] == 'completed'}
+
+    def resolve_team(src):
+        stype = src['type']
+        sval = src['value']
+        if stype == 'seed':
+            return seeds.get(sval)
+        if stype == 'winner_of':
+            feeder = completed_map.get(sval)
+            return feeder['winner'] if feeder else None
+        if stype == 'loser_of':
+            feeder = completed_map.get(sval)
+            return feeder['loser'] if feeder else None
+        return None
+
+    def get_source_label(src):
+        stype = src['type']
+        sval = src['value']
+        if stype == 'seed':
+            return f"Seed #{sval}"
+        if stype == 'winner_of':
+            return f"Thắng {src.get('value', '')}"
+        if stype == 'loser_of':
+            return f"Thua {src.get('value', '')}"
+        return "TBD"
+
+    for m in playoffs:
+        if m['status'] == 'pending':
+            t_a = resolve_team(m['team_a_source'])
+            t_b = resolve_team(m['team_b_source'])
+
+            if t_a:
+                m['team_a'] = t_a
+                m['team_a_id'] = t_a['id']
+                m['placeholder_a'] = None
+            else:
+                m['team_a'] = None
+                m['team_a_id'] = None
+                m['placeholder_a'] = get_source_label(m['team_a_source'])
+
+            if t_b:
+                m['team_b'] = t_b
+                m['team_b_id'] = t_b['id']
+                m['placeholder_b'] = None
+            else:
+                m['team_b'] = None
+                m['team_b_id'] = None
+                m['placeholder_b'] = get_source_label(m['team_b_source'])
+
+
+def sim_open_qualifier_round(region_data: Dict[str, Any],
+                             rating_lookup: Optional[Dict[int, int]] = None,
+                             form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate all currently playable pending matches in current round or playoffs.
+    Returns the number of matches simulated.
+    """
+    sim_count = 0
+    if region_data['current_stage'] == 'swiss':
+        current_r = region_data['current_swiss_round']
+        for m in list(region_data.get('swiss_matches', [])):
+            if m['round'] == current_r and m['status'] == 'pending':
+                resolve_open_qualifier_match(
+                    region_data, m['id'], winner_id=None,
+                    rating_lookup=rating_lookup, form_lookup=form_lookup
+                )
+                sim_count += 1
+    elif region_data['current_stage'] == 'playoffs':
+        for m in list(region_data.get('playoff_matches', [])):
+            if m['status'] == 'pending' and m.get('team_a') and m.get('team_b'):
+                resolve_open_qualifier_match(
+                    region_data, m['id'], winner_id=None,
+                    rating_lookup=rating_lookup, form_lookup=form_lookup
+                )
+                sim_count += 1
+    return sim_count
+
+
+def sim_open_qualifier_remaining(region_data: Dict[str, Any],
+                                 rating_lookup: Optional[Dict[int, int]] = None,
+                                 form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate all remaining matches until the region finishes.
+    Returns total matches simulated.
+    """
+    total = 0
+    max_loops = 60
+    while region_data.get('status') != 'completed' and max_loops > 0:
+        max_loops -= 1
+        count = sim_open_qualifier_round(region_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
+        if count == 0:
+            break
+        total += count
+    return total
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Master Regional Simulation Function (Backward compatible wrapper)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def simulate_open_qualifier(region_slug: str, teams: List[Dict[str, Any]],
                             rating_lookup: Optional[Dict[int, int]] = None,
                             form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
-    """Execute the full 43-match Open Qualifier tournament for a region.
-    
-    Args:
-        region_slug: e.g. 'pacific', 'americas', 'emea', 'china'
-        teams: List of 16 non-partner team dicts
-        rating_lookup: Optional dict of {club_id: story_rating}
-        form_lookup: Optional dict of {club_id: form_modifier}
-        
-    Returns:
-        {
-            'region_slug': str,
-            'swiss_matches': list of 33 match dicts,
-            'swiss_standings': list of 16 standings dicts (ranked 1-16),
-            'swiss_qualifiers': list of 8 advancing teams (seeds 1-8 for playoffs),
-            'swiss_eliminated': list of 8 eliminated teams,
-            'playoff_matches': list of 10 match dicts,
-            'qualified_teams': list of 4 teams qualifying for Kickoff,
-            'total_matches_count': 43,
-        }
-    """
-    if len(teams) != 16:
-        raise ValueError(f"Open Qualifier requires exactly 16 teams, received {len(teams)}")
-
-    # ──────────────── Stage 1: Swiss (33 matches) ────────────────
-    all_swiss_matches: List[Dict[str, Any]] = []
-
-    for round_num in range(1, 6):
-        round_pairings = generate_swiss_round_pairings(teams, round_num, all_swiss_matches)
-        for p in round_pairings:
-            sim = simulate_single_match(
-                p['team_a'], p['team_b'], bo=p['bo'],
-                rating_lookup=rating_lookup, form_lookup=form_lookup
-            )
-            sim.update({
-                'round': round_num,
-                'round_name': p['match_name'],
-                'record_group': p['record_group'],
-                'is_decider': p['is_decider'],
-            })
-            all_swiss_matches.append(sim)
-
-    swiss_standings = compute_swiss_standings(teams, all_swiss_matches)
-    swiss_qualifiers = [s['team'] for s in swiss_standings if s['advanced']]
-    swiss_eliminated = [s['team'] for s in swiss_standings if s['eliminated']]
-
-    if len(swiss_qualifiers) != 8:
-        raise RuntimeError(f"Expected 8 Swiss qualifiers, got {len(swiss_qualifiers)}")
-
-    # Map Swiss qualifiers to Seed 1..8
-    seeds: Dict[int, Dict[str, Any]] = {i + 1: swiss_qualifiers[i] for i in range(8)}
-
-    # ──────────────── Stage 2: Playoffs (10 matches) ────────────────
-    playoff_templates = get_playoff_bracket_templates()
-    completed_playoffs: Dict[str, Dict[str, Any]] = {}
-    playoff_matches_list: List[Dict[str, Any]] = []
-    qualifiers_dict: Dict[int, Dict[str, Any]] = {}
-
-    for tpl in playoff_templates:
-        t_a, t_b = resolve_playoff_sources(tpl, seeds, completed_playoffs)
-        if not t_a or not t_b:
-            raise RuntimeError(f"Playoff match {tpl['round_name']} could not resolve teams")
-
-        sim = simulate_single_match(
-            t_a, t_b, bo=tpl['bo'],
-            rating_lookup=rating_lookup, form_lookup=form_lookup
-        )
-        sim.update({
-            'round_name': tpl['round_name'],
-            'round_type': tpl['round_type'],
-            'match_code': tpl['match_code'],
-            'label': tpl['label'],
-        })
-
-        completed_playoffs[tpl['round_name']] = sim
-        playoff_matches_list.append(sim)
-
-        if 'qualifier_slot' in tpl:
-            slot = tpl['qualifier_slot']
-            qualifiers_dict[slot] = sim['winner']
-
-    # Exactly 4 qualifiers sorted by slot 1, 2, 3, 4
-    qualified_teams = [qualifiers_dict[i] for i in [1, 2, 3, 4]]
-
-    return {
-        'region_slug': region_slug,
-        'swiss_matches': all_swiss_matches,
-        'swiss_standings': swiss_standings,
-        'swiss_qualifiers': swiss_qualifiers,
-        'swiss_eliminated': swiss_eliminated,
-        'playoff_matches': playoff_matches_list,
-        'qualified_teams': qualified_teams,
-        'total_matches_count': len(all_swiss_matches) + len(playoff_matches_list),
-    }
+    """Execute the full 43-match Open Qualifier tournament for a region."""
+    state = init_open_qualifier_region_state(region_slug, teams)
+    sim_open_qualifier_remaining(state, rating_lookup=rating_lookup, form_lookup=form_lookup)
+    return state
