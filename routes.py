@@ -308,6 +308,8 @@ def register_routes(app):
         resolve_ko_match, sim_ko_round, sim_ko_region,
         get_major_data, run_major_stage, override_major_match,
         resolve_major_match_interactive, sim_major_round_interactive, sim_major_tournament_interactive,
+        get_stage1_data, resolve_stage1_match_interactive, sim_stage1_round_interactive,
+        sim_stage1_region_interactive, sim_stage1_all_interactive,
     )
 
     @app.route('/campaigns')
@@ -340,6 +342,7 @@ def register_routes(app):
         oq_data = get_open_qualifier_data(campaign_id)
         kickoff_data = get_kickoff_data(campaign_id)
         major_data = get_major_data(campaign_id)
+        stage1_data = get_stage1_data(campaign_id)
 
         stages_info = []
         current_found = False
@@ -367,6 +370,7 @@ def register_routes(app):
             oq_data=oq_data,
             kickoff_data=kickoff_data,
             major_data=major_data,
+            stage1_data=stage1_data,
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
@@ -733,5 +737,119 @@ def register_routes(app):
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    @app.route('/campaign/<int:campaign_id>/stage/stage1')
+    def campaign_stage1_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        active_region = request.args.get('region', 'pacific').lower()
+        if active_region not in ['pacific', 'americas', 'emea', 'china']:
+            active_region = 'pacific'
+
+        stage1_data = get_stage1_data(campaign_id)
+        cp_leaderboards = {
+            r: get_championship_leaderboard(campaign_id, region_slug=r)
+            for r in ['pacific', 'americas', 'emea', 'china']
+        }
+
+        return render_template(
+            'campaign/stage1.html',
+            campaign=campaign,
+            active_region=active_region,
+            stage1_data=stage1_data,
+            cp_leaderboards=cp_leaderboards,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/stage1/match/sim', methods=['POST'])
+    def api_campaign_stage1_match_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region')
+        match_id = data.get('match_id')
+        if not region_slug or not match_id:
+            return jsonify({'error': 'region and match_id are required'}), 400
+
+        try:
+            res = resolve_stage1_match_interactive(campaign_id, region_slug, match_id, winner_id=None)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/stage1/match/manual', methods=['POST'])
+    def api_campaign_stage1_match_manual(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region')
+        match_id = data.get('match_id')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not region_slug or not match_id or not winner_id:
+            return jsonify({'error': 'region, match_id and winner_id are required'}), 400
+
+        try:
+            res = resolve_stage1_match_interactive(
+                campaign_id, region_slug, match_id,
+                winner_id=int(winner_id), maps=maps
+            )
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/stage1/sim-round', methods=['POST'])
+    def api_campaign_stage1_sim_round(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region')
+        if not region_slug:
+            return jsonify({'error': 'region is required'}), 400
+
+        try:
+            res = sim_stage1_round_interactive(campaign_id, region_slug)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/stage1/sim-region', methods=['POST'])
+    def api_campaign_stage1_sim_region(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        region_slug = data.get('region')
+        if not region_slug:
+            return jsonify({'error': 'region is required'}), 400
+
+        try:
+            res = sim_stage1_region_interactive(campaign_id, region_slug)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/stage1/sim-all', methods=['POST'])
+    def api_campaign_stage1_sim_all(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_stage1_all_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
 
 

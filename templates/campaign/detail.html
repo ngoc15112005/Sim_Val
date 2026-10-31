@@ -93,7 +93,24 @@
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Kickoff
         </a>
+      {% elif campaign.current_stage == 'stage1' %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu VCT Stage 1 ➔
+        </a>
+        {% if major_data and major_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại VCT Major
+        </a>
+        {% endif %}
+        <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Kickoff
+        </a>
       {% else %}
+        {% if stage1_data and stage1_data.regional_results %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block;">
+          Xem lại VCT Stage 1
+        </a>
+        {% endif %}
         {% if major_data and major_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block;">
           Xem lại VCT Major
@@ -108,6 +125,31 @@
       {% endif %}
     </div>
   </div>
+
+  {% if stage1_data and stage1_data.regional_results %}
+  {% set any_s1_done = false %}
+  {% for r, rd in stage1_data.regional_results.items() %}
+    {% if rd.status == 'completed' %}{% set any_s1_done = true %}{% endif %}
+  {% endfor %}
+  {% if any_s1_done %}
+  <div class="stage1-quick-summary" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #3b82f6; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <span style="font-size: 0.75em; background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
+        🇨🇦 Vé Masters Toronto & 🌍 EWC từ Stage 1
+      </span>
+      <h3 style="font-size: 1.1em; color: #fff; margin: 4px 0;">
+        VCT Stage 1 Đã Hoàn Thành — 12 Đội Giành Vé Masters Toronto & 16 Đội Đi EWC!
+      </h3>
+      <div style="font-size: 0.85em; color: var(--dim);">
+        1 CP mỗi trận thắng vòng bảng • Playoffs: 1st (+5 CP), 2nd (+3 CP), 3rd (+2 CP), 4th (+1 CP)
+      </div>
+    </div>
+    <a href="/campaign/{{ campaign.id }}/stage/stage1" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
+      Xem toàn bộ VCT Stage 1 ➔
+    </a>
+  </div>
+  {% endif %}
+  {% endif %}
 
   {% if major_data and major_data.result %}
   <div class="major-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
