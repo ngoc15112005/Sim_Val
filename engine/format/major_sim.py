@@ -32,37 +32,49 @@ from engine.format.major import (
     generate_playoffs_4_teams,
     resolve_slot,
 )
-from engine.match import _calc_region_bonus, _gen_map_score
+from engine.match import _calc_region_bonus, _gen_map_score, calc_pure_international_win_rate
 from engine.points import get_stage_points
 
 
 def _calc_international_win_rate(team_a: Dict[str, Any], team_b: Dict[str, Any],
                                  is_grand_final: bool = False,
-                                 streak_a: int = 0, streak_b: int = 0) -> float:
+                                 is_playoff: bool = False,
+                                 streak_a: int = 0, streak_b: int = 0,
+                                 prior_a: int = 0, prior_b: int = 0) -> float:
     """Calculate win probability for an international match.
     
     Philosophy ('Cỏ lúa bằng nhau'):
-    - Base probability is 0.50.
+    - Base probability is 0.50 (Rating is NOT added to win probability).
     - Regional Meta DNA applies across different regions.
+    - Seed 1 Curse: -4% cold start for direct playoff seeds.
+    - Warm-up / Match Rhythm: +3% for battle-tested teams.
     - Momentum streak bonus.
     """
-    prob_a = 0.50
     reg_a = team_a.get('region_slug') or team_a.get('region')
     reg_b = team_b.get('region_slug') or team_b.get('region')
+    seed_a = team_a.get('regional_seed') or team_a.get('seed') or 2
+    seed_b = team_b.get('regional_seed') or team_b.get('seed') or 2
 
-    if reg_a and reg_b and reg_a != reg_b:
-        bonus_a = _calc_region_bonus(reg_a, tour_type='major', is_grand_final=is_grand_final, is_champions=False, is_masters=True)
-        bonus_b = _calc_region_bonus(reg_b, tour_type='major', is_grand_final=is_grand_final, is_champions=False, is_masters=True)
-        prob_a += (bonus_a - bonus_b)
-
-    streak_diff = min(streak_a, 3) - min(streak_b, 3)
-    prob_a += streak_diff * 0.015
-
-    return max(0.20, min(0.80, prob_a))
+    return calc_pure_international_win_rate(
+        region_a=reg_a,
+        region_b=reg_b,
+        tour_type='major',
+        is_grand_final=is_grand_final,
+        is_playoff=is_playoff,
+        seed_a=seed_a,
+        seed_b=seed_b,
+        prior_a=prior_a,
+        prior_b=prior_b,
+        streak_a=streak_a,
+        streak_b=streak_b,
+    )
 
 
 def simulate_major_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: int = 3,
                                 is_grand_final: bool = False,
+                                is_playoff: bool = False,
+                                prior_a: int = 0, prior_b: int = 0,
+                                streak_a: int = 0, streak_b: int = 0,
                                 manual_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Simulate a single Major match or apply manual override."""
     id_a = team_a['id'] if 'id' in team_a else team_a.get('club_id')
@@ -116,7 +128,15 @@ def simulate_major_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], 
                 'is_manual': True,
             }
 
-    prob_a = _calc_international_win_rate(team_a, team_b, is_grand_final=is_grand_final)
+    prob_a = _calc_international_win_rate(
+        team_a, team_b,
+        is_grand_final=is_grand_final,
+        is_playoff=is_playoff,
+        streak_a=streak_a,
+        streak_b=streak_b,
+        prior_a=prior_a,
+        prior_b=prior_b,
+    )
 
     wins_a = 0
     wins_b = 0
@@ -548,7 +568,19 @@ def resolve_major_match(major_data: Dict[str, Any], match_id_or_round_name: str,
         })
     else:
         is_gf = (match_obj.get('round_name') == 'grand_final')
-        sim = simulate_major_single_match(t_a, t_b, bo=bo, is_grand_final=is_gf)
+        is_playoff = (major_data.get('current_stage') == 'playoffs' or 'round' not in match_obj)
+        all_completed = [m for m in all_matches if m.get('status') == 'completed' and m.get('id') != match_obj.get('id')]
+        prior_a = sum(1 for m in all_completed if m.get('team_a_id') == id_a or m.get('team_b_id') == id_a)
+        prior_b = sum(1 for m in all_completed if m.get('team_a_id') == id_b or m.get('team_b_id') == id_b)
+
+        sim = simulate_major_single_match(
+            t_a, t_b,
+            bo=bo,
+            is_grand_final=is_gf,
+            is_playoff=is_playoff,
+            prior_a=prior_a,
+            prior_b=prior_b,
+        )
         match_obj.update({
             'status': 'completed',
             'team_a_score': sim['team_a_score'],

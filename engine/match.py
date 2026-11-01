@@ -39,6 +39,64 @@ def _calc_region_bonus(region, tour_type, is_grand_final, is_champions, is_maste
     return bonus
 
 
+def calc_pure_international_win_rate(
+    region_a=None,
+    region_b=None,
+    tour_type=None,
+    is_grand_final=False,
+    is_playoff=False,
+    seed_a=2,
+    seed_b=2,
+    prior_a=0,
+    prior_b=0,
+    streak_a=0,
+    streak_b=0,
+):
+    """Calculate win probability for team A in an international match.
+
+    Philosophy:
+    - Base probability is strictly 0.50 (50/50 equal ground). Rating is NOT added.
+    - Seed difference advantage: ~1% per seed step.
+    - Seed 1 Curse: Teams entering playoffs directly without warm-up suffer 'Cold Start' (-4%).
+    - Warm-up / Match Rhythm: Teams having fought through Swiss or lower bracket gain momentum (+3%).
+    - Streak Bonus: +1.5% per consecutive win (clamped to max 3).
+    - Regional Meta DNA: Cross-region modifiers (Americas, EMEA Silver Curse, China debuff/ZmjjKK carry, Pacific Masters).
+    - Returns clamped probability in [0.18, 0.82].
+    """
+    prob_a = 0.50
+
+    is_masters = (tour_type in ('major', 'master'))
+    is_champions = (tour_type == 'champion')
+
+    # Seed Difference Advantage (minor: ~1% per seed step)
+    seed_diff = (seed_b or 2) - (seed_a or 2)
+    prob_a += seed_diff * 0.01
+
+    # 'Seed 1 Curse' (Cold Start in first playoff match)
+    if seed_a == 1 and prior_a == 0 and is_playoff:
+        prob_a -= 0.04  # Team A cold start
+    if seed_b == 1 and prior_b == 0 and is_playoff:
+        prob_a += 0.04  # Team B cold start (favors Team A)
+
+    # Warm-up / Match Rhythm (teams having fought through Swiss or lower bracket)
+    if prior_a >= 2 and prior_b < 2:
+        prob_a += 0.03
+    elif prior_b >= 2 and prior_a < 2:
+        prob_a -= 0.03
+
+    # Streak Bonus (hot hands)
+    streak_diff = min(streak_a or 0, 3) - min(streak_b or 0, 3)
+    prob_a += streak_diff * 0.015
+
+    # Regional Meta DNA (cross-region matches only)
+    if region_a and region_b and region_a != region_b:
+        bonus_a = _calc_region_bonus(region_a, tour_type, is_grand_final, is_champions, is_masters)
+        bonus_b = _calc_region_bonus(region_b, tour_type, is_grand_final, is_champions, is_masters)
+        prob_a += (bonus_a - bonus_b)
+
+    return max(0.18, min(0.82, prob_a))
+
+
 def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
     """Calculate probability of team_a winning.
 
@@ -52,8 +110,6 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
       China heavy debuff with rare god-carry, Pacific Masters buff).
     - Returns clamped probability (0.18 - 0.82).
     """
-    prob_a = 0.50
-
     # Context from match (Tournament, Seeds, Rounds, Regions)
     if match:
         tour = match.tournament
@@ -62,8 +118,7 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
         round_name = (match.round_name or '').lower()
 
         is_grand_final = (round_type == 'grand' or 'grand' in round_name)
-        is_masters = (tour_type in ('major', 'master'))
-        is_champions = (tour_type == 'champion')
+        is_playoff = round_type in ('upper', 'lower', 'playoff', 'grand', 'third_place')
 
         team_a = match.team_a
         team_b = match.team_b
@@ -92,40 +147,25 @@ def _calc_win_rate(rating_a, rating_b, streak_a=0, streak_b=0, match=None):
                         if m.team_a_id == match.team_b_id or m.team_b_id == match.team_b_id:
                             prior_b += 1
 
-        # Seed Difference Advantage (minor: ~1% per seed step)
-        seed_diff = seed_b - seed_a
-        prob_a += seed_diff * 0.01
-
-        # 'Seed 1 Curse' (Cold Start in first playoff match)
-        is_playoff = round_type in ('upper', 'lower', 'playoff', 'grand', 'third_place')
-        if seed_a == 1 and prior_a == 0 and is_playoff:
-            prob_a -= 0.04  # Team A cold start
-        if seed_b == 1 and prior_b == 0 and is_playoff:
-            prob_a += 0.04  # Team B cold start (favors Team A)
-
-        # Warm-up / Match Rhythm (teams having fought through Swiss or lower bracket)
-        if prior_a >= 2 and prior_b < 2:
-            prob_a += 0.03
-        elif prior_b >= 2 and prior_a < 2:
-            prob_a -= 0.03
-
-        # Streak Bonus (hot hands)
-        streak_diff = min(streak_a, 3) - min(streak_b, 3)
-        prob_a += streak_diff * 0.015
-
-        # Regional Meta DNA (cross-region matches only)
-        if region_a and region_b and region_a != region_b:
-            bonus_a = _calc_region_bonus(region_a, tour_type, is_grand_final, is_champions, is_masters)
-            bonus_b = _calc_region_bonus(region_b, tour_type, is_grand_final, is_champions, is_masters)
-            prob_a += (bonus_a - bonus_b)
+        return calc_pure_international_win_rate(
+            region_a=region_a,
+            region_b=region_b,
+            tour_type=tour_type,
+            is_grand_final=is_grand_final,
+            is_playoff=is_playoff,
+            seed_a=seed_a,
+            seed_b=seed_b,
+            prior_a=prior_a,
+            prior_b=prior_b,
+            streak_a=streak_a,
+            streak_b=streak_b,
+        )
     else:
         # Fallback if match instance not passed
         form_bonus_a = min(streak_a * 1, 3)
         form_bonus_b = min(streak_b * 1, 3)
-        prob_a += (form_bonus_a - form_bonus_b) * 0.01
-
-    # Clamp win rate within realistic, exciting bounds
-    return max(0.18, min(0.82, prob_a))
+        prob_a = 0.50 + (form_bonus_a - form_bonus_b) * 0.01
+        return max(0.18, min(0.82, prob_a))
 
 
 def _gen_map_score(winner_rating, loser_rating, is_bo5=False):

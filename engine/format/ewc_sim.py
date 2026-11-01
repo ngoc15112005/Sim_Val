@@ -30,30 +30,48 @@ from engine.format.ewc import (
     generate_ewc_playoffs_draw,
     resolve_gs_slot,
 )
-from engine.match import _calc_region_bonus, _gen_map_score
+from engine.match import _calc_region_bonus, _gen_map_score, calc_pure_international_win_rate
 
 
 def _calc_ewc_win_rate(team_a: Dict[str, Any], team_b: Dict[str, Any],
                        is_grand_final: bool = False,
-                       streak_a: int = 0, streak_b: int = 0) -> float:
-    """Calculate win probability for an international match in EWC."""
-    prob_a = 0.50
+                       is_playoff: bool = False,
+                       streak_a: int = 0, streak_b: int = 0,
+                       prior_a: int = 0, prior_b: int = 0) -> float:
+    """Calculate win probability for an international match in EWC.
+    
+    Philosophy ('Cỏ lúa bằng nhau'):
+    - Base probability is 0.50 (Rating is NOT added to win probability).
+    - Regional Meta DNA applies across different regions.
+    - Seed 1 Curse: -4% cold start for direct playoff seeds.
+    - Warm-up / Match Rhythm: +3% for battle-tested teams.
+    - Momentum streak bonus.
+    """
     reg_a = team_a.get('region_slug') or team_a.get('region')
     reg_b = team_b.get('region_slug') or team_b.get('region')
+    seed_a = team_a.get('seed') or team_a.get('regional_seed') or 2
+    seed_b = team_b.get('seed') or team_b.get('regional_seed') or 2
 
-    if reg_a and reg_b and reg_a != reg_b:
-        bonus_a = _calc_region_bonus(reg_a, tour_type='ewc', is_grand_final=is_grand_final, is_champions=False, is_masters=False)
-        bonus_b = _calc_region_bonus(reg_b, tour_type='ewc', is_grand_final=is_grand_final, is_champions=False, is_masters=False)
-        prob_a += (bonus_a - bonus_b)
-
-    streak_diff = min(streak_a, 3) - min(streak_b, 3)
-    prob_a += streak_diff * 0.015
-
-    return max(0.20, min(0.80, prob_a))
+    return calc_pure_international_win_rate(
+        region_a=reg_a,
+        region_b=reg_b,
+        tour_type='ewc',
+        is_grand_final=is_grand_final,
+        is_playoff=is_playoff,
+        seed_a=seed_a,
+        seed_b=seed_b,
+        prior_a=prior_a,
+        prior_b=prior_b,
+        streak_a=streak_a,
+        streak_b=streak_b,
+    )
 
 
 def simulate_ewc_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: int = 3,
                               is_grand_final: bool = False,
+                              is_playoff: bool = False,
+                              prior_a: int = 0, prior_b: int = 0,
+                              streak_a: int = 0, streak_b: int = 0,
                               manual_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Simulate a single EWC match or apply manual override."""
     id_a = team_a['id'] if 'id' in team_a else team_a.get('club_id')
@@ -89,11 +107,11 @@ def simulate_ewc_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo
         simulated_maps = []
         map_idx = 1
         for _ in range(wins_a):
-            sa, sb = _gen_map_score(r_a, r_b)
+            sa, sb = _gen_map_score(r_a, r_b, is_bo5=(bo == 5))
             simulated_maps.append({'map_number': map_idx, 'team_a_score': sa, 'team_b_score': sb, 'winner_id': id_a})
             map_idx += 1
         for _ in range(wins_b):
-            sb, sa = _gen_map_score(r_b, r_a)
+            sb, sa = _gen_map_score(r_b, r_a, is_bo5=(bo == 5))
             simulated_maps.append({'map_number': map_idx, 'team_a_score': sa, 'team_b_score': sb, 'winner_id': id_b})
             map_idx += 1
 
@@ -109,7 +127,15 @@ def simulate_ewc_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo
         }
 
     # Simulation roll
-    prob_a = _calc_ewc_win_rate(team_a, team_b, is_grand_final=is_grand_final)
+    prob_a = _calc_ewc_win_rate(
+        team_a, team_b,
+        is_grand_final=is_grand_final,
+        is_playoff=is_playoff,
+        streak_a=streak_a,
+        streak_b=streak_b,
+        prior_a=prior_a,
+        prior_b=prior_b,
+    )
     wins_a, wins_b = 0, 0
     maps = []
     map_idx = 1
@@ -118,11 +144,11 @@ def simulate_ewc_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo
         a_wins_map = (random.random() < prob_a)
         if a_wins_map:
             wins_a += 1
-            sa, sb = _gen_map_score(r_a, r_b)
+            sa, sb = _gen_map_score(r_a, r_b, is_bo5=(bo == 5))
             w_id = id_a
         else:
             wins_b += 1
-            sb, sa = _gen_map_score(r_b, r_a)
+            sb, sa = _gen_map_score(r_b, r_a, is_bo5=(bo == 5))
             w_id = id_b
 
         maps.append({'map_number': map_idx, 'team_a_score': sa, 'team_b_score': sb, 'winner_id': w_id})
@@ -670,12 +696,27 @@ def resolve_ewc_match(ewc_data: Dict[str, Any], match_id_or_round_name: str,
         override = {'winner_id': winner_id, 'maps': maps or []}
 
     is_gf = (target.get('round_name') == 'grand_final')
+    is_playoff = (target in ewc_data.get('playoff_matches', []))
     bo = target.get('bo', 3)
+
+    all_matches = []
+    for grp in ewc_data.get('groups', {}).values():
+        all_matches.extend(grp.get('matches', {}).values())
+    all_matches.extend(ewc_data.get('playoff_matches', []))
+
+    all_completed = [m for m in all_matches if m.get('status') == 'completed' and m.get('id') != target.get('id')]
+    id_a = target['team_a']['id'] if 'id' in target['team_a'] else target['team_a'].get('club_id')
+    id_b = target['team_b']['id'] if 'id' in target['team_b'] else target['team_b'].get('club_id')
+    prior_a = sum(1 for m in all_completed if m.get('team_a_id') == id_a or m.get('team_b_id') == id_a)
+    prior_b = sum(1 for m in all_completed if m.get('team_a_id') == id_b or m.get('team_b_id') == id_b)
 
     res = simulate_ewc_single_match(
         target['team_a'], target['team_b'],
         bo=bo,
         is_grand_final=is_gf,
+        is_playoff=is_playoff,
+        prior_a=prior_a,
+        prior_b=prior_b,
         manual_override=override
     )
 
