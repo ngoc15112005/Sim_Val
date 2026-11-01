@@ -1040,6 +1040,12 @@ def get_oq_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     """Retrieve full Open Qualifier Stage 1 data for a campaign."""
     stage = get_stage_record(campaign_id, 'oq_stage1')
     if not stage or not stage.stage_data:
+        campaign = get_campaign(campaign_id)
+        if campaign:
+            _prepare_oq_stage1_stage(campaign)
+            db.session.commit()
+            stage = get_stage_record(campaign_id, 'oq_stage1')
+    if not stage or not stage.stage_data:
         return None
     return json.loads(stage.stage_data)
 

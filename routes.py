@@ -898,6 +898,7 @@ def register_routes(app):
             'campaign/oq_stage1.html',
             campaign=campaign,
             active_region=active_region,
+            selected_region=active_region,
             oq_data=oq_data,
             cfg=Config,
         )
@@ -1290,6 +1291,7 @@ def register_routes(app):
             'campaign/oq_stage2.html',
             campaign=campaign,
             active_region=active_region,
+            selected_region=active_region,
             oq_data=oq_data,
             cfg=Config,
         )

@@ -15,7 +15,7 @@
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
-    {% if campaign.current_stage != 'open_qualifier' %}
+    {% if oq_data and oq_data.regions and oq_data.regions.values() | selectattr('status', 'equalto', 'completed') | list | length == 4 %}
     <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
       Tới VCT Stage 2 ➔
     </a>
@@ -32,7 +32,7 @@
     <div class="region-tabs" style="display: flex; gap: 8px;">
       {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
       {% set reg = regions_data.get(r_slug) %}
-      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchOqRegion('{{ r_slug }}')">
+      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (active_region == r_slug) or (not selected_region and not active_region and loop.first) %}active{% endif %}" data-region="{{ r_slug }}" onclick="switchOqRegion('{{ r_slug }}', event)">
         {{ r_slug|upper }}
         {% if reg and reg.status == 'completed' %}
           <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong ✓</span>
@@ -62,7 +62,7 @@
 <!-- Regional Views -->
 {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
 {% set reg = regions_data.get(r_slug) %}
-<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
+<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if (selected_region == r_slug) or (active_region == r_slug) or (not selected_region and not active_region and loop.first) %}active{% endif %}">
 
   {% if reg %}
 
@@ -353,7 +353,7 @@
 
 {% block scripts %}
 <script>
-let activeOqRegion = '{{ selected_region or "pacific" }}';
+let activeOqRegion = '{{ active_region or selected_region or "pacific" }}';
 let currentModalMatchId = null;
 let currentModalTeamAId = null;
 let currentModalTeamAName = '';
@@ -361,19 +361,24 @@ let currentModalTeamBId = null;
 let currentModalTeamBName = '';
 let currentModalBo = 1;
 
-function switchOqRegion(rSlug) {
+function switchOqRegion(rSlug, evt) {
   activeOqRegion = rSlug;
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.oq-region-view').forEach(v => v.classList.remove('active'));
 
-  event.target.closest('.region-tab-btn').classList.add('active');
+  if (evt && evt.currentTarget) {
+    evt.currentTarget.classList.add('active');
+  } else {
+    const btn = document.querySelector(`.region-tab-btn[data-region="${rSlug}"]`);
+    if (btn) btn.classList.add('active');
+  }
   const view = document.getElementById(`oq-view-${rSlug}`);
   if (view) view.classList.add('active');
 }
 
 async function rollOqMatch(matchId) {
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/match/sim`, {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage2/match/sim`, {
       region_slug: activeOqRegion,
       match_id: matchId
     });
@@ -393,7 +398,7 @@ async function simCurrentRound() {
   btn.textContent = '⏳ Đang mô phỏng vòng...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim-round`, {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage2/sim-round`, {
       region_slug: activeOqRegion
     });
     if (res.success) {
@@ -418,7 +423,7 @@ async function simSelectedRegion() {
   btn.textContent = '⏳ Đang mô phỏng khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim-region`, {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage2/sim-region`, {
       region_slug: activeOqRegion
     });
     if (res.success) {
@@ -443,7 +448,7 @@ async function simAllRegions() {
   btn.textContent = '⏳ Đang mô phỏng cả 4 khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage2/sim-all`, {});
     if (res.success) {
       window.location.reload();
     } else {
@@ -623,7 +628,7 @@ async function sendOqManualRequest(winnerId, maps) {
   }
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/match/manual`, {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/oq_stage2/match/manual`, {
       region_slug: activeOqRegion,
       match_id: currentModalMatchId,
       winner_id: winnerId,
