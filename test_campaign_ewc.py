@@ -144,9 +144,9 @@ class TestCampaignEWCIntegration(unittest.TestCase):
         for s in standings:
             self.assertEqual(s.get('cp', 0), 0)
 
-        # 11. Verify Campaign transition to 'stage2'
+        # 11. Verify Campaign transition to 'oq_stage2'
         campaign = db.session.get(Campaign, cid)
-        self.assertEqual(campaign.current_stage, 'stage2')
+        self.assertEqual(campaign.current_stage, 'oq_stage2')
         ewc_stage = CampaignStage.query.filter_by(campaign_id=cid, stage_key='ewc').first()
         self.assertEqual(ewc_stage.status, 'completed')
 

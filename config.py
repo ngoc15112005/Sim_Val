@@ -71,6 +71,7 @@ class Config:
         {'key': 'ewc_qualifier', 'name': 'EWC Regional Qualifier', 'type': 'regional', 'desc': 'Phase 1 (16 teams) + Phase 2 (8 teams) → 2 EWC berths'},
         {'key': 'master', 'name': 'VCT Masters (Masters Toronto)', 'type': 'international', 'desc': '12 International teams'},
         {'key': 'ewc', 'name': 'Esports World Cup (EWC)', 'type': 'international', 'desc': '16 World teams (GSL Groups + Playoffs)'},
+        {'key': 'oq_stage2', 'name': 'Open Qualifier Stage 2', 'type': 'regional', 'desc': '4 Stage 1 bottom teams + 12 Challenger teams → 4 Stage 2 qualifiers'},
         {'key': 'stage2', 'name': 'Regional Stage 2', 'type': 'regional', 'desc': '12 teams → Final Championship Points battle'},
         {'key': 'champion', 'name': 'VALORANT Champions (Paris)', 'type': 'international', 'desc': '16 Best teams worldwide (World Championship)'},
         {'key': 'season_summary', 'name': 'Year-End Hall of Fame', 'type': 'summary', 'desc': 'Annual Recap, Title Winners & MVP'},

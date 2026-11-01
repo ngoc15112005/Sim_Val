@@ -64,6 +64,12 @@
           VCT Masters (Masters Toronto — 12 Đội Tuyển Tinh Hoa Toàn Cầu)
         {% elif campaign.current_stage == 'ewc' %}
           Esports World Cup — Riyadh (16 Đội Tuyển Toàn Cầu)
+        {% elif campaign.current_stage == 'oq_stage2' %}
+          Open Qualifier Stage 2 (16 Đội / Khu Vực)
+        {% elif campaign.current_stage == 'stage2' %}
+          VCT Regional Stage 2 (12 Đội / Khu Vực — Chung Kết Năm)
+        {% elif campaign.current_stage == 'champion' %}
+          VALORANT Champions Paris (16 Đội Tuyển Toàn Cầu)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -83,6 +89,12 @@
           4 Quán quân Stage 1 vào thẳng Tứ kết Playoffs. 8 Á quân & Hạng 3 tranh tài qua Vòng Thụy Sĩ (Swiss 10 trận) để giành 4 suất còn lại vào Double Elimination Playoffs (14 trận). Quán quân nhận 7 Championship Points!
         {% elif campaign.current_stage == 'ewc' %}
           16 đội tuyển tranh tài qua 4 bảng GSL (20 trận BO3) để chọn ra 8 đội vào Vòng Playoffs Single Elimination (8 trận). Nhà Vô Địch Thế Giới nâng cao chiếc Cúp EWC danh giá!
+        {% elif campaign.current_stage == 'oq_stage2' %}
+          4 đội xếp cuối Stage 1 cùng 12 đội tuyển tự do thi đấu Vòng Thụy Sĩ (33 trận) và Double Elimination (10 trận) để giành 4 tấm vé cuối cùng vào VCT Stage 2.
+        {% elif campaign.current_stage == 'stage2' %}
+          12 đội tuyển mỗi khu vực bước vào giai đoạn quyết định Vòng Bảng & Playoffs Stage 2 để tích lũy điểm số và giành vé tới VALORANT Champions Paris!
+        {% elif campaign.current_stage == 'champion' %}
+          Giải vô địch thế giới VALORANT lớn nhất năm quy tụ 16 đội tuyển tinh hoa toàn cầu để tìm ra Tân Vương Thế Giới!
         {% endif %}
       </p>
     </div>
@@ -181,9 +193,52 @@
           Xem lại EWC Qualifier
         </a>
         {% endif %}
-      {% else %}
+      {% elif campaign.current_stage == 'oq_stage2' %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage2" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Open Qualifier Stage 2 ➔
+        </a>
+        {% if ewc_data and ewc_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại EWC
+        </a>
+        {% endif %}
         {% if master_data and master_data.result %}
-        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block;">
+        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Masters Toronto
+        </a>
+        {% endif %}
+      {% elif campaign.current_stage == 'stage2' %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu VCT Stage 2 ➔
+        </a>
+        {% if oq_stage2_data and oq_stage2_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 2
+        </a>
+        {% endif %}
+        {% if ewc_data and ewc_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại EWC
+        </a>
+        {% endif %}
+      {% else %}
+        {% if stage2_data and stage2_data.regional_results %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block;">
+          Xem lại VCT Stage 2
+        </a>
+        {% endif %}
+        {% if oq_stage2_data and oq_stage2_data.regions %}
+        <a href="/campaign/{{ campaign.id }}/stage/oq_stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại OQ Stage 2
+        </a>
+        {% endif %}
+        {% if ewc_data and ewc_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại EWC
+        </a>
+        {% endif %}
+        {% if master_data and master_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Masters Toronto
         </a>
         {% endif %}

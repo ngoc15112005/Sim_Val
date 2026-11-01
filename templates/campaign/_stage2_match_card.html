@@ -1,0 +1,70 @@
+<div class="match-box status-{{ m.status }} round-{{ m.round_name or '' }} {% if m.is_major_decider %}major-decider-box{% endif %}" data-match-id="{{ m.match_id }}" data-round-name="{{ m.round_name or '' }}">
+  <!-- Team A -->
+  <div class="match-team-row team-a {% if m.status == 'completed' and m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}winner{% endif %}">
+    <div class="team-meta">
+      {% if m.status == 'completed' and m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}
+      <span class="winner-arrow">&#9654;</span>
+      {% endif %}
+      {% if m.team_a and m.team_a.logo_url %}
+      <img class="team-logo-sm" src="{{ m.team_a.logo_url }}" alt="" onerror="this.style.display='none'">
+      {% endif %}
+      <span class="team-name" title="{{ m.team_a.name if m.team_a else (m.team_a_source_label or 'TBD') }}">
+        {% if m.team_a %}
+          {{ m.team_a.short_code or m.team_a.name }}
+          {% if m.team_a.group %}<span class="badge" style="font-size: 0.65em; padding: 0 3px;">{{ m.team_a.group }}</span>{% endif %}
+        {% else %}
+          <span style="color: var(--dim); font-style: italic;">{{ m.team_a_source_label or 'TBD' }}</span>
+        {% endif %}
+      </span>
+    </div>
+    <span class="team-score-box {% if m.status == 'completed' %}{% if m.winner_id == ((m.team_a.id if m.team_a.id is defined else m.team_a.club_id) if m.team_a else None) %}win{% else %}loss{% endif %}{% endif %}">
+      {% if m.status == 'completed' %}{{ m.team_a_score }}{% else %}-{% endif %}
+    </span>
+  </div>
+
+  <!-- Team B -->
+  <div class="match-team-row team-b {% if m.status == 'completed' and m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}winner{% endif %}">
+    <div class="team-meta">
+      {% if m.status == 'completed' and m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}
+      <span class="winner-arrow">&#9654;</span>
+      {% endif %}
+      {% if m.team_b and m.team_b.logo_url %}
+      <img class="team-logo-sm" src="{{ m.team_b.logo_url }}" alt="" onerror="this.style.display='none'">
+      {% endif %}
+      <span class="team-name" title="{{ m.team_b.name if m.team_b else (m.team_b_source_label or 'TBD') }}">
+        {% if m.team_b %}
+          {{ m.team_b.short_code or m.team_b.name }}
+          {% if m.team_b.group %}<span class="badge" style="font-size: 0.65em; padding: 0 3px;">{{ m.team_b.group }}</span>{% endif %}
+        {% else %}
+          <span style="color: var(--dim); font-style: italic;">{{ m.team_b_source_label or 'TBD' }}</span>
+        {% endif %}
+      </span>
+    </div>
+    <span class="team-score-box {% if m.status == 'completed' %}{% if m.winner_id == ((m.team_b.id if m.team_b.id is defined else m.team_b.club_id) if m.team_b else None) %}win{% else %}loss{% endif %}{% endif %}">
+      {% if m.status == 'completed' %}{{ m.team_b_score }}{% else %}-{% endif %}
+    </span>
+  </div>
+
+  <!-- Map Scores Detail -->
+  {% if m.status == 'completed' and m.maps %}
+  <div class="match-maps-detail" title="Tỷ số các map">
+    {% for map_item in m.maps %}
+    <span class="map-pill">{{ map_item.team_a_score }}-{{ map_item.team_b_score }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Match Actions -->
+  <div class="match-actions">
+    {% if m.team_a and m.team_b %}
+    <button class="match-edit-btn" type="button" onclick="openStage2ManualModal('{{ m.match_id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id or m.team_a.club_id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id or m.team_b.club_id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" title="{% if m.status == 'completed' %}Sửa kết quả{% else %}Nhập tay{% endif %}">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </button>
+    {% endif %}
+    {% if m.status == 'pending' and m.team_a and m.team_b %}
+    <button class="match-roll-btn" type="button" onclick="rollStage2Match('{{ m.match_id }}')" title="Roll ngẫu nhiên">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.99.99 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.4 12 10.65l5.96-3.25L12 4.15zM5 8.79v6.86l5 2.81V11.6L5 8.79zm7 9.67l5-2.81V8.79l-5 2.81v6.86z"/></svg>
+    </button>
+    {% endif %}
+  </div>
+</div>

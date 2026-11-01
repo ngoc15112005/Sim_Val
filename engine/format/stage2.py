@@ -1,0 +1,791 @@
+"""
+engine/format/stage2.py — VCT Stage 2 Interactive Engine (Regular Season + Playoffs)
+
+Official VCT 2025 Format:
+- 12 teams per region (Pacific, Americas, EMEA, China):
+  * 8 retained teams from Stage 1
+  * 4 qualified teams from Open Qualifier Stage 2
+- Group Partition: Group Alpha (6 teams) and Group Omega (6 teams)
+- Regular Season (Vòng Bảng):
+  * 5 Weeks × 6 matches/week = 30 matches BO3 (5 matches per team)
+  * 1 Championship Point per match win!
+  * Top 3 teams from Group Alpha + Top 3 teams from Group Omega advance to Playoffs (6 teams total)
+  * Ranks 4-6 from each group are eliminated (Ranks 7-12)
+- Playoffs (6-team Double Elimination, 8 matches):
+  * Knockout Round 1:
+    - KO 1: Alpha #2 vs Omega #3 (BO3) -> Loser 5th-6th (0 CP)
+    - KO 2: Omega #2 vs Alpha #3 (BO3) -> Loser 5th-6th (0 CP)
+  * Upper Semifinals (Alpha #1 & Omega #1 have BYES):
+    - USF 1: Alpha #1 vs Winner KO 2 (BO3)
+    - USF 2: Omega #1 vs Winner KO 1 (BO3)
+  * Upper Final: Winner USF 1 vs Winner USF 2 (BO3)
+  * Lower Semifinal: Loser USF 1 vs Loser USF 2 (BO3) -> Loser 4th (+3 CP)
+  * Lower Final: Loser Upper Final vs Winner Lower Semifinal (BO5) -> Loser 3rd (+4 CP)
+  * Grand Final: Winner Upper Final vs Winner Lower Final (BO5)
+    - Winner: Champion (+7 CP, direct Seed 1 to Champions Paris)
+    - Loser: Runner-up (+5 CP, direct Seed 2 to Champions Paris)
+- Qualifiers to VALORANT Champions Paris (4 teams per region = 16 teams worldwide):
+  * Slot 1: Vô địch Stage 2 Playoffs (Seed 1)
+  * Slot 2: Á quân Stage 2 Playoffs (Seed 2)
+  * Slot 3: Highest Championship Points in region among non-qualified teams (Seed 3)
+  * Slot 4: 2nd Highest Championship Points in region among non-qualified teams (Seed 4)
+"""
+
+import copy
+import random
+from typing import Any, Dict, List, Optional, Tuple
+
+
+def stage2_config() -> Dict[str, Any]:
+    return {
+        'teams_per_region': 12,
+        'group_alpha_teams': 6,
+        'group_omega_teams': 6,
+        'regular_season_weeks': 5,
+        'regular_season_matches': 30,
+        'playoff_teams': 6,
+        'playoff_matches': 8,
+        'total_matches': 38,
+        'regular_win_cp': 1,
+        'playoff_cp': {1: 7, 2: 5, 3: 4, 4: 3},
+        'champions_qualifiers_count': 4,
+    }
+
+
+def partition_stage2_groups(participants: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Partition 12 teams into Group Alpha (6) and Group Omega (6) using serpentine seeding based on Stage 1 / OQ results."""
+    sorted_teams = sorted(
+        participants,
+        key=lambda t: (t.get('seed') or t.get('stage1_rank') or 999, -t.get('story_rating', 80), t.get('name', ''))
+    )
+    # Serpentine distribution:
+    # 1 -> Alpha, 2 -> Omega, 3 -> Omega, 4 -> Alpha
+    # 5 -> Alpha, 6 -> Omega, 7 -> Omega, 8 -> Alpha
+    # 9 -> Alpha, 10 -> Omega, 11 -> Omega, 12 -> Alpha
+    alpha_indices = {0, 3, 4, 7, 8, 11}
+    group_alpha = []
+    group_omega = []
+    for idx, t in enumerate(sorted_teams):
+        t_copy = copy.deepcopy(t)
+        if idx in alpha_indices:
+            t_copy['group'] = 'Alpha'
+            group_alpha.append(t_copy)
+        else:
+            t_copy['group'] = 'Omega'
+            group_omega.append(t_copy)
+
+    return group_alpha, group_omega
+
+
+def _gen_map_score_stage2(winner_rating: int, loser_rating: int) -> Tuple[int, int]:
+    diff = winner_rating - loser_rating
+    roll = random.random()
+    if diff >= 10:
+        if roll < 0.35:
+            return 13, random.randint(3, 7)
+        elif roll < 0.80:
+            return 13, random.randint(8, 10)
+        else:
+            return random.choice([(13, 11), (14, 12), (15, 13)])
+    elif diff >= 4:
+        if roll < 0.20:
+            return 13, random.randint(5, 7)
+        elif roll < 0.70:
+            return 13, random.randint(8, 10)
+        else:
+            return random.choice([(13, 11), (14, 12), (15, 13)])
+    else:
+        if roll < 0.50:
+            return 13, random.randint(8, 10)
+        else:
+            return random.choice([(13, 11), (14, 12), (15, 13)])
+
+
+def simulate_stage2_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: int = 3,
+                          rating_lookup: Optional[Dict[int, int]] = None,
+                          form_lookup: Optional[Dict[int, int]] = None,
+                          manual_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    id_a = team_a.get('id') if 'id' in team_a else team_a.get('club_id')
+    id_b = team_b.get('id') if 'id' in team_b else team_b.get('club_id')
+
+    r_a = (rating_lookup.get(id_a) if rating_lookup else None) or team_a.get('story_rating') or team_a.get('current_rating') or 80
+    r_b = (rating_lookup.get(id_b) if rating_lookup else None) or team_b.get('story_rating') or team_b.get('current_rating') or 80
+    f_a = (form_lookup.get(id_a) if form_lookup else None) or team_a.get('form_modifier') or 0
+    f_b = (form_lookup.get(id_b) if form_lookup else None) or team_b.get('form_modifier') or 0
+
+    eff_a = r_a + f_a
+    eff_b = r_b + f_b
+
+    target_wins = 3 if bo == 5 else 2
+    max_maps = bo
+
+    if manual_override and manual_override.get('winner_id') in (id_a, id_b):
+        winner_id = manual_override['winner_id']
+        winner = team_a if winner_id == id_a else team_b
+        loser = team_b if winner == team_a else team_a
+
+        custom_maps = manual_override.get('maps', [])
+        if custom_maps:
+            wins_a = sum(1 for m in custom_maps if m['team_a_score'] > m['team_b_score'])
+            wins_b = sum(1 for m in custom_maps if m['team_b_score'] > m['team_a_score'])
+            return {
+                'team_a': team_a, 'team_b': team_b,
+                'team_a_id': id_a, 'team_b_id': id_b,
+                'team_a_score': wins_a, 'team_b_score': wins_b,
+                'winner': winner, 'loser': loser,
+                'winner_id': winner_id, 'loser_id': loser.get('id') or loser.get('club_id'),
+                'maps': custom_maps,
+                'bo': bo,
+                'is_manual': True,
+            }
+        else:
+            wins_a = target_wins if winner == team_a else 1
+            wins_b = target_wins if winner == team_b else 1
+            maps = []
+            for i in range(target_wins):
+                sc_w, sc_l = _gen_map_score_stage2(eff_a if winner == team_a else eff_b, eff_b if winner == team_a else eff_a)
+                maps.append({
+                    'map_number': i + 1,
+                    'team_a_score': sc_w if winner == team_a else sc_l,
+                    'team_b_score': sc_l if winner == team_a else sc_w,
+                    'winner_id': winner_id,
+                })
+            return {
+                'team_a': team_a, 'team_b': team_b,
+                'team_a_id': id_a, 'team_b_id': id_b,
+                'team_a_score': wins_a, 'team_b_score': wins_b,
+                'winner': winner, 'loser': loser,
+                'winner_id': winner_id, 'loser_id': loser.get('id') or loser.get('club_id'),
+                'maps': maps,
+                'bo': bo,
+                'is_manual': True,
+            }
+
+    diff = eff_a - eff_b
+    prob_a = max(0.15, min(0.85, 0.50 + diff * 0.0125))
+
+    wins_a = 0
+    wins_b = 0
+    maps = []
+
+    for map_idx in range(max_maps):
+        roll = random.random()
+        if roll < prob_a:
+            sc_win, sc_lose = _gen_map_score_stage2(eff_a, eff_b)
+            wins_a += 1
+            maps.append({
+                'map_number': map_idx + 1,
+                'team_a_score': sc_win,
+                'team_b_score': sc_lose,
+                'winner_id': id_a,
+            })
+        else:
+            sc_win, sc_lose = _gen_map_score_stage2(eff_b, eff_a)
+            wins_b += 1
+            maps.append({
+                'map_number': map_idx + 1,
+                'team_a_score': sc_lose,
+                'team_b_score': sc_win,
+                'winner_id': id_b,
+            })
+
+        if wins_a == target_wins or wins_b == target_wins:
+            break
+
+    winner = team_a if wins_a > wins_b else team_b
+    loser = team_b if wins_a > wins_b else team_a
+
+    return {
+        'team_a': team_a, 'team_b': team_b,
+        'team_a_id': id_a, 'team_b_id': id_b,
+        'team_a_score': wins_a, 'team_b_score': wins_b,
+        'winner': winner, 'loser': loser,
+        'winner_id': winner.get('id') or winner.get('club_id'),
+        'loser_id': loser.get('id') or loser.get('club_id'),
+        'maps': maps,
+        'bo': bo,
+        'is_manual': False,
+    }
+
+
+def compute_stage2_group_standings(group_teams: List[Dict[str, Any]],
+                                   completed_matches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    stats = {}
+    for t in group_teams:
+        t_id = t.get('id') or t.get('club_id')
+        stats[t_id] = {
+            'team': t,
+            'club_id': t_id,
+            'name': t.get('name'),
+            'short_code': t.get('short_code'),
+            'logo_url': t.get('logo_url'),
+            'group': t.get('group'),
+            'story_rating': t.get('story_rating', 80),
+            'wins': 0,
+            'losses': 0,
+            'map_won': 0,
+            'map_lost': 0,
+            'map_diff': 0,
+            'round_won': 0,
+            'round_lost': 0,
+            'round_diff': 0,
+            'cp_earned': 0,
+        }
+
+    for m in completed_matches:
+        if m.get('status') != 'completed':
+            continue
+        a_id = m.get('team_a_id')
+        b_id = m.get('team_b_id')
+        sc_a = m.get('team_a_score', 0)
+        sc_b = m.get('team_b_score', 0)
+        maps = m.get('maps', [])
+
+        rd_a = sum(map_info.get('team_a_score', 0) for map_info in maps)
+        rd_b = sum(map_info.get('team_b_score', 0) for map_info in maps)
+
+        if a_id in stats:
+            if sc_a > sc_b:
+                stats[a_id]['wins'] += 1
+                stats[a_id]['cp_earned'] += 1
+            else:
+                stats[a_id]['losses'] += 1
+            stats[a_id]['map_won'] += sc_a
+            stats[a_id]['map_lost'] += sc_b
+            stats[a_id]['map_diff'] = stats[a_id]['map_won'] - stats[a_id]['map_lost']
+            stats[a_id]['round_won'] += rd_a
+            stats[a_id]['round_lost'] += rd_b
+            stats[a_id]['round_diff'] = stats[a_id]['round_won'] - stats[a_id]['round_lost']
+
+        if b_id in stats:
+            if sc_b > sc_a:
+                stats[b_id]['wins'] += 1
+                stats[b_id]['cp_earned'] += 1
+            else:
+                stats[b_id]['losses'] += 1
+            stats[b_id]['map_won'] += sc_b
+            stats[b_id]['map_lost'] += sc_a
+            stats[b_id]['map_diff'] = stats[b_id]['map_won'] - stats[b_id]['map_lost']
+            stats[b_id]['round_won'] += rd_b
+            stats[b_id]['round_lost'] += rd_a
+            stats[b_id]['round_diff'] = stats[b_id]['round_won'] - stats[b_id]['round_lost']
+
+    standings = list(stats.values())
+    standings.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff'], -s['story_rating']))
+
+    for i, s in enumerate(standings):
+        s['rank'] = i + 1
+        s['advanced'] = (i < 3)
+
+    return standings
+
+
+def generate_round_robin_schedule(teams: List[Dict[str, Any]]) -> List[List[Tuple[Dict[str, Any], Dict[str, Any]]]]:
+    """Generate 5 rounds of 3 matches for 6 teams (15 matches total).
+    Standard circle method: team 0 is fixed, teams 1..5 rotate.
+    Returns 5 rounds, each containing 3 pairings.
+    """
+    if len(teams) != 6:
+        raise ValueError(f"Expected 6 teams for group round-robin, got {len(teams)}")
+
+    rounds_indices = [
+        [(0, 5), (1, 4), (2, 3)],
+        [(0, 4), (5, 3), (1, 2)],
+        [(0, 3), (4, 2), (5, 1)],
+        [(0, 2), (3, 1), (4, 5)],
+        [(0, 1), (2, 5), (3, 4)],
+    ]
+
+    schedule = []
+    for r in rounds_indices:
+        round_pairs = []
+        for i, j in r:
+            round_pairs.append((teams[i], teams[j]))
+        schedule.append(round_pairs)
+    return schedule
+
+
+def init_stage2_region_state(region_slug: str, participants: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if len(participants) != 12:
+        raise ValueError(f"Stage 2 requires exactly 12 teams, got {len(participants)}")
+
+    group_alpha, group_omega = partition_stage2_groups(participants)
+    alpha_schedule = generate_round_robin_schedule(group_alpha)
+    omega_schedule = generate_round_robin_schedule(group_omega)
+
+    regular_matches = []
+    # 5 Weeks: in each week, 3 matches from Group Alpha + 3 matches from Group Omega = 6 matches/week (total 30 matches, 5 matches/team)
+    for w in range(1, 6):
+        # Group Alpha matches (1-3)
+        for idx, (t_a, t_b) in enumerate(alpha_schedule[w - 1]):
+            m_idx = idx + 1
+            m_id = f"reg_w{w}_m{m_idx}"
+            regular_matches.append({
+                'match_id': m_id,
+                'phase': 'regular_season',
+                'week': w,
+                'match_number': m_idx,
+                'group': 'Alpha',
+                'label': f"Tuần {w} — Alpha Trận {m_idx}",
+                'bo': 3,
+                'team_a': t_a,
+                'team_b': t_b,
+                'team_a_id': t_a.get('id') or t_a.get('club_id'),
+                'team_b_id': t_b.get('id') or t_b.get('club_id'),
+                'team_a_score': 0,
+                'team_b_score': 0,
+                'winner': None,
+                'loser': None,
+                'winner_id': None,
+                'loser_id': None,
+                'status': 'pending',
+                'ready': True,
+                'maps': [],
+                'is_manual': False,
+            })
+
+        # Group Omega matches (4-6)
+        for idx, (t_a, t_b) in enumerate(omega_schedule[w - 1]):
+            m_idx = idx + 4
+            m_id = f"reg_w{w}_m{m_idx}"
+            regular_matches.append({
+                'match_id': m_id,
+                'phase': 'regular_season',
+                'week': w,
+                'match_number': m_idx,
+                'group': 'Omega',
+                'label': f"Tuần {w} — Omega Trận {idx + 1}",
+                'bo': 3,
+                'team_a': t_a,
+                'team_b': t_b,
+                'team_a_id': t_a.get('id') or t_a.get('club_id'),
+                'team_b_id': t_b.get('id') or t_b.get('club_id'),
+                'team_a_score': 0,
+                'team_b_score': 0,
+                'winner': None,
+                'loser': None,
+                'winner_id': None,
+                'loser_id': None,
+                'status': 'pending',
+                'ready': True,
+                'maps': [],
+                'is_manual': False,
+            })
+
+    # 6-Team Double Elimination Playoffs (8 matches)
+    playoff_matches = [
+        # Knockout Round 1
+        {
+            'match_id': 'ko_1',
+            'phase': 'playoffs',
+            'round_name': 'knockout_r1',
+            'bracket': 'upper',
+            'label': 'Vòng Loại 1 (KO 1)',
+            'bo': 3,
+            'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 2},
+            'team_b_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 3},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+        {
+            'match_id': 'ko_2',
+            'phase': 'playoffs',
+            'round_name': 'knockout_r1',
+            'bracket': 'upper',
+            'label': 'Vòng Loại 2 (KO 2)',
+            'bo': 3,
+            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 2},
+            'team_b_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 3},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+
+        # Upper Semifinals
+        {
+            'match_id': 'upper_sf_1',
+            'phase': 'playoffs',
+            'round_name': 'upper_semifinals',
+            'bracket': 'upper',
+            'label': 'Bán Kết Nhánh Thắng 1 (USF 1)',
+            'bo': 3,
+            'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 1},
+            'team_b_source': {'type': 'winner_of', 'value': 'ko_2'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+        {
+            'match_id': 'upper_sf_2',
+            'phase': 'playoffs',
+            'round_name': 'upper_semifinals',
+            'bracket': 'upper',
+            'label': 'Bán Kết Nhánh Thắng 2 (USF 2)',
+            'bo': 3,
+            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 1},
+            'team_b_source': {'type': 'winner_of', 'value': 'ko_1'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+
+        # Upper Final
+        {
+            'match_id': 'upper_final',
+            'phase': 'playoffs',
+            'round_name': 'upper_final',
+            'bracket': 'upper',
+            'label': 'Chung Kết Nhánh Thắng (Upper Final)',
+            'bo': 3,
+            'team_a_source': {'type': 'winner_of', 'value': 'upper_sf_1'},
+            'team_b_source': {'type': 'winner_of', 'value': 'upper_sf_2'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+
+        # Lower Semifinal
+        {
+            'match_id': 'lower_semifinal',
+            'phase': 'playoffs',
+            'round_name': 'lower_semifinal',
+            'bracket': 'lower',
+            'label': 'Bán Kết Nhánh Thua (Lower Semifinal)',
+            'bo': 3,
+            'team_a_source': {'type': 'loser_of', 'value': 'upper_sf_1'},
+            'team_b_source': {'type': 'loser_of', 'value': 'upper_sf_2'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+
+        # Lower Final
+        {
+            'match_id': 'lower_final',
+            'phase': 'playoffs',
+            'round_name': 'lower_final',
+            'bracket': 'lower',
+            'label': 'Chung Kết Nhánh Thua (Lower Final)',
+            'bo': 5,
+            'team_a_source': {'type': 'loser_of', 'value': 'upper_final'},
+            'team_b_source': {'type': 'winner_of', 'value': 'lower_semifinal'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+
+        # Grand Final
+        {
+            'match_id': 'grand_final',
+            'phase': 'playoffs',
+            'round_name': 'grand_final',
+            'bracket': 'grand_final',
+            'label': 'Chung Kết Tổng (Grand Final)',
+            'bo': 5,
+            'team_a_source': {'type': 'winner_of', 'value': 'upper_final'},
+            'team_b_source': {'type': 'winner_of', 'value': 'lower_final'},
+            'team_a': None, 'team_b': None,
+            'team_a_id': None, 'team_b_id': None,
+            'team_a_score': 0, 'team_b_score': 0,
+            'winner': None, 'loser': None, 'winner_id': None, 'loser_id': None,
+            'status': 'pending', 'ready': False, 'maps': [], 'is_manual': False,
+        },
+    ]
+
+    state = {
+        'region': region_slug,
+        'participants': participants,
+        'current_phase': 'regular_season',  # 'regular_season' -> 'playoffs' -> 'completed'
+        'status': 'in_progress',
+        'group_alpha': group_alpha,
+        'group_omega': group_omega,
+        'alpha_standings': compute_stage2_group_standings(group_alpha, []),
+        'omega_standings': compute_stage2_group_standings(group_omega, []),
+        'regular_matches': regular_matches,
+        'playoff_matches': playoff_matches,
+        'champion': None,
+        'runner_up': None,
+        'third_place': None,
+        'fourth_place': None,
+        'champions_qualifiers': [],
+        'standings': [],
+        'rewards_awarded': False,
+    }
+
+    _resolve_stage2_playoff_slots(state)
+    return state
+
+
+def _resolve_stage2_playoff_slots(state: Dict[str, Any]):
+    alpha_standings = state.get('alpha_standings', [])
+    omega_standings = state.get('omega_standings', [])
+    playoff_matches = state.get('playoff_matches', [])
+    completed_playoffs = {m['match_id']: m for m in playoff_matches if m.get('status') == 'completed'}
+
+    reg_completed = all(m.get('status') == 'completed' for m in state.get('regular_matches', []))
+
+    def resolve_source(src: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], str]:
+        stype = src.get('type')
+        if stype == 'group_seed':
+            grp = src.get('group')
+            seed = src.get('seed')
+            st_list = alpha_standings if grp == 'Alpha' else omega_standings
+            label = f"{grp} #{seed}"
+            if reg_completed and len(st_list) >= seed:
+                return st_list[seed - 1]['team'], label
+            return None, label
+
+        elif stype == 'winner_of':
+            ref_id = src.get('value')
+            label = f"Thắng {ref_id}"
+            if ref_id in completed_playoffs:
+                return completed_playoffs[ref_id].get('winner'), label
+            return None, label
+
+        elif stype == 'loser_of':
+            ref_id = src.get('value')
+            label = f"Thua {ref_id}"
+            if ref_id in completed_playoffs:
+                return completed_playoffs[ref_id].get('loser'), label
+            return None, label
+
+        return None, 'TBD'
+
+    for pm in playoff_matches:
+        if pm.get('status') == 'completed':
+            continue
+
+        team_a, label_a = resolve_source(pm['team_a_source'])
+        team_b, label_b = resolve_source(pm['team_b_source'])
+
+        pm['team_a'] = team_a
+        pm['team_b'] = team_b
+        pm['team_a_id'] = (team_a.get('id') or team_a.get('club_id')) if team_a else None
+        pm['team_b_id'] = (team_b.get('id') or team_b.get('club_id')) if team_b else None
+        pm['team_a_source_label'] = label_a
+        pm['team_b_source_label'] = label_b
+        pm['ready'] = (team_a is not None and team_b is not None)
+
+
+def advance_stage2_region(state: Dict[str, Any]) -> bool:
+    reg_matches = state.get('regular_matches', [])
+    reg_done = all(m.get('status') == 'completed' for m in reg_matches)
+
+    state['alpha_standings'] = compute_stage2_group_standings(state['group_alpha'], reg_matches)
+    state['omega_standings'] = compute_stage2_group_standings(state['group_omega'], reg_matches)
+
+    if reg_done and state['current_phase'] == 'regular_season':
+        state['current_phase'] = 'playoffs'
+
+    _resolve_stage2_playoff_slots(state)
+
+    playoff_matches = state.get('playoff_matches', [])
+    playoffs_done = all(m.get('status') == 'completed' for m in playoff_matches)
+
+    if playoffs_done and state['current_phase'] == 'playoffs':
+        state['current_phase'] = 'completed'
+        state['status'] = 'completed'
+
+        completed_map = {m['match_id']: m for m in playoff_matches}
+        gf = completed_map.get('grand_final')
+        lf = completed_map.get('lower_final')
+        lsf = completed_map.get('lower_semifinal')
+        ko1 = completed_map.get('ko_1')
+        ko2 = completed_map.get('ko_2')
+
+        champ = gf.get('winner') if gf else None
+        runner = gf.get('loser') if gf else None
+        third = lf.get('loser') if lf else None
+        fourth = lsf.get('loser') if lsf else None
+        fifth_a = ko1.get('loser') if ko1 else None
+        fifth_b = ko2.get('loser') if ko2 else None
+
+        state['champion'] = champ
+        state['runner_up'] = runner
+        state['third_place'] = third
+        state['fourth_place'] = fourth
+
+        # Eliminated from group stage: Ranks 7-12
+        eliminated_groups = []
+        for s in state['alpha_standings'][3:]:
+            eliminated_groups.append(s)
+        for s in state['omega_standings'][3:]:
+            eliminated_groups.append(s)
+        eliminated_groups.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff']))
+
+        # Full 12 team standings
+        standings = []
+        if champ:
+            standings.append({'rank': 1, 'team': champ, 'club_id': champ.get('id') or champ.get('club_id'), 'cp': 7, 'desc': 'Vô địch Stage 2 (Vé Champions #1)'})
+        if runner:
+            standings.append({'rank': 2, 'team': runner, 'club_id': runner.get('id') or runner.get('club_id'), 'cp': 5, 'desc': 'Á quân Stage 2 (Vé Champions #2)'})
+        if third:
+            standings.append({'rank': 3, 'team': third, 'club_id': third.get('id') or third.get('club_id'), 'cp': 4, 'desc': 'Hạng 3 Stage 2 (+4 CP)'})
+        if fourth:
+            standings.append({'rank': 4, 'team': fourth, 'club_id': fourth.get('id') or fourth.get('club_id'), 'cp': 3, 'desc': 'Hạng 4 Stage 2 (+3 CP)'})
+        if fifth_a:
+            standings.append({'rank': 5, 'team': fifth_a, 'club_id': fifth_a.get('id') or fifth_a.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 Stage 2'})
+        if fifth_b:
+            standings.append({'rank': 6, 'team': fifth_b, 'club_id': fifth_b.get('id') or fifth_b.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 Stage 2'})
+
+        for idx, el in enumerate(eliminated_groups):
+            t = el['team']
+            standings.append({
+                'rank': 7 + idx,
+                'team': t,
+                'club_id': t.get('id') or t.get('club_id'),
+                'cp': 0,
+                'desc': f"Hạng {7 + idx} (Bị loại vòng bảng)",
+            })
+
+        state['standings'] = standings
+
+        # Direct Champions Qualifiers from Stage 2 Playoffs:
+        state['champions_playoff_qualifiers'] = [
+            {'team': champ, 'regional_seed': 1, 'slot_type': 'stage2_champion', 'title': f"{state['region'].upper()} Stage 2 Champion"},
+            {'team': runner, 'regional_seed': 2, 'slot_type': 'stage2_runner_up', 'title': f"{state['region'].upper()} Stage 2 Runner-up"},
+        ]
+
+        return True
+
+    return False
+
+
+def resolve_stage2_match(state: Dict[str, Any], match_id: str,
+                         winner_id: Optional[int] = None,
+                         maps: Optional[List[Dict[str, Any]]] = None,
+                         rating_lookup: Optional[Dict[int, int]] = None,
+                         form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
+    target_match = None
+    is_regular = False
+
+    for m in state.get('regular_matches', []):
+        if m['match_id'] == match_id:
+            target_match = m
+            is_regular = True
+            break
+
+    if not target_match:
+        for m in state.get('playoff_matches', []):
+            if m['match_id'] == match_id:
+                target_match = m
+                is_regular = False
+                break
+
+    if not target_match:
+        raise ValueError(f"Match {match_id} not found in Stage 2")
+
+    # Safeguards:
+    # 1. If modifying a regular season match, ensure playoffs haven't started!
+    if is_regular:
+        playoffs_started = any(m.get('status') == 'completed' for m in state.get('playoff_matches', []))
+        if playoffs_started and target_match.get('status') == 'completed':
+            raise ValueError("Không thể sửa trận vòng bảng khi vòng Playoffs đã bắt đầu thi đấu. Hãy hoàn tất giải đấu.")
+    else:
+        # 2. If modifying a playoff match, check downstream matches!
+        downstream_map = {
+            'ko_1': ['upper_sf_2'],
+            'ko_2': ['upper_sf_1'],
+            'upper_sf_1': ['upper_final', 'lower_semifinal'],
+            'upper_sf_2': ['upper_final', 'lower_semifinal'],
+            'upper_final': ['grand_final', 'lower_final'],
+            'lower_semifinal': ['lower_final'],
+            'lower_final': ['grand_final'],
+            'grand_final': [],
+        }
+        for ds_id in downstream_map.get(match_id, []):
+            ds_match = next((m for m in state['playoff_matches'] if m['match_id'] == ds_id), None)
+            if ds_match and ds_match.get('status') == 'completed':
+                raise ValueError(f"Không thể sửa trận {match_id} vì trận đấu sau ({ds_match.get('label')}) đã hoàn thành. Hãy sửa từ trận mới nhất.")
+
+    if not target_match.get('team_a') or not target_match.get('team_b'):
+        raise ValueError(f"Trận {match_id} chưa đủ 2 đội tham gia thi đấu.")
+
+    manual_override = None
+    if winner_id is not None:
+        manual_override = {'winner_id': winner_id, 'maps': maps or []}
+
+    sim_res = simulate_stage2_match(
+        target_match['team_a'], target_match['team_b'],
+        bo=target_match['bo'],
+        rating_lookup=rating_lookup,
+        form_lookup=form_lookup,
+        manual_override=manual_override,
+    )
+
+    target_match['status'] = 'completed'
+    target_match['winner'] = sim_res['winner']
+    target_match['loser'] = sim_res['loser']
+    target_match['winner_id'] = sim_res['winner_id']
+    target_match['loser_id'] = sim_res['loser_id']
+    target_match['team_a_score'] = sim_res['team_a_score']
+    target_match['team_b_score'] = sim_res['team_b_score']
+    target_match['maps'] = sim_res['maps']
+    target_match['is_manual'] = sim_res['is_manual']
+
+    advance_stage2_region(state)
+    return target_match
+
+
+def sim_stage2_round(state: Dict[str, Any],
+                     rating_lookup: Optional[Dict[int, int]] = None,
+                     form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate the active week in regular season or the active playable playoff wave."""
+    if state.get('status') == 'completed':
+        return 0
+
+    # 1. Check if Regular Season has pending matches
+    reg_matches = state.get('regular_matches', [])
+    pending_reg = [m for m in reg_matches if m.get('status') != 'completed']
+    if pending_reg:
+        # Find lowest week with pending matches
+        active_week = min(m['week'] for m in pending_reg)
+        week_matches = [m for m in pending_reg if m['week'] == active_week]
+        count = 0
+        for m in week_matches:
+            resolve_stage2_match(state, m['match_id'], rating_lookup=rating_lookup, form_lookup=form_lookup)
+            count += 1
+        return count
+
+    # 2. Regular Season complete, advance playoffs wave
+    playoff_matches = state.get('playoff_matches', [])
+    _resolve_stage2_playoff_slots(state)
+    ready_playoffs = [m for m in playoff_matches if m.get('status') != 'completed' and m.get('ready')]
+    if not ready_playoffs:
+        return 0
+
+    count = 0
+    # Process only currently ready matches in snapshot
+    for m in list(ready_playoffs):
+        resolve_stage2_match(state, m['match_id'], rating_lookup=rating_lookup, form_lookup=form_lookup)
+        count += 1
+
+    return count
+
+
+def sim_stage2_remaining(state: Dict[str, Any],
+                         rating_lookup: Optional[Dict[int, int]] = None,
+                         form_lookup: Optional[Dict[int, int]] = None) -> int:
+    """Simulate all remaining matches in Stage 2 until complete."""
+    total_simmed = 0
+    while state.get('status') != 'completed':
+        count = sim_stage2_round(state, rating_lookup=rating_lookup, form_lookup=form_lookup)
+        if count == 0:
+            break
+        total_simmed += count
+    return total_simmed
