@@ -30,6 +30,7 @@ Official VCT 2025 Format:
 import copy
 import random
 from typing import Any, Dict, List, Optional, Tuple
+from engine.match import validate_and_normalize_manual_maps
 
 
 def stage1_config() -> Dict[str, Any]:
@@ -123,15 +124,18 @@ def simulate_stage1_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: in
 
         custom_maps = manual_override.get('maps', [])
         if custom_maps:
-            wins_a = sum(1 for m in custom_maps if m['team_a_score'] > m['team_b_score'])
-            wins_b = sum(1 for m in custom_maps if m['team_b_score'] > m['team_a_score'])
+            wins_a, wins_b, real_w_id, real_l_id, sanitized_maps = validate_and_normalize_manual_maps(
+                custom_maps, bo=bo, id_a=id_a, id_b=id_b, forced_winner_id=winner_id
+            )
+            real_winner = team_a if real_w_id == id_a else team_b
+            real_loser = team_b if real_w_id == id_a else team_a
             return {
                 'team_a': team_a, 'team_b': team_b,
                 'team_a_id': id_a, 'team_b_id': id_b,
                 'team_a_score': wins_a, 'team_b_score': wins_b,
-                'winner': winner, 'loser': loser,
-                'winner_id': winner_id, 'loser_id': loser.get('id') or loser.get('club_id'),
-                'maps': custom_maps,
+                'winner': real_winner, 'loser': real_loser,
+                'winner_id': real_w_id, 'loser_id': real_l_id,
+                'maps': sanitized_maps,
                 'bo': bo,
                 'is_manual': True,
             }

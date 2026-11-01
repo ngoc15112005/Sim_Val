@@ -3181,6 +3181,36 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
         )
         db.session.add(hof_stage)
 
+    # 1b. Archive to CampaignSeason history table
+    season_rec = CampaignSeason.query.filter_by(campaign_id=campaign.id, year=old_year).first()
+    if not season_rec:
+        titles = summary_data.get('titles', {})
+        major_champ = titles.get('major', {}).get('champion')
+        master_champ = titles.get('master', {}).get('champion')
+        ewc_champ = titles.get('ewc', {}).get('champion')
+        champ_champ = titles.get('champion', {}).get('champion')
+
+        def _extract_cid(team_dict):
+            if not team_dict:
+                return None
+            return team_dict.get('id') or team_dict.get('club_id')
+
+        mvp_state = summary_data.get('accolades', {}).get('club_of_the_year')
+        mvp_cid = mvp_state.get('club_id') if mvp_state else None
+
+        season_rec = CampaignSeason(
+            campaign_id=campaign.id,
+            year=old_year,
+            major_winner_id=_extract_cid(major_champ),
+            master_winner_id=_extract_cid(master_champ),
+            ewc_winner_id=_extract_cid(ewc_champ),
+            champion_winner_id=_extract_cid(champ_champ),
+            mvp_club_id=mvp_cid,
+            recap_data=json.dumps(summary_data),
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.session.add(season_rec)
+
     # 2. Advance year and stage
     campaign.current_year = old_year + 1
     campaign.current_stage = 'open_qualifier'

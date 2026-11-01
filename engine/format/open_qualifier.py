@@ -178,7 +178,12 @@ def _pair_bracket_group(teams: List[Dict[str, Any]], past_opponents: Dict[int, s
                     return res
         return None
 
-    return backtrack(list(teams), [])
+    res = backtrack(list(teams), [])
+    if res is not None:
+        return res
+
+    # Graceful fallback in extreme deadlock: pair in sequential order so engine never crashes or returns None
+    return [(teams[i], teams[i + 1]) for i in range(0, n, 2)]
 
 
 def generate_swiss_round_pairings(teams: List[Dict[str, Any]], current_round: int, completed_matches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

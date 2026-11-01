@@ -1,6 +1,7 @@
 """Match simulation with weighted random outcomes, regional meta DNA, and power-based map scores."""
 
 import random
+from typing import List, Dict, Any, Optional, Tuple
 from models import db, Match, MatchMap
 
 
@@ -200,6 +201,84 @@ def _gen_map_score(winner_rating, loser_rating, is_bo5=False):
         score_pool = [(13, 11), (14, 12), (15, 13), (16, 14), (17, 15)]
 
     return random.choice(score_pool)
+
+
+def validate_and_normalize_manual_maps(
+    maps: List[Dict[str, Any]],
+    bo: int = 3,
+    id_a: Optional[int] = None,
+    id_b: Optional[int] = None,
+    forced_winner_id: Optional[int] = None,
+) -> Tuple[int, int, Optional[int], Optional[int], List[Dict[str, Any]]]:
+    """Validate and sanitize manual map scores according to official Valorant rules.
+
+    Enforces:
+    - Max maps cannot exceed bo.
+    - Scores must be non-negative integers.
+    - No draw rounds: exactly one team has higher score.
+    - Standard win: winner has >= 13.
+    - Overtime win: if both >= 12, winner must lead by exactly 2 rounds (e.g. 14-12, 15-13).
+    - Auto-align winner_id with map scores so stats and bracket never contradict.
+
+    Returns:
+    (wins_a, wins_b, winner_id, loser_id, sanitized_maps)
+    """
+    if not maps:
+        raise ValueError("Danh sách bản đồ không được để trống khi nhập điểm thủ công.")
+
+    max_maps = bo
+
+    if len(maps) > max_maps:
+        raise ValueError(f"Số lượng bản đồ ({len(maps)}) vượt quá giới hạn thể thức BO{bo} (tối đa {max_maps} map).")
+
+    sanitized_maps = []
+    wins_a = 0
+    wins_b = 0
+
+    for idx, m in enumerate(maps, 1):
+        try:
+            sc_a = int(m.get('team_a_score', 0))
+            sc_b = int(m.get('team_b_score', 0))
+        except (ValueError, TypeError):
+            raise ValueError(f"Bản đồ {idx}: Điểm số phải là số nguyên hợp lệ.")
+
+        if sc_a < 0 or sc_b < 0:
+            raise ValueError(f"Bản đồ {idx}: Điểm số không được là số âm ({sc_a} - {sc_b}).")
+
+        if sc_a == sc_b:
+            raise ValueError(f"Bản đồ {idx}: Không được có kết quả hòa ({sc_a} - {sc_b}). Trong Valorant bắt buộc phải có đội thắng.")
+
+        w_sc = max(sc_a, sc_b)
+        l_sc = min(sc_a, sc_b)
+
+        if w_sc < 13:
+            raise ValueError(f"Bản đồ {idx}: Đội thắng phải đạt tối thiểu 13 round ({sc_a} - {sc_b}).")
+
+        # Overtime rule: if loser >= 12, difference must be exactly 2
+        if l_sc >= 12 and (w_sc - l_sc) != 2:
+            raise ValueError(f"Bản đồ {idx}: Trong Overtime, đội thắng phải cách biệt đúng 2 round (ví dụ 14-12, 15-13, không thể là {sc_a}-{sc_b}).")
+
+        w_id = id_a if sc_a > sc_b else id_b
+        if sc_a > sc_b:
+            wins_a += 1
+        else:
+            wins_b += 1
+
+        sanitized_maps.append({
+            'map_number': m.get('map_number', idx),
+            'team_a_score': sc_a,
+            'team_b_score': sc_b,
+            'winner_id': w_id,
+        })
+
+    if wins_a == wins_b:
+        raise ValueError("Số map thắng đang bằng nhau, trận đấu phải có đội giành chiến thắng.")
+
+    # Determine real winner based on map scores
+    actual_winner_id = id_a if wins_a > wins_b else id_b
+    actual_loser_id = id_b if wins_a > wins_b else id_a
+
+    return wins_a, wins_b, actual_winner_id, actual_loser_id, sanitized_maps
 
 
 def simulate_match(match, streak_a=0, streak_b=0):
