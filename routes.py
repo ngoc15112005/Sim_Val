@@ -325,6 +325,9 @@ def register_routes(app):
         sim_oq_stage2_region, sim_oq_stage2_all,
         get_stage2_data, resolve_stage2_match_interactive, sim_stage2_round_interactive,
         sim_stage2_region_interactive, sim_stage2_all_interactive,
+        get_champion_data, resolve_champion_match_interactive,
+        sim_champion_round_interactive, sim_champion_tournament_interactive,
+        run_champion_stage, get_season_summary_data, advance_campaign_to_next_year,
     )
 
     @app.route('/campaigns')
@@ -364,6 +367,7 @@ def register_routes(app):
         ewc_data = get_ewc_data(campaign_id)
         oq_stage2_data = get_oq_stage2_data(campaign_id)
         stage2_data = get_stage2_data(campaign_id)
+        champion_data = get_champion_data(campaign_id)
 
         stages_info = []
         current_found = False
@@ -398,6 +402,7 @@ def register_routes(app):
             ewc_data=ewc_data,
             oq_stage2_data=oq_stage2_data,
             stage2_data=stage2_data,
+            champion_data=champion_data,
             cp_leaderboards=cp_leaderboards,
             cfg=Config,
         )
@@ -1490,8 +1495,112 @@ def register_routes(app):
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+    # ─────────────────────────────────────────────────────────────────────────
+    # Campaign Stage: VALORANT Champions Paris (Interactive View & APIs)
+    # ─────────────────────────────────────────────────────────────────────────
 
+    @app.route('/campaign/<int:campaign_id>/stage/champion')
+    def campaign_champion_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
 
+        champion_data = get_champion_data(campaign_id)
+        return render_template(
+            'campaign/champion.html',
+            campaign=campaign,
+            champion_data=champion_data,
+            cfg=Config,
+        )
 
+    @app.route('/api/campaign/<int:campaign_id>/champion/match/sim', methods=['POST'])
+    def api_campaign_champion_match_sim(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        if not match_id:
+            return jsonify({'error': 'match_id is required'}), 400
+
+        try:
+            res = resolve_champion_match_interactive(campaign_id, match_id, winner_id=None)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/champion/match/manual', methods=['POST'])
+    def api_campaign_champion_match_manual(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json() or {}
+        match_id = data.get('match_id')
+        winner_id = data.get('winner_id')
+        maps = data.get('maps')
+
+        if not match_id or not winner_id:
+            return jsonify({'error': 'match_id and winner_id are required'}), 400
+
+        try:
+            res = resolve_champion_match_interactive(campaign_id, match_id, winner_id=int(winner_id), maps=maps)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/champion/sim-round', methods=['POST'])
+    def api_campaign_champion_sim_round(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_champion_round_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/champion/sim-all', methods=['POST'])
+    def api_campaign_champion_sim_all(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = sim_champion_tournament_interactive(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Campaign Stage: Year-End Hall of Fame & Season Summary View & Rollover
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @app.route('/campaign/<int:campaign_id>/stage/season_summary')
+    def campaign_season_summary_view(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        summary_data = get_season_summary_data(campaign_id)
+        return render_template(
+            'campaign/season_summary.html',
+            campaign=campaign,
+            summary_data=summary_data,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/advance-year', methods=['POST'])
+    def api_campaign_advance_year(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = advance_campaign_to_next_year(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 

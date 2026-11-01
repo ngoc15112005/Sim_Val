@@ -1,0 +1,743 @@
+{% extends "base.html" %}
+{% block title %}VALORANT Champions Paris - {{ campaign.name }} ({{ campaign.current_year }}){% endblock %}
+{% block content %}
+
+{% set res = champion_data.result if champion_data and champion_data.result else None %}
+{% set roster = champion_data.roster if champion_data and champion_data.roster else [] %}
+
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+      {{ campaign.name }} • Năm {{ campaign.current_year }} • Đỉnh Cao Thế Giới
+    </div>
+    <h1 style="font-size: 1.8em; margin: 4px 0; display: flex; align-items: center; gap: 10px;">
+      <span>🏆</span> VALORANT Champions Paris
+    </h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      16 Đội Tuyển Tinh Hoa Toàn Cầu (4 Đội / Khu Vực) • Vòng Bảng GSL (4 Bảng - 20 Trận BO3) • Playoffs Double Elimination 8 Đội (14 Trận)
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    {% if res and res.status == 'completed' %}
+    <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: #eab308; color: #000; border-radius: 6px;">
+      Tới Bảng Vàng & Tổng Kết Năm ➔
+    </a>
+    {% endif %}
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Hub Mùa giải
+    </a>
+  </div>
+</div>
+
+<!-- Simulation Control Bar -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4);{% endif %}">
+        {% if res and res.status == 'completed' %}
+          ĐÃ HOÀN THÀNH (34 TRẬN)
+        {% elif res and res.current_stage == 'playoffs' %}
+          PLAYOFFS DOUBLE ELIMINATION (8 ĐỘI)
+        {% else %}
+          VÒNG BẢNG GSL ĐANG DIỄN RA (16 ĐỘI)
+        {% endif %}
+      </span>
+      <span style="font-size: 0.9em; color: var(--dim); margin-left: 10px;">
+        Vinh quang tối thượng: <strong>World Champion (+10 Rating)</strong> • <strong>Á Quân (+6)</strong> • <strong>Hạng 3 (+4)</strong> • <strong>Hạng 4 (+3)</strong>
+      </span>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+      <button type="button" id="btn-sim-champion-round" class="btn-start" onclick="simChampionRound()" style="padding: 10px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        ⚡ Sim vòng hiện tại
+      </button>
+      <button type="button" id="btn-sim-champion" class="btn-start" onclick="simChampionTournament()" style="padding: 10px 22px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🔥 Sim toàn bộ Champions Paris
+      </button>
+    </div>
+  </div>
+</div>
+
+{% if res and res.status == 'completed' and res.champion %}
+<!-- Champions Paris Podium Banner -->
+<div class="card" style="border: 2px solid #eab308; background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(15, 23, 42, 0.85) 100%); margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+    <div>
+      <span style="background: #eab308; color: #000; padding: 3px 10px; border-radius: 4px; font-weight: 800; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px;">
+        👑 NHÀ VÔ ĐỊCH THẾ GIỚI VALORANT CHAMPIONS PARIS {{ campaign.current_year }}
+      </span>
+      <h2 style="font-size: 2em; margin: 10px 0 4px; color: #fff; display: flex; align-items: center; gap: 12px;">
+        {% if res.champion.logo_url %}
+        <img src="{{ res.champion.logo_url }}" alt="" style="width: 38px; height: 38px; object-fit: contain;">
+        {% endif %}
+        {{ res.champion.name }} ({{ res.champion.short_code }})
+        <span class="badge" style="font-size: 0.55em; background: rgba(234, 179, 8, 0.25); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.5);">
+          WORLD CHAMPION (+10 RATING)
+        </span>
+      </h2>
+      <div style="font-size: 0.95em; color: var(--dim);">
+        Đại diện khu vực: <strong style="text-transform: uppercase; color: #fff;">{{ res.champion.region_slug or res.champion.region }}</strong> •
+        Á quân: <strong style="color: #fff;">{{ res.runner_up.name }} ({{ res.runner_up.short_code }}) (+6)</strong> •
+        Hạng 3: <strong style="color: #fff;">{{ res.third_place.name if res.third_place else 'N/A' }} (+4)</strong> •
+        Hạng 4: <strong style="color: #fff;">{{ res.fourth_place.name if res.fourth_place else 'N/A' }} (+3)</strong>
+      </div>
+    </div>
+    <div>
+      <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.05em; font-weight: bold; background: #eab308; color: #000; border-radius: 8px; display: inline-block;">
+        🏆 Khám phá Bảng Vàng Hall of Fame ➔
+      </a>
+    </div>
+  </div>
+
+  <!-- Detailed 16-Team Standings Table -->
+  <div class="table-scroll">
+    <table class="swiss-standings-table">
+      <thead>
+        <tr>
+          <th style="width: 90px; text-align: center;">Thứ hạng</th>
+          <th class="team-col">Đội tuyển</th>
+          <th>Khu vực</th>
+          <th>Danh hiệu / Vị trí</th>
+          <th style="text-align: center; color: var(--yellow);">Thưởng cốt truyện</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in res.standings %}
+        <tr style="{% if s.rank == 1 %}background: rgba(234, 179, 8, 0.18);{% elif s.rank == 2 %}background: rgba(148, 163, 184, 0.12);{% elif s.rank == 3 %}background: rgba(205, 127, 50, 0.12);{% elif s.rank == 4 %}background: rgba(59, 130, 246, 0.08);{% endif %}">
+          <td style="text-align: center;">
+            {% if s.rank == 1 %}
+            <span class="badge" style="background: #eab308; color: #000; font-weight: 800;">1st 🥇</span>
+            {% elif s.rank == 2 %}
+            <span class="badge" style="background: #94a3b8; color: #000; font-weight: 800;">2nd 🥈</span>
+            {% elif s.rank == 3 %}
+            <span class="badge" style="background: #cd7f32; color: #fff; font-weight: 800;">3rd 🥉</span>
+            {% elif s.rank == 4 %}
+            <span class="badge" style="background: var(--surface); color: #fff;">4th</span>
+            {% elif s.rank in [5, 6] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">5th-6th</span>
+            {% elif s.rank in [7, 8] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">7th-8th</span>
+            {% elif s.rank in [9, 10, 11, 12] %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">9th-12th</span>
+            {% else %}
+            <span class="badge" style="background: var(--surface); color: var(--dim);">13th-16th</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if s.team.logo_url %}
+              <img src="{{ s.team.logo_url }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
+              {% endif %}
+              <strong style="color: #fff;">{{ s.team.name }}</strong>
+              <span style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
+            </div>
+          </td>
+          <td>
+            <span class="badge" style="text-transform: uppercase; background: rgba(255, 255, 255, 0.08);">
+              {{ s.team.region_slug or s.team.region }}
+            </span>
+          </td>
+          <td style="color: var(--dim);">
+            <strong style="color: #fff;">{{ s.title }}</strong> &bull; {{ s.desc }}
+          </td>
+          <td style="text-align: center; font-weight: bold; font-size: 1.05em;">
+            {% if s.rank == 1 %}
+            <span style="color: #fbbf24;">+10 Rating</span>
+            {% elif s.rank == 2 %}
+            <span style="color: #60a5fa;">+6 Rating</span>
+            {% elif s.rank == 3 %}
+            <span style="color: #4ade80;">+4 Rating</span>
+            {% elif s.rank == 4 %}
+            <span style="color: #4ade80;">+3 Rating</span>
+            {% else %}
+            <span style="color: var(--dim);">0</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- 16 Qualified Teams (Seed Pools Grid) -->
+<div class="card" style="margin-bottom: 24px; border: 1px solid rgba(234, 179, 8, 0.3);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+    <div>
+      <h3 style="color: #fbbf24; margin: 0; font-size: 1.15em; display: flex; align-items: center; gap: 8px;">
+        🌍 16 Đội Tuyển Tinh Hoa Tham Dự VALORANT Champions Paris
+      </h3>
+      <p style="font-size: 0.85em; color: var(--dim); margin: 3px 0 0;">
+        Mỗi khu vực đóng góp 4 đại diện: Quán quân Stage 2 (Pool 1), Á quân Stage 2 (Pool 2), Hạng 1 Championship Points (Pool 3), Hạng 2 Championship Points (Pool 4).
+      </p>
+    </div>
+    <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold;">
+      16 Elite Teams
+    </span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+    {% for t in roster %}
+    <div style="background: var(--surface); border: 1px solid {% if t.pool == 1 %}rgba(234, 179, 8, 0.5){% elif t.pool == 2 %}rgba(96, 165, 250, 0.4){% elif t.pool == 3 %}rgba(74, 222, 128, 0.3){% else %}var(--border){% endif %}; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        {% if t.logo_url %}
+        <img src="{{ t.logo_url }}" alt="" style="width: 28px; height: 28px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff;">{{ t.name }} <span style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span></div>
+          <div style="font-size: 0.75em; color: var(--dim);">
+            <span class="badge" style="font-size: 0.7em; background: rgba(255, 255, 255, 0.08); text-transform: uppercase;">{{ t.region_slug or t.region }}</span>
+            <span style="color: #fbbf24; margin-left: 4px;">{{ t.qualification_reason or 'Suất tham dự' }}</span>
+          </div>
+        </div>
+      </div>
+      <span class="badge" style="{% if t.pool == 1 %}background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4);{% elif t.pool == 2 %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% elif t.pool == 3 %}background: rgba(34, 197, 94, 0.2); color: #4ade80;{% else %}background: var(--bg); color: var(--dim);{% endif %} font-weight: bold;">
+        Pool {{ t.pool }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if res %}
+<!-- GIAI ĐOẠN 1: VÒNG BẢNG GSL (4 GROUPS - 20 TRẬN BO3) -->
+<section class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">Giai đoạn 1: Vòng Bảng GSL (4 Bảng — 20 trận BO3)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        16 đội chia làm 4 bảng thi đấu thể thức nhánh kép GSL. Đội thắng 2 trận giành vé Playoffs (Hạt giống #1 hoặc #2) • Đội thua 2 trận bị loại.
+      </p>
+    </div>
+    <span class="badge" style="{% if res.current_stage == 'playoffs' or res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.current_stage == 'playoffs' or res.status == 'completed' %}Vòng Bảng Đã Hoàn Thành (8 Đội Vào Playoffs){% else %}Vòng Bảng Đang Diễn Ra{% endif %}
+    </span>
+  </div>
+
+  <div class="gsl-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+    {% for label, grp in res.groups.items() %}
+    <div class="group-card card" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 0;">
+      <div class="group-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+        <span class="group-title" style="font-weight: 800; font-size: 1.1em; color: var(--yellow);">BẢNG {{ label }}</span>
+        {% if grp.status == 'completed' %}
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; font-size: 0.75em;">Hoàn thành</span>
+        {% else %}
+        <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.75em;">Đang đấu</span>
+        {% endif %}
+      </div>
+
+      <!-- Qualified Teams Badges -->
+      <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 130px; background: var(--surface); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #22c55e;">
+          <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase;">Seed #1 Playoffs:</div>
+          <div style="font-weight: bold; font-size: 0.9em; color: #fff;">
+            {% if grp.winner_seed1 %}
+              <span style="color: #4ade80;">{{ grp.winner_seed1.short_code }}</span> ({{ grp.winner_seed1.name }})
+            {% else %}
+              <span style="color: var(--dim); font-style: italic;">Chờ Winners Match</span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="flex: 1; min-width: 130px; background: var(--surface); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #60a5fa;">
+          <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase;">Seed #2 Playoffs:</div>
+          <div style="font-weight: bold; font-size: 0.9em; color: #fff;">
+            {% if grp.winner_seed2 %}
+              <span style="color: #60a5fa;">{{ grp.winner_seed2.short_code }}</span> ({{ grp.winner_seed2.name }})
+            {% else %}
+              <span style="color: var(--dim); font-style: italic;">Chờ Decider Match</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Liquipedia GSL Match Flow -->
+      <div class="group-matches-flow">
+        <!-- Opening Matches -->
+        <div class="gsl-stage" style="margin-bottom: 10px;">
+          <div class="stage-label" style="font-size: 0.78em; color: var(--dim); text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">
+            Trận Mở Màn (Opening Matches)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            {% set op1 = grp.matches['group' ~ label ~ '_opening1'] %}
+            {% set op2 = grp.matches['group' ~ label ~ '_opening2'] %}
+            {% set m = op1 %}
+            {% include 'campaign/_champion_match_card.html' with context %}
+            {% set m = op2 %}
+            {% include 'campaign/_champion_match_card.html' with context %}
+          </div>
+        </div>
+
+        <!-- Winners & Elimination Matches -->
+        <div class="gsl-stage" style="margin-bottom: 10px;">
+          <div class="stage-label" style="font-size: 0.78em; color: var(--dim); text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">
+            Nhánh Thắng (Vào Playoffs) & Nhánh Thua (Tránh Loại)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            {% set wm = grp.matches['group' ~ label ~ '_winners_match'] %}
+            {% set em = grp.matches['group' ~ label ~ '_elimination_match'] %}
+            {% set m = wm %}
+            {% include 'campaign/_champion_match_card.html' with context %}
+            {% set m = em %}
+            {% include 'campaign/_champion_match_card.html' with context %}
+          </div>
+        </div>
+
+        <!-- Decider Match -->
+        <div class="gsl-stage">
+          <div class="stage-label" style="font-size: 0.78em; color: var(--dim); text-transform: uppercase; font-weight: bold; margin-bottom: 6px;">
+            Trận Quyết Định (Decider Match — Tranh Vé Vớt)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            {% set dm = grp.matches['group' ~ label ~ '_decider_match'] %}
+            {% set m = dm %}
+            {% include 'campaign/_champion_match_card.html' with context %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- GIAI ĐOẠN 2: PLAYOFFS (DOUBLE ELIMINATION 8 ĐỘI — 14 TRẬN) -->
+<section class="card bracket-card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h2 style="color: var(--accent); margin: 0; font-size: 1.25em;">Giai đoạn 2: Vòng Playoffs (Double Elimination 8 đội — 14 trận)</h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        8 Đội tuyển xuất sắc nhất vòng bảng thi đấu nhánh thắng - nhánh thua. Chung kết nhánh thua và Chung kết tổng là BO5!
+      </p>
+    </div>
+    <span class="badge" style="{% if res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa;{% endif %}">
+      {% if res.status == 'completed' %}Playoffs Đã Hoàn Thành{% elif res.current_stage == 'playoffs' %}Playoffs Đang Diễn Ra{% else %}Chờ Vòng Bảng Kết Thúc{% endif %}
+    </span>
+  </div>
+
+  {% if res.playoff_matches %}
+  <div class="playoff-tree is-8team" id="playoff-tree-champion">
+    <!-- UPPER BRACKET -->
+    <div class="upper-bracket">
+      <div class="bracket-label">Upper Bracket</div>
+      <div class="bracket-rounds">
+        <!-- Upper Quarterfinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Quarters</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['upper_quarterfinal_1', 'upper_quarterfinal_2', 'upper_quarterfinal_3', 'upper_quarterfinal_4'] %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Upper Semifinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Semis</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['upper_semifinal_1', 'upper_semifinal_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Upper Final -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Upper Final</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'upper_final' %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOWER BRACKET -->
+    <div class="lower-bracket">
+      <div class="bracket-label">Lower Bracket</div>
+      <div class="bracket-rounds">
+        <!-- Lower Round 1 -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower R1</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['lower_round1_1', 'lower_round1_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Lower Quarterfinals -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Quarters</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name in ['lower_quarterfinal_1', 'lower_quarterfinal_2'] %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Lower Semifinal -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Semi</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'lower_semifinal' %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Lower Final -->
+        <div class="bracket-column">
+          <div class="round-header"><span>Lower Final (BO5)</span></div>
+          <div class="round-matches">
+            {% for m in res.playoff_matches %}
+            {% if m.round_name == 'lower_final' %}
+              <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Grand Final -->
+      <div class="bracket-column grand-final-column">
+        <div class="round-header"><span>Grand Final (BO5)</span></div>
+        <div class="round-matches">
+          {% for m in res.playoff_matches %}
+          {% if m.round_name == 'grand_final' %}
+            <div class="match-box-wrapper">{% include "campaign/_champion_match_card.html" %}</div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div style="color: var(--dim); text-align: center; padding: 24px 0;">
+    ⏳ Giai đoạn Playoffs sẽ bắt đầu ngay khi Vòng Bảng GSL hoàn tất (chọn đủ 8 đội).
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<!-- Modal Nhập tay kết quả trận đấu Champions Paris -->
+<div id="champion-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="card" style="width: 500px; max-width: 95vw; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 id="champion-modal-title" style="margin: 0; font-size: 1.15em; color: #fff;">✏️ Nhập kết quả trận đấu Champions</h3>
+      <button type="button" onclick="closeChampionManualModal()" style="background: none; border: none; color: var(--dim); font-size: 1.3em; cursor: pointer;">&times;</button>
+    </div>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 16px; text-align: center;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 4px;" id="champion-modal-match-label">Trận đấu</div>
+      <div style="font-size: 1.2em; font-weight: bold; color: #fff; display: flex; justify-content: center; align-items: center; gap: 12px;">
+        <span id="champion-modal-team-a">Đội A</span>
+        <span style="color: var(--yellow); font-size: 0.85em;">VS</span>
+        <span id="champion-modal-team-b">Đội B</span>
+      </div>
+    </div>
+
+    <!-- Quick pick buttons -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        ⚡ Chọn nhanh tỷ số trận đấu:
+      </label>
+      <div id="champion-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <!-- Detailed map score input -->
+    <div style="margin-bottom: 20px;">
+      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
+        🎯 Tùy chỉnh chi tiết round từng map (tùy chọn):
+      </label>
+      <div id="champion-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto;">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn-sm btn-manual" onclick="closeChampionManualModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-save-champion-manual-score" class="btn-start" onclick="submitChampionCustomScore()" style="padding: 8px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        💾 Lưu kết quả trận đấu
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentModalMatchId = null;
+let currentModalTeamAId = null;
+let currentModalTeamBId = null;
+let currentModalBo = 3;
+
+async function rollChampionMatch(matchId) {
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/match/sim`, {
+      match_id: matchId
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function simChampionRound() {
+  const btn = document.getElementById('btn-sim-champion-round');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-round`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng này"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Sim vòng hiện tại';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Sim vòng hiện tại';
+    }
+  }
+}
+
+async function simChampionTournament() {
+  if (!confirm("Bạn có chắc chắn muốn mô phỏng toàn bộ các trận còn lại của VALORANT Champions Paris không?")) {
+    return;
+  }
+  const btn = document.getElementById('btn-sim-champion');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang mô phỏng Champions Paris...';
+  }
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-all`, {});
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng Champions Paris"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔥 Sim toàn bộ Champions Paris';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔥 Sim toàn bộ Champions Paris';
+    }
+  }
+}
+
+function openChampionManualModal(matchId, label, teamAId, teamACode, teamAName, teamBId, teamBCode, teamBName, bo) {
+  currentModalMatchId = matchId;
+  currentModalTeamAId = teamAId;
+  currentModalTeamBId = teamBId;
+  currentModalBo = bo || 3;
+
+  document.getElementById('champion-modal-match-label').textContent = `${label} (BO${currentModalBo})`;
+  document.getElementById('champion-modal-team-a').textContent = `${teamAName} (${teamACode})`;
+  document.getElementById('champion-modal-team-b').textContent = `${teamBName} (${teamBCode})`;
+
+  const quickContainer = document.getElementById('champion-modal-quick-buttons');
+  if (currentModalBo === 5) {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 3 - 2
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 3 - 2
+      </button>
+    `;
+  } else {
+    quickContainer.innerHTML = `
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamACode} Thắng 2 - 1
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 0
+      </button>
+      <button type="button" class="btn-start" onclick="submitChampionQuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+        ${teamBCode} Thắng 2 - 1
+      </button>
+    `;
+  }
+
+  const mapsContainer = document.getElementById('champion-modal-maps-container');
+  const maxMaps = currentModalBo;
+  let mapsHtml = '';
+  for (let i = 1; i <= maxMaps; i++) {
+    mapsHtml += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-champion-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-champion-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+        </div>
+      </div>
+    `;
+  }
+  mapsContainer.innerHTML = mapsHtml;
+  document.getElementById('champion-manual-modal').style.display = 'flex';
+}
+
+function closeChampionManualModal() {
+  document.getElementById('champion-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
+}
+
+async function submitChampionQuickScore(winnerId, winsA, winsB) {
+  const maps = [];
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
+    });
+  }
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
+  }
+  await sendChampionManualRequest(winnerId, maps);
+}
+
+async function submitChampionCustomScore() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = document.getElementById(`inp-champion-map-${i}-a`).value.trim();
+    const valB = document.getElementById(`inp-champion-map-${i}-b`).value.trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA);
+    const b = parseInt(valB);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+  await sendChampionManualRequest(winnerId, maps);
+}
+
+async function sendChampionManualRequest(winnerId, maps) {
+  const btn = document.getElementById('btn-save-champion-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/match/manual`, {
+      match_id: currentModalMatchId,
+      winner_id: winnerId,
+      maps: maps
+    });
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu kết quả trận đấu';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu kết quả trận đấu';
+    }
+  }
+}
+</script>
+{% endblock %}

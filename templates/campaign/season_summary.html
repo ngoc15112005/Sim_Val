@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+{% block title %}Bảng Vàng & Tổng Kết Mùa Giải {{ summary_data.year }} - {{ campaign.name }}{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+  <div>
+    <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
+      {{ campaign.name }} • VCT Hall of Fame
+    </div>
+    <h1 style="font-size: 1.9em; margin: 4px 0; display: flex; align-items: center; gap: 10px;">
+      <span>🏛️</span> Bảng Vàng & Tổng Kết Mùa Giải {{ summary_data.year }}
+    </h1>
+    <div style="font-size: 0.9em; color: var(--dim);">
+      Tôn vinh các nhà vô địch toàn cầu, danh hiệu xuất sắc nhất năm và lưu danh bảng vàng lịch sử Esports.
+    </div>
+  </div>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <button type="button" class="btn-start" onclick="confirmAdvanceYear()" style="padding: 10px 20px; font-weight: bold; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+      <span>🚀</span> Bắt Đầu Mùa Giải Mới (Năm {{ summary_data.year + 1 }}) ➔
+    </button>
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Hub Mùa giải
+    </a>
+  </div>
+</div>
+
+<!-- Season Awards / Accolades Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
+  <!-- World Champion Card -->
+  <div class="card" style="border: 2px solid #eab308; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 18px;">
+    <div style="font-size: 0.78em; color: #fbbf24; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+      👑 NHÀ VÔ ĐỊCH THẾ GIỚI CỦA NĂM
+    </div>
+    {% if summary_data.world_champion %}
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+      {% if summary_data.world_champion.logo_url %}
+      <img src="{{ summary_data.world_champion.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
+      {% endif %}
+      <div>
+        <h3 style="font-size: 1.4em; margin: 0; color: #fff;">{{ summary_data.world_champion.name }}</h3>
+        <div style="font-size: 0.85em; color: var(--dim);">
+          Mã đội: <strong style="color: #fff;">{{ summary_data.world_champion.short_code }}</strong> &bull;
+          Khu vực: <span class="badge" style="text-transform: uppercase;">{{ summary_data.world_champion.region_slug or summary_data.world_champion.region }}</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; font-size: 0.85em; color: #fbbf24;">
+      ★ Đăng quang đỉnh cao tại VALORANT Champions Paris
+    </div>
+    {% else %}
+    <div style="color: var(--dim); margin-top: 12px; font-size: 0.9em;">Chưa xác định</div>
+    {% endif %}
+  </div>
+
+  <!-- Club of the Year Card -->
+  <div class="card" style="border: 1px solid rgba(59, 130, 246, 0.5); background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 18px;">
+    <div style="font-size: 0.78em; color: #60a5fa; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+      🌟 CÂU LẠC BỘ XUẤT SẮC NHẤT NĂM (CLUB OF THE YEAR)
+    </div>
+    {% if summary_data.club_of_the_year and summary_data.club_of_the_year.club %}
+    {% set coty = summary_data.club_of_the_year %}
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+      {% if coty.club.logo_url %}
+      <img src="{{ coty.club.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
+      {% endif %}
+      <div>
+        <h3 style="font-size: 1.3em; margin: 0; color: #fff;">{{ coty.club.name }}</h3>
+        <div style="font-size: 0.85em; color: var(--dim);">
+          Điểm CP mùa giải: <strong style="color: #fbbf24;">{{ coty.cp }} CP</strong> &bull; Sức mạnh: <strong style="color: #4ade80;">{{ coty.rating }}</strong>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; font-size: 0.85em; color: #60a5fa;">
+      ★ Đạt số điểm Championship Points kỷ lục trong năm
+    </div>
+    {% else %}
+    <div style="color: var(--dim); margin-top: 12px; font-size: 0.9em;">Chưa xác định</div>
+    {% endif %}
+  </div>
+
+  <!-- Region of the Year Card -->
+  <div class="card" style="border: 1px solid rgba(34, 197, 94, 0.5); background: linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 18px;">
+    <div style="font-size: 0.78em; color: #4ade80; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+      🌍 KHU VỰC THỐNG TRỊ CỦA NĂM (BEST REGION)
+    </div>
+    {% if summary_data.best_region %}
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+      <div style="width: 44px; height: 44px; border-radius: 50%; background: rgba(34, 197, 94, 0.2); border: 2px solid #22c55e; display: flex; align-items: center; justify-content: center; font-size: 1.4em;">
+        🌏
+      </div>
+      <div>
+        <h3 style="font-size: 1.3em; margin: 0; color: #fff; text-transform: uppercase;">
+          {{ summary_data.best_region.region_slug }}
+        </h3>
+        <div style="font-size: 0.85em; color: var(--dim);">
+          Tổng điểm CP: <strong style="color: #4ade80;">{{ summary_data.best_region.total_cp }} CP</strong>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; font-size: 0.85em; color: #4ade80;">
+      ★ Khu vực sở hữu phong độ thi đấu áp đảo toàn cầu
+    </div>
+    {% else %}
+    <div style="color: var(--dim); margin-top: 12px; font-size: 0.9em;">Chưa xác định</div>
+    {% endif %}
+  </div>
+
+  <!-- Most Improved Club Card -->
+  <div class="card" style="border: 1px solid rgba(168, 85, 247, 0.5); background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 18px;">
+    <div style="font-size: 0.78em; color: #c084fc; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+      📈 ĐỘI TIẾN BỘ NHẤT NĂM (MOST IMPROVED)
+    </div>
+    {% if summary_data.most_improved and summary_data.most_improved.club %}
+    {% set mic = summary_data.most_improved %}
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+      {% if mic.club.logo_url %}
+      <img src="{{ mic.club.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
+      {% endif %}
+      <div>
+        <h3 style="font-size: 1.3em; margin: 0; color: #fff;">{{ mic.club.name }}</h3>
+        <div style="font-size: 0.85em; color: var(--dim);">
+          Chỉ số sức mạnh: <strong style="color: #c084fc;">{{ mic.rating }} Story Rating</strong>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; font-size: 0.85em; color: #c084fc;">
+      ★ Tăng trưởng sức mạnh và bứt phá ngoạn mục
+    </div>
+    {% else %}
+    <div style="color: var(--dim); margin-top: 12px; font-size: 0.9em;">Chưa xác định</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Annual Championship Roll of Honor (Tất cả nhà vô địch năm) -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="margin-bottom: 16px;">
+    <h2 style="color: var(--yellow); margin: 0; font-size: 1.3em; display: flex; align-items: center; gap: 8px;">
+      <span>🏆</span> Bảng Vinh Danh Các Nhà Vô Địch Mùa Giải {{ summary_data.year }}
+    </h2>
+    <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+      Danh sách những đội tuyển đã nâng cao cúp vô địch tại tất cả các giải đấu trong chuỗi VCT Circuit.
+    </p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px;">
+    <!-- 1. Champions Paris -->
+    <div style="background: var(--surface); border: 2px solid #eab308; border-radius: 8px; padding: 12px 14px;">
+      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+        VALORANT Champions Paris (Thế Giới)
+      </div>
+      {% set ch_title = summary_data.titles.get('champion') %}
+      {% if ch_title and ch_title.champion %}
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+        {% if ch_title.champion.logo_url %}
+        <img src="{{ ch_title.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff; font-size: 1.05em;">{{ ch_title.champion.name }} ({{ ch_title.champion.short_code }})</div>
+          <div style="font-size: 0.78em; color: var(--dim);">
+            Á quân: <strong style="color: #fff;">{{ ch_title.runner_up.name if ch_title.runner_up else 'N/A' }}</strong>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
+      {% endif %}
+    </div>
+
+    <!-- 2. Masters Toronto -->
+    <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
+      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+        VCT Masters Toronto (Master)
+      </div>
+      {% set master_title = summary_data.titles.get('master') %}
+      {% if master_title and master_title.champion %}
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+        {% if master_title.champion.logo_url %}
+        <img src="{{ master_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff;">{{ master_title.champion.name }} ({{ master_title.champion.short_code }})</div>
+          <div style="font-size: 0.78em; color: var(--dim);">
+            Á quân: <strong style="color: #fff;">{{ master_title.runner_up.name if master_title.runner_up else 'N/A' }}</strong>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
+      {% endif %}
+    </div>
+
+    <!-- 3. Masters Bangkok -->
+    <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
+      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+        VCT Masters Bangkok (Major)
+      </div>
+      {% set major_title = summary_data.titles.get('major') %}
+      {% if major_title and major_title.champion %}
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+        {% if major_title.champion.logo_url %}
+        <img src="{{ major_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff;">{{ major_title.champion.name }} ({{ major_title.champion.short_code }})</div>
+          <div style="font-size: 0.78em; color: var(--dim);">
+            Á quân: <strong style="color: #fff;">{{ major_title.runner_up.name if major_title.runner_up else 'N/A' }}</strong>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
+      {% endif %}
+    </div>
+
+    <!-- 4. Esports World Cup -->
+    <div style="background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 12px 14px;">
+      <div style="font-size: 0.75em; color: #4ade80; font-weight: 800; text-transform: uppercase;">
+        Esports World Cup (EWC Riyadh)
+      </div>
+      {% set ewc_title = summary_data.titles.get('ewc') %}
+      {% if ewc_title and ewc_title.champion %}
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+        {% if ewc_title.champion.logo_url %}
+        <img src="{{ ewc_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+        {% endif %}
+        <div>
+          <div style="font-weight: bold; color: #fff;">{{ ewc_title.champion.name }} ({{ ewc_title.champion.short_code }})</div>
+          <div style="font-size: 0.78em; color: var(--dim);">
+            Á quân: <strong style="color: #fff;">{{ ewc_title.runner_up.name if ewc_title.runner_up else 'N/A' }}</strong>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Regional Champions (Kickoff, Stage 1, Stage 2) -->
+  <div style="margin-top: 20px;">
+    <h3 style="font-size: 1.05em; color: #fff; margin-bottom: 12px;">Quán Quân Các Khu Vực (Pacific, Americas, EMEA, China):</h3>
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th>Khu vực</th>
+            <th>Quán Quân Kickoff</th>
+            <th>Quán Quân Stage 1</th>
+            <th>Quán Quân Stage 2</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in ['pacific', 'americas', 'emea', 'china'] %}
+          {% set ko_t = summary_data.titles.get('kickoff', {}).get(r) %}
+          {% set s1_t = summary_data.titles.get('stage1', {}).get(r) %}
+          {% set s2_t = summary_data.titles.get('stage2', {}).get(r) %}
+          <tr>
+            <td>
+              <strong style="text-transform: uppercase; color: #fff;">{{ r }}</strong>
+            </td>
+            <td>
+              {% if ko_t %}
+                <span style="color: #fbbf24; font-weight: bold;">{{ ko_t.name }} ({{ ko_t.short_code }})</span>
+              {% else %}
+                <span style="color: var(--dim);">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if s1_t %}
+                <span style="color: #60a5fa; font-weight: bold;">{{ s1_t.name }} ({{ s1_t.short_code }})</span>
+              {% else %}
+                <span style="color: var(--dim);">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if s2_t %}
+                <span style="color: #4ade80; font-weight: bold;">{{ s2_t.name }} ({{ s2_t.short_code }})</span>
+              {% else %}
+                <span style="color: var(--dim);">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Final Championship Points Tables -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h2 style="margin: 0; font-size: 1.25em; color: #fff;">
+        📊 Bảng Điểm Championship Points Chung Cuộc Mùa Giải {{ summary_data.year }}
+      </h2>
+      <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+        Tổng kết toàn bộ điểm tích lũy sau cả mùa giải (Kickoff, Major, Stage 1, Masters, Stage 2).
+      </p>
+    </div>
+    <div class="region-tabs" style="display: flex; gap: 6px;">
+      <button type="button" class="cp-tab-btn active" onclick="switchSummaryCpTab('pacific')">Pacific</button>
+      <button type="button" class="cp-tab-btn" onclick="switchSummaryCpTab('americas')">Americas</button>
+      <button type="button" class="cp-tab-btn" onclick="switchSummaryCpTab('emea')">EMEA</button>
+      <button type="button" class="cp-tab-btn" onclick="switchSummaryCpTab('china')">China</button>
+    </div>
+  </div>
+
+  {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+  <div id="summary-cp-panel-{{ r_slug }}" class="summary-cp-content-panel {% if loop.first %}active{% endif %}">
+    <div class="table-scroll">
+      <table class="swiss-standings-table">
+        <thead>
+          <tr>
+            <th style="width: 50px; text-align: center;">Hạng</th>
+            <th class="team-col">Đội tuyển</th>
+            <th style="text-align: center; color: var(--yellow);">Tổng Điểm CP</th>
+            <th style="text-align: center;">Stage 2</th>
+            <th style="text-align: center;">Masters Toronto</th>
+            <th style="text-align: center;">Stage 1</th>
+            <th style="text-align: center;">Masters Bangkok</th>
+            <th style="text-align: center;">Kickoff</th>
+            <th style="text-align: center;">Trận thắng vòng bảng</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set lb = summary_data.leaderboards.get(r_slug, []) %}
+          {% for t in lb %}
+          <tr style="{% if loop.index == 1 %}background: rgba(234, 179, 8, 0.12);{% elif loop.index <= 4 %}background: rgba(59, 130, 246, 0.06);{% endif %}">
+            <td style="text-align: center; font-weight: bold;">
+              {% if loop.index == 1 %}🥇 1{% elif loop.index == 2 %}🥈 2{% elif loop.index == 3 %}🥉 3{% else %}#{{ loop.index }}{% endif %}
+            </td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {% if t.logo_url %}
+                <img src="{{ t.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;">
+                {% endif %}
+                <strong style="color: #fff;">{{ t.name }}</strong>
+                <span style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span>
+              </div>
+            </td>
+            <td style="text-align: center; font-weight: 800; font-size: 1.1em; color: #fbbf24;">
+              {{ t.championship_points }} CP
+            </td>
+            <td style="text-align: center; color: var(--dim);">{{ t.stage2_rank or '-' }}</td>
+            <td style="text-align: center; color: var(--dim);">{{ t.master_rank or '-' }}</td>
+            <td style="text-align: center; color: var(--dim);">{{ t.stage1_rank or '-' }}</td>
+            <td style="text-align: center; color: var(--dim);">{{ t.major_rank or '-' }}</td>
+            <td style="text-align: center; color: var(--dim);">{{ t.kickoff_rank or '-' }}</td>
+            <td style="text-align: center; color: #4ade80;">{{ t.regular_season_wins }}W</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Hall of Fame Archive (Past Seasons) -->
+{% if summary_data.past_records %}
+<div class="card" style="margin-bottom: 24px;">
+  <div style="margin-bottom: 14px;">
+    <h2 style="color: #fff; margin: 0; font-size: 1.2em; display: flex; align-items: center; gap: 8px;">
+      <span>📜</span> Lịch Sử Bảng Vàng Các Mùa Giải Trước (Hall of Fame Archive)
+    </h2>
+    <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+      Hồ sơ lưu trữ các mùa giải đã hoàn tất trong hành trình sự nghiệp của bạn.
+    </p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    {% for past in summary_data.past_records %}
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong style="color: #fbbf24; font-size: 1.1em;">MÙA GIẢI NĂM {{ past.year }}</strong>
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">Đã lưu trữ</span>
+      </div>
+      <div style="font-size: 0.9em; color: var(--dim);">
+        Nhà Vô Địch Thế Giới: <strong style="color: #fff;">{{ past.world_champion.name if past.world_champion else 'N/A' }}</strong> &bull;
+        Club of the Year: <strong style="color: #fff;">{{ past.club_of_the_year.club.name if past.club_of_the_year and past.club_of_the_year.club else 'N/A' }}</strong> &bull;
+        Khu vực thống trị: <strong style="text-transform: uppercase; color: #fff;">{{ past.best_region.region_slug if past.best_region else 'N/A' }}</strong>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Rollover Confirmation Modal -->
+<div id="advance-year-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="card" style="width: 520px; max-width: 95vw; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px;">
+    <h3 style="margin: 0 0 10px; color: #fff; font-size: 1.25em; display: flex; align-items: center; gap: 8px;">
+      <span>🚀</span> Chuyển Tiếp Sang Mùa Giải Mới: Năm {{ summary_data.year + 1 }}
+    </h3>
+    <p style="font-size: 0.9em; color: var(--dim); margin-bottom: 16px; line-height: 1.5;">
+      Bạn chuẩn bị kết thúc mùa giải <strong style="color: #fff;">{{ summary_data.year }}</strong> và bước sang mùa giải mới <strong style="color: #fbbf24;">{{ summary_data.year + 1 }}</strong>!
+    </p>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 20px; font-size: 0.85em; line-height: 1.6;">
+      <div style="font-weight: bold; color: #fff; margin-bottom: 6px;">Hệ thống sẽ tự động thực hiện:</div>
+      <div style="color: #4ade80;">✓ Lưu vĩnh viễn kết quả mùa giải {{ summary_data.year }} vào Bảng Vàng (Hall of Fame)</div>
+      <div style="color: #60a5fa;">✓ Lão hóa và cân bằng sức mạnh các đội tuyển (15% mean regression)</div>
+      <div style="color: #fbbf24;">✓ Reset điểm tích lũy Championship Points về 0 cho chu kỳ mới</div>
+      <div style="color: #fff;">✓ Khởi tạo giải đấu Vòng loại Open Qualifier cho Mùa giải {{ summary_data.year + 1 }}!</div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn-sm btn-manual" onclick="closeAdvanceYearModal()" style="padding: 10px 18px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-confirm-advance-year" class="btn-start" onclick="executeAdvanceYear()" style="padding: 10px 22px; font-weight: bold; background: #10b981; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        Tiến vào Năm {{ summary_data.year + 1 }} ➔
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchSummaryCpTab(region) {
+  document.querySelectorAll('.cp-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.summary-cp-content-panel').forEach(p => p.classList.remove('active'));
+  
+  event.target.classList.add('active');
+  const panel = document.getElementById(`summary-cp-panel-${region}`);
+  if (panel) panel.classList.add('active');
+}
+
+function confirmAdvanceYear() {
+  document.getElementById('advance-year-modal').style.display = 'flex';
+}
+
+function closeAdvanceYearModal() {
+  document.getElementById('advance-year-modal').style.display = 'none';
+}
+
+async function executeAdvanceYear() {
+  const btn = document.getElementById('btn-confirm-advance-year');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang chuyển tiếp mùa giải...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/advance-year`, {});
+    if (res.success) {
+      window.location.href = `/campaign/{{ campaign.id }}`;
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể chuyển mùa giải"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Tiến vào Năm {{ summary_data.year + 1 }} ➔';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Tiến vào Năm {{ summary_data.year + 1 }} ➔';
+    }
+  }
+}
+</script>
+
+<style>
+.summary-cp-content-panel { display: none; }
+.summary-cp-content-panel.active { display: block; }
+</style>
+{% endblock %}

@@ -70,6 +70,8 @@
           VCT Regional Stage 2 (12 Đội / Khu Vực — Chung Kết Năm)
         {% elif campaign.current_stage == 'champion' %}
           VALORANT Champions Paris (16 Đội Tuyển Toàn Cầu)
+        {% elif campaign.current_stage == 'season_summary' %}
+          Bảng Vàng & Tổng Kết Mùa Giải (Hall of Fame)
         {% else %}
           {{ campaign.current_stage.upper() }}
         {% endif %}
@@ -94,7 +96,9 @@
         {% elif campaign.current_stage == 'stage2' %}
           12 đội tuyển mỗi khu vực bước vào giai đoạn quyết định Vòng Bảng & Playoffs Stage 2 để tích lũy điểm số và giành vé tới VALORANT Champions Paris!
         {% elif campaign.current_stage == 'champion' %}
-          Giải vô địch thế giới VALORANT lớn nhất năm quy tụ 16 đội tuyển tinh hoa toàn cầu để tìm ra Tân Vương Thế Giới!
+          Giải vô địch thế giới VALORANT lớn nhất năm quy tụ 16 đội tuyển tinh hoa toàn cầu qua Vòng Bảng GSL (20 trận) và Playoffs (14 trận) để tìm ra Tân Vương Thế Giới!
+        {% elif campaign.current_stage == 'season_summary' %}
+          Tổng kết năm thi đấu, vinh danh các nhà vô địch, giải thưởng cá nhân & câu lạc bộ của năm, lưu danh vào Bảng Vàng (Hall of Fame)!
         {% endif %}
       </p>
     </div>
@@ -221,6 +225,24 @@
           Xem lại EWC
         </a>
         {% endif %}
+      {% elif campaign.current_stage == 'champion' %}
+        <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
+          🎮 Vào sàn đấu Champions Paris ➔
+        </a>
+        {% if stage2_data and stage2_data.regional_results %}
+        <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại VCT Stage 2
+        </a>
+        {% endif %}
+      {% elif campaign.current_stage == 'season_summary' %}
+        <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: #eab308; color: #000; border-radius: 8px;">
+          🏆 Vào Bảng Vàng & Tổng Kết Mùa Giải ➔
+        </a>
+        {% if champion_data and champion_data.result %}
+        <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
+          Xem lại Champions Paris
+        </a>
+        {% endif %}
       {% else %}
         {% if stage2_data and stage2_data.regional_results %}
         <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block;">
@@ -271,6 +293,30 @@
       {% endif %}
     </div>
   </div>
+
+  {% if champion_data and champion_data.result and champion_data.result.champion %}
+  <div class="champion-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
+        🏆 Nhà Vô Địch Thế Giới VALORANT Champions Paris
+      </span>
+      <h3 style="font-size: 1.2em; color: #fff; margin: 4px 0;">
+        World Champion: <span style="color: #fbbf24;">{{ champion_data.result.champion.name }} ({{ champion_data.result.champion.short_code }})</span> (+10 Rating)
+      </h3>
+      <div style="font-size: 0.85em; color: var(--dim);">
+        Á quân: <strong style="color: #fff;">{{ champion_data.result.runner_up.name }} ({{ champion_data.result.runner_up.short_code }})</strong> (+6) • Hạng 3: <strong style="color: #fff;">{{ champion_data.result.third_place.name if champion_data.result.third_place else 'N/A' }}</strong> (+4)
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
+        Xem sàn đấu Champions ➔
+      </a>
+      <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: #eab308; color: #000; font-weight: bold; border-radius: 6px;">
+        Tổng Kết Mùa Giải ➔
+      </a>
+    </div>
+  </div>
+  {% endif %}
 
   {% if ewc_data and ewc_data.result and ewc_data.result.champion %}
   <div class="ewc-quick-summary" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">

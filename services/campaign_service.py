@@ -75,6 +75,14 @@ from engine.format.ewc_sim import (
     sim_ewc_round,
     sim_ewc_remaining,
 )
+from engine.format.champion_sim import (
+    simulate_champion_single_match,
+    init_champion_state,
+    advance_champion_state,
+    resolve_champion_match,
+    sim_champion_round,
+    sim_champion_remaining,
+)
 
 
 
@@ -2617,6 +2625,34 @@ def _prepare_champion_stage(campaign: Campaign, qualifiers: Optional[List[Dict[s
         campaign_id=campaign.id, year=campaign.current_year, stage_key='champion'
     ).first()
 
+    roster = []
+    if qualifiers:
+        for q in qualifiers:
+            t = dict(q.get('team', q))
+            t['id'] = t.get('id') or t.get('club_id')
+            t['club_id'] = t['id']
+            t['champions_seed'] = q.get('champions_seed') or t.get('champions_seed') or 1
+            t['regional_seed'] = t['champions_seed']
+            t['pool'] = t['champions_seed']
+            t['slot_type'] = q.get('slot_type') or t.get('slot_type') or 'Champions Qualifier'
+            roster.append(t)
+
+    # Fallback if qualifiers not passed or incomplete
+    if len(roster) != 16:
+        roster = []
+        for r_slug in ['pacific', 'americas', 'emea', 'china']:
+            champs_info = get_champions_paris_qualifiers(campaign.id, r_slug)
+            for q in champs_info.get('qualifiers', []):
+                t = dict(q.get('team', q))
+                t['id'] = t.get('id') or t.get('club_id')
+                t['club_id'] = t['id']
+                t['champions_seed'] = q.get('champions_seed') or t.get('champions_seed') or 1
+                t['regional_seed'] = t['champions_seed']
+                t['slot_type'] = q.get('slot_type') or t.get('slot_type') or 'Champions Qualifier'
+                roster.append(t)
+
+    champ_result = init_champion_state(roster) if len(roster) == 16 else {}
+
     if not champ_stage:
         champ_stage = CampaignStage(
             campaign_id=campaign.id,
@@ -2624,12 +2660,14 @@ def _prepare_champion_stage(campaign: Campaign, qualifiers: Optional[List[Dict[s
             stage_key='champion',
             stage_name=f'VALORANT Champions Paris {campaign.current_year}',
             status='pending',
-            stage_data=json.dumps({'qualifiers': qualifiers or []}),
+            stage_data=json.dumps({'roster': roster, 'result': champ_result}),
         )
         db.session.add(champ_stage)
-    elif qualifiers:
+    else:
         c_data = json.loads(champ_stage.stage_data) if champ_stage.stage_data else {}
-        c_data['qualifiers'] = qualifiers
+        c_data['roster'] = roster
+        if 'result' not in c_data or not c_data['result']:
+            c_data['result'] = champ_result
         champ_stage.stage_data = json.dumps(c_data)
 
 
@@ -2800,3 +2838,378 @@ def sim_stage2_all_interactive(campaign_id: int) -> Dict[str, Any]:
     return {'total_sim': total_sim, 'stage2_data': data}
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VALORANT Champions Paris Stage Execution & Interactive Resolving
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_champion_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve full Champions Paris data (roster, groups, playoffs, standings) for a campaign."""
+    stage = get_stage_record(campaign_id, 'champion')
+    if not stage or not stage.stage_data:
+        campaign = get_campaign(campaign_id)
+        if campaign:
+            _prepare_champion_stage(campaign)
+            db.session.commit()
+            stage = get_stage_record(campaign_id, 'champion')
+    if not stage or not stage.stage_data:
+        return None
+    data = json.loads(stage.stage_data)
+    roster = data.get('roster', [])
+
+    if roster and len(roster) == 16 and ('result' not in data or not data['result'] or not data['result'].get('groups')):
+        data['result'] = init_champion_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return data
+
+
+def _check_and_finalize_champion(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+    """Award story ratings and advance to Year-End Hall of Fame when Champions completes."""
+    res = data.get('result')
+    if res and res.get('status') == 'completed':
+        if not res.get('rewards_awarded'):
+            club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+            if res.get('champion'):
+                champ = res['champion']
+                c_id = champ.get('id') or champ.get('club_id')
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 10)
+                    club_states[c_id].set_stage_rank('champion', 1)
+            if res.get('runner_up'):
+                runner = res['runner_up']
+                r_id = runner.get('id') or runner.get('club_id')
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 6)
+                    club_states[r_id].set_stage_rank('champion', 2)
+            if res.get('third_place'):
+                third = res['third_place']
+                t_id = third.get('id') or third.get('club_id')
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 4)
+                    club_states[t_id].set_stage_rank('champion', 3)
+            if res.get('fourth_place'):
+                fourth = res['fourth_place']
+                f_id = fourth.get('id') or fourth.get('club_id')
+                if f_id in club_states:
+                    club_states[f_id].story_rating = min(99, club_states[f_id].story_rating + 3)
+                    club_states[f_id].set_stage_rank('champion', 4)
+
+            res['rewards_awarded'] = True
+
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        campaign.current_stage = 'season_summary'
+        _prepare_season_summary_stage(campaign)
+
+    stage.stage_data = json.dumps(data)
+
+
+def resolve_champion_match_interactive(campaign_id: int, match_id: str,
+                                       winner_id: Optional[int] = None,
+                                       maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Resolve a single Champions Paris match by manual input or single simulation roll."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'champion')
+    if not stage:
+        raise ValueError("Champions stage not found")
+
+    data = get_champion_data(campaign_id)
+    champ_data = data['result']
+
+    resolved = resolve_champion_match(champ_data, match_id, winner_id=winner_id, maps=maps)
+    _check_and_finalize_champion(campaign, stage, data)
+    db.session.commit()
+    return {'match': resolved, 'champ_data': champ_data}
+
+
+def sim_champion_round_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate active playable wave of matches in Champions Paris."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'champion')
+    if not stage:
+        raise ValueError("Champions stage not found")
+
+    data = get_champion_data(campaign_id)
+    champ_data = data['result']
+
+    sim_count = sim_champion_round(champ_data)
+    _check_and_finalize_champion(campaign, stage, data)
+    db.session.commit()
+    return {'sim_count': sim_count, 'champ_data': champ_data}
+
+
+def sim_champion_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+    """Simulate all remaining matches until Champions Paris completes."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, 'champion')
+    if not stage:
+        raise ValueError("Champions stage not found")
+
+    data = get_champion_data(campaign_id)
+    champ_data = data['result']
+    sim_champion_remaining(champ_data)
+
+    _check_and_finalize_champion(campaign, stage, data)
+    db.session.commit()
+    return {'champ_data': champ_data}
+
+
+def run_champion_stage(campaign_id: int) -> Dict[str, Any]:
+    """Execute VALORANT Champions Paris 16-team tournament to completion."""
+    sim_champion_tournament_interactive(campaign_id)
+    stage = get_stage_record(campaign_id, 'champion')
+    return json.loads(stage.stage_data) if stage and stage.stage_data else {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Year-End Hall of Fame & Season Summary
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _prepare_season_summary_stage(campaign: Campaign):
+    """Assemble final year-end summary stage for the campaign."""
+    summary_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=campaign.current_year, stage_key='season_summary'
+    ).first()
+    summary_data = get_season_summary_data(campaign.id)
+
+    if not summary_stage:
+        summary_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=campaign.current_year,
+            stage_key='season_summary',
+            stage_name=f'Year-End Hall of Fame {campaign.current_year}',
+            status='in_progress',
+            stage_data=json.dumps(summary_data),
+        )
+        db.session.add(summary_stage)
+    else:
+        summary_stage.stage_data = json.dumps(summary_data)
+
+
+def get_season_summary_data(campaign_id: int) -> Dict[str, Any]:
+    """Gather all title winners, season awards, leaderboards, and Hall of Fame records."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return {}
+
+    year = campaign.current_year
+    titles = {}
+
+    # 1. Kickoff Regional Winners
+    k_stage = get_stage_record(campaign_id, 'kickoff', year=year)
+    if k_stage and k_stage.stage_data:
+        k_data = json.loads(k_stage.stage_data)
+        k_reg = k_data.get('regional_results', {})
+        titles['kickoff'] = {
+            r: k_reg.get(r, {}).get('champion')
+            for r in ['pacific', 'americas', 'emea', 'china']
+            if k_reg.get(r, {}).get('champion')
+        }
+
+    # 2. Masters Bangkok (Major)
+    m_stage = get_stage_record(campaign_id, 'major', year=year)
+    if m_stage and m_stage.stage_data:
+        m_data = json.loads(m_stage.stage_data)
+        m_res = m_data.get('result', {})
+        titles['major'] = {
+            'champion': m_res.get('champion'),
+            'runner_up': m_res.get('runner_up'),
+        }
+
+    # 3. Stage 1 Regional Winners
+    s1_stage = get_stage_record(campaign_id, 'stage1', year=year)
+    if s1_stage and s1_stage.stage_data:
+        s1_data = json.loads(s1_stage.stage_data)
+        s1_reg = s1_data.get('regional_results', {})
+        titles['stage1'] = {
+            r: s1_reg.get(r, {}).get('champion')
+            for r in ['pacific', 'americas', 'emea', 'china']
+            if s1_reg.get(r, {}).get('champion')
+        }
+
+    # 4. Masters Toronto (Master)
+    mt_stage = get_stage_record(campaign_id, 'master', year=year)
+    if mt_stage and mt_stage.stage_data:
+        mt_data = json.loads(mt_stage.stage_data)
+        mt_res = mt_data.get('result', {})
+        titles['master'] = {
+            'champion': mt_res.get('champion'),
+            'runner_up': mt_res.get('runner_up'),
+        }
+
+    # 5. Esports World Cup (EWC)
+    ewc_stage = get_stage_record(campaign_id, 'ewc', year=year)
+    if ewc_stage and ewc_stage.stage_data:
+        ewc_data = json.loads(ewc_stage.stage_data)
+        ewc_res = ewc_data.get('result', {})
+        titles['ewc'] = {
+            'champion': ewc_res.get('champion'),
+            'runner_up': ewc_res.get('runner_up'),
+            'third_place': ewc_res.get('third_place'),
+        }
+
+    # 6. Stage 2 Regional Winners
+    s2_stage = get_stage_record(campaign_id, 'stage2', year=year)
+    if s2_stage and s2_stage.stage_data:
+        s2_data = json.loads(s2_stage.stage_data)
+        s2_reg = s2_data.get('regional_results', {})
+        titles['stage2'] = {
+            r: s2_reg.get(r, {}).get('champion')
+            for r in ['pacific', 'americas', 'emea', 'china']
+            if s2_reg.get(r, {}).get('champion')
+        }
+
+    # 7. VALORANT Champions Paris
+    ch_stage = get_stage_record(campaign_id, 'champion', year=year)
+    if ch_stage and ch_stage.stage_data:
+        ch_data = json.loads(ch_stage.stage_data)
+        ch_res = ch_data.get('result', {})
+        titles['champion'] = {
+            'champion': ch_res.get('champion'),
+            'runner_up': ch_res.get('runner_up'),
+            'third_place': ch_res.get('third_place'),
+            'fourth_place': ch_res.get('fourth_place'),
+        }
+
+    # Leaderboards
+    leaderboards = {
+        r: get_championship_leaderboard(campaign_id, region_slug=r)
+        for r in ['pacific', 'americas', 'emea', 'china']
+    }
+
+    # Accolades
+    world_champion = titles.get('champion', {}).get('champion')
+
+    # Club of the Year: Club with highest Championship Points (and international title bonus)
+    all_clubs_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    best_club_state = max(all_clubs_states, key=lambda cs: (cs.championship_points or 0, cs.story_rating or 0)) if all_clubs_states else None
+
+    # Best Region: Region with highest total CP
+    region_totals = {}
+    for r, lb in leaderboards.items():
+        region_totals[r] = sum(t.get('championship_points', 0) for t in lb)
+    best_region_slug = max(region_totals.keys(), key=lambda r: region_totals[r]) if region_totals else 'pacific'
+
+    # Most Improved Club: Club with highest story rating
+    most_improved_state = max(all_clubs_states, key=lambda cs: cs.story_rating or 0) if all_clubs_states else None
+
+    # Previous Hall of Fame history
+    hof_stages = CampaignStage.query.filter(
+        CampaignStage.campaign_id == campaign_id,
+        CampaignStage.stage_key.like('hof_year_%')
+    ).order_by(CampaignStage.year.asc()).all()
+
+    past_records = []
+    for h in hof_stages:
+        try:
+            past_records.append(json.loads(h.stage_data))
+        except Exception:
+            pass
+
+    return {
+        'year': year,
+        'titles': titles,
+        'world_champion': world_champion,
+        'club_of_the_year': {
+            'club': best_club_state.club.to_dict() if best_club_state and best_club_state.club else None,
+            'cp': best_club_state.championship_points if best_club_state else 0,
+            'rating': best_club_state.story_rating if best_club_state else 80,
+        } if best_club_state else None,
+        'best_region': {
+            'region_slug': best_region_slug,
+            'total_cp': region_totals.get(best_region_slug, 0),
+        },
+        'most_improved': {
+            'club': most_improved_state.club.to_dict() if most_improved_state and most_improved_state.club else None,
+            'rating': most_improved_state.story_rating if most_improved_state else 80,
+        } if most_improved_state else None,
+        'leaderboards': leaderboards,
+        'past_records': past_records,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Year Campaign Rollover (Advance to Next Season)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
+    """Advance campaign to Year N+1:
+    - Archive current season summary into Hall of Fame
+    - Increment current_year
+    - Reset current_stage to 'open_qualifier'
+    - Age ratings with mean regression (carryover) and reset seasonal points
+    - Initialize next year's Open Qualifier
+    """
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    old_year = campaign.current_year
+    summary_data = get_season_summary_data(campaign_id)
+
+    # 1. Archive to permanent Hall of Fame stage record
+    hof_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign.id, year=old_year, stage_key=f'hof_year_{old_year}'
+    ).first()
+    if not hof_stage:
+        hof_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=old_year,
+            stage_key=f'hof_year_{old_year}',
+            stage_name=f'Hall of Fame {old_year}',
+            status='completed',
+            stage_data=json.dumps(summary_data),
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.session.add(hof_stage)
+
+    # 2. Advance year and stage
+    campaign.current_year = old_year + 1
+    campaign.current_stage = 'open_qualifier'
+
+    # 3. Off-season rating aging & CP reset
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign.id).all()
+    for cs in club_states:
+        # 15% regression toward base 80
+        curr_r = cs.story_rating or 80
+        cs.story_rating = max(60, min(99, int(round(curr_r * 0.85 + 80 * 0.15))))
+        cs.form_modifier = 0
+        cs.championship_points = 0
+        cs.regular_season_wins = 0
+        cs.map_differential = 0
+        cs.round_differential = 0
+        cs.stage_ranks = '{}'
+
+    # 4. Initialize new year Open Qualifier
+    new_oq_stage = CampaignStage(
+        campaign_id=campaign.id,
+        year=campaign.current_year,
+        stage_key='open_qualifier',
+        stage_name=f'Open Qualifier {campaign.current_year}',
+        status='in_progress',
+        stage_data=json.dumps({'regions': {}}),
+    )
+    db.session.add(new_oq_stage)
+    db.session.flush()
+
+    init_campaign_open_qualifier(campaign.id)
+
+    db.session.commit()
+    return {
+        'success': True,
+        'old_year': old_year,
+        'new_year': campaign.current_year,
+        'new_stage': campaign.current_stage,
+    }
