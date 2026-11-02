@@ -114,8 +114,8 @@
         </div>
       </div>
 
-      {% if campaign.current_stage == 'champion' %}
-      <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border-radius: 6px;">
+      {% if campaign.current_stage == 'champion' or (stage and stage.status == 'completed') %}
+      <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
         Đến VALORANT Champions Paris ➔
       </a>
       {% endif %}

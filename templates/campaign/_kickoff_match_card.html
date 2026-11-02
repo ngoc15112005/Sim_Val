@@ -5,7 +5,8 @@
       {% if m.status == 'completed' and m.winner_id == (m.team_a.id if m.team_a else None) %}
       <span class="winner-arrow">&#9654;</span>
       {% endif %}
-      {% set logo_a = (m.team_a.logo_url if m.team_a else '') or (clubs_by_id[m.team_a.id].logo_url if m.team_a and clubs_by_id and m.team_a.id in clubs_by_id else '') %}
+      {% set team_a_id = (m.team_a.id if m.team_a else None) %}
+      {% set logo_a = (m.team_a.logo_url if (m.team_a and m.team_a.logo_url) else '') or (clubs_by_id[team_a_id|int].logo_url if (m.team_a and clubs_by_id and team_a_id and team_a_id|int in clubs_by_id) else '') %}
       {% if logo_a %}
       <img class="team-logo-sm" src="{{ logo_a }}" alt="" onerror="this.style.display='none'">
       {% endif %}
@@ -28,7 +29,8 @@
       {% if m.status == 'completed' and m.winner_id == (m.team_b.id if m.team_b else None) %}
       <span class="winner-arrow">&#9654;</span>
       {% endif %}
-      {% set logo_b = (m.team_b.logo_url if m.team_b else '') or (clubs_by_id[m.team_b.id].logo_url if m.team_b and clubs_by_id and m.team_b.id in clubs_by_id else '') %}
+      {% set team_b_id = (m.team_b.id if m.team_b else None) %}
+      {% set logo_b = (m.team_b.logo_url if (m.team_b and m.team_b.logo_url) else '') or (clubs_by_id[team_b_id|int].logo_url if (m.team_b and clubs_by_id and team_b_id and team_b_id|int in clubs_by_id) else '') %}
       {% if logo_b %}
       <img class="team-logo-sm" src="{{ logo_b }}" alt="" onerror="this.style.display='none'">
       {% endif %}

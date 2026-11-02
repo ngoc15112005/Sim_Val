@@ -19,8 +19,9 @@
     </div>
     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
       {% if is_regional %}
-      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '{{ active_region }}', '{{ review_target_name or active_region|upper }}', false)" style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
-        <span>🔒</span> Xác nhận & Khóa {{ active_region|upper }}
+      {% set target_reg = r_slug or active_region or selected_region or region_slug or '' %}
+      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '{{ target_reg }}', '{{ review_target_name or target_reg|upper }}', false)" style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+        <span>🔒</span> Xác nhận & Khóa {{ target_reg|upper }}
       </button>
       <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', 'Tất cả 4 khu vực', true)" style="padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <span>🌟</span> Khóa cả 4 khu vực
@@ -57,6 +58,7 @@
 </div>
 {% endif %}
 
+{% if loop is not defined or loop.first %}
 <!-- Stage Confirmation Modal -->
 <div id="stage-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center;">
   <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
@@ -90,73 +92,78 @@
 </div>
 
 <script>
-let pendingConfirmStageKey = '';
-let pendingConfirmRegionSlug = '';
-let pendingConfirmIsAll = false;
+if (typeof window.openStageConfirmModal !== 'function') {
+  window.pendingConfirmStageKey = '';
+  window.pendingConfirmRegionSlug = '';
+  window.pendingConfirmIsAll = false;
 
-function openStageConfirmModal(stageKey, regionSlug, targetName, isAll) {
-  pendingConfirmStageKey = stageKey;
-  pendingConfirmRegionSlug = regionSlug || '';
-  pendingConfirmIsAll = !!isAll;
+  window.openStageConfirmModal = function(stageKey, regionSlug, targetName, isAll) {
+    window.pendingConfirmStageKey = stageKey;
+    window.pendingConfirmRegionSlug = regionSlug || '';
+    window.pendingConfirmIsAll = !!isAll;
 
-  const targetEl = document.getElementById('stage-confirm-target-text');
-  if (targetEl) targetEl.textContent = targetName || stageKey;
+    const targetEl = document.getElementById('stage-confirm-target-text');
+    if (targetEl) targetEl.textContent = targetName || stageKey;
 
-  const modal = document.getElementById('stage-confirm-modal');
-  if (modal) modal.style.display = 'flex';
-}
+    const modal = document.getElementById('stage-confirm-modal');
+    if (modal) modal.style.display = 'flex';
+  };
 
-function closeStageConfirmModal() {
-  const modal = document.getElementById('stage-confirm-modal');
-  if (modal) modal.style.display = 'none';
-}
+  window.closeStageConfirmModal = function() {
+    const modal = document.getElementById('stage-confirm-modal');
+    if (modal) modal.style.display = 'none';
+  };
 
-async function executeStageConfirmation() {
-  const btn = document.getElementById('btn-execute-stage-confirm');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ Đang xác nhận & khóa...';
-  }
+  window.executeStageConfirmation = async function() {
+    const btn = document.getElementById('btn-execute-stage-confirm');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang xác nhận & khóa...';
+    }
 
-  let endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm`;
-  let payload = {};
+    let endpoint = `/api/campaign/{{ campaign.id }}/${window.pendingConfirmStageKey}/confirm`;
+    let payload = {};
 
-  if (pendingConfirmIsAll) {
-    endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm-all`;
-  } else if (pendingConfirmRegionSlug) {
-    endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm-region`;
-    payload = { region_slug: pendingConfirmRegionSlug };
-  }
+    if (window.pendingConfirmIsAll) {
+      endpoint = `/api/campaign/{{ campaign.id }}/${window.pendingConfirmStageKey}/confirm-all`;
+    } else if (window.pendingConfirmRegionSlug) {
+      endpoint = `/api/campaign/{{ campaign.id }}/${window.pendingConfirmStageKey}/confirm-region`;
+      payload = { region_slug: window.pendingConfirmRegionSlug };
+    }
 
-  try {
-    const res = await API.post(endpoint, payload);
-    if (res.success) {
-      if (typeof reloadKickoffCurrentRegion === 'function') {
-        reloadKickoffCurrentRegion();
-      } else if (typeof reloadStage1CurrentRegion === 'function') {
-        reloadStage1CurrentRegion();
-      } else if (typeof reloadStage2CurrentRegion === 'function') {
-        reloadStage2CurrentRegion();
-      } else if (typeof reloadEwcCurrentRegion === 'function') {
-        reloadEwcCurrentRegion();
-      } else if (typeof activeOqRegion !== 'undefined') {
-        window.location.href = window.location.pathname + '?region=' + activeOqRegion;
+    try {
+      const res = await API.post(endpoint, payload);
+      if (res.success) {
+        if (typeof reloadKickoffCurrentRegion === 'function') {
+          reloadKickoffCurrentRegion();
+        } else if (typeof reloadStage1CurrentRegion === 'function') {
+          reloadStage1CurrentRegion();
+        } else if (typeof reloadStage2CurrentRegion === 'function') {
+          reloadStage2CurrentRegion();
+        } else if (typeof reloadEwcCurrentRegion === 'function') {
+          reloadEwcCurrentRegion();
+        } else if (typeof activeOqRegion !== 'undefined') {
+          window.location.href = window.location.pathname + '?region=' + activeOqRegion;
+        } else {
+          const _u = new URL(window.location.href);
+          if (window.pendingConfirmRegionSlug) _u.searchParams.set('region', window.pendingConfirmRegionSlug);
+          window.location.href = _u.toString();
+        }
       } else {
-        window.location.reload();
+        alert("Lỗi: " + (res.error || "Không thể xác nhận kết quả"));
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Đồng ý Xác nhận & Khóa';
+        }
       }
-    } else {
-      alert("Lỗi: " + (res.error || "Không thể xác nhận kết quả"));
+    } catch (err) {
+      alert("Lỗi kết nối: " + err.message);
       if (btn) {
         btn.disabled = false;
         btn.textContent = 'Đồng ý Xác nhận & Khóa';
       }
     }
-  } catch (err) {
-    alert("Lỗi kết nối: " + err.message);
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Đồng ý Xác nhận & Khóa';
-    }
-  }
+  };
 }
 </script>
+{% endif %}

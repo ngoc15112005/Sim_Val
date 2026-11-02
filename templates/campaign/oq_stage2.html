@@ -370,6 +370,16 @@
 {% block scripts %}
 <script>
 let activeOqRegion = '{{ active_region or selected_region or "pacific" }}';
+const _urlParamOq = new URLSearchParams(window.location.search).get('region');
+const _savedOqRegion = sessionStorage.getItem('val_active_region_oqs2_{{ campaign.id }}');
+if (_urlParamOq) {
+  activeOqRegion = _urlParamOq;
+  sessionStorage.setItem('val_active_region_oqs2_{{ campaign.id }}', _urlParamOq);
+} else if (_savedOqRegion) {
+  activeOqRegion = _savedOqRegion;
+  setTimeout(() => switchOqRegion(_savedOqRegion), 10);
+}
+
 let currentModalMatchId = null;
 let currentModalTeamAId = null;
 let currentModalTeamAName = '';
@@ -379,6 +389,7 @@ let currentModalBo = 1;
 
 function switchOqRegion(rSlug, evt) {
   activeOqRegion = rSlug;
+  sessionStorage.setItem('val_active_region_oqs2_{{ campaign.id }}', rSlug);
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.oq-region-view').forEach(v => v.classList.remove('active'));
 
@@ -397,7 +408,8 @@ function switchOqRegion(rSlug, evt) {
 }
 
 function reloadOqCurrentRegion() {
-  window.location.href = window.location.pathname + '?region=' + activeOqRegion;
+  const targetReg = activeOqRegion || sessionStorage.getItem('val_active_region_oqs2_{{ campaign.id }}') || 'pacific';
+  window.location.href = window.location.pathname + '?region=' + targetReg;
 }
 
 async function rollOqMatch(matchId) {

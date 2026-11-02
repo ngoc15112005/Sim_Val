@@ -112,9 +112,9 @@
         </div>
       </div>
 
-      {% if campaign.current_stage == 'master' %}
-      <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border-radius: 6px;">
-        Đến VCT Masters Toronto ➔
+      {% if campaign.current_stage in ['ewc_qualifier', 'master'] or (stage and stage.status == 'completed') %}
+      <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        Đến VCT EWC Qualifier ➔
       </a>
       {% endif %}
     </div>
@@ -612,10 +612,6 @@ async function simStage1All() {
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
-    btn.disabled = false;
-    btn.textContent = '🌟 Sim cả 4 khu vực';
-  }
-}
     btn.disabled = false;
     btn.textContent = '🌟 Sim cả 4 khu vực';
   }

@@ -477,11 +477,11 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
 # VCT Kickoff Stage Execution & Interactive Match Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_kickoff_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Kickoff data for all regions in a campaign.
     Ensures that regional_results is initialized with interactive states.
     """
-    stage = get_stage_record(campaign_id, 'kickoff')
+    stage = get_stage_record(campaign_id, 'kickoff', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -503,10 +503,15 @@ def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     # Hydrate logo_urls for all teams in rosters, matches, standings, major_qualifiers
     club_logos = {c.id: c.logo_url for c in Club.query.all()}
     def _hydrate_team(t):
-        if isinstance(t, dict) and t.get('id'):
-            tid = t['id']
-            if tid in club_logos and club_logos[tid]:
-                t['logo_url'] = club_logos[tid]
+        if isinstance(t, dict):
+            raw_id = t.get('id') or t.get('club_id')
+            if raw_id is not None:
+                try:
+                    tid = int(raw_id)
+                    if tid in club_logos and club_logos[tid]:
+                        t['logo_url'] = club_logos[tid]
+                except (ValueError, TypeError):
+                    pass
 
     for r_slug, r_roster in rosters.items():
         if isinstance(r_roster, list):
@@ -826,9 +831,9 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
 # VCT Major (Masters Bangkok) Stage Execution & Interactive Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_major_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_major_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Major data (roster, matches, standings) for a campaign."""
-    stage = get_stage_record(campaign_id, 'major')
+    stage = get_stage_record(campaign_id, 'major', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -1393,9 +1398,9 @@ def _prepare_stage1_stage(campaign: Campaign):
         stage1_record.stage_data = json.dumps(s1_data)
 
 
-def get_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_stage1_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Stage 1 data (rosters, regional_results) for a campaign."""
-    stage = get_stage_record(campaign_id, 'stage1')
+    stage = get_stage_record(campaign_id, 'stage1', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -1751,16 +1756,16 @@ def _prepare_ewc_qualifier_stage(campaign: Campaign, s1_regional_results: Dict[s
         stage_record.status = 'pending'
 
 
-def get_ewc_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_ewc_qualifier_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve or auto-initialize EWC Qualifier stage data."""
-    stage = get_stage_record(campaign_id, 'ewc_qualifier')
+    stage = get_stage_record(campaign_id, 'ewc_qualifier', year=year)
     if not stage or not stage.stage_data:
         campaign = get_campaign(campaign_id)
         if campaign:
-            s1_data = get_stage1_data(campaign_id)
+            s1_data = get_stage1_data(campaign_id, year=year)
             if s1_data and s1_data.get('regional_results'):
                 _prepare_ewc_qualifier_stage(campaign, s1_data.get('regional_results', {}))
-                stage = get_stage_record(campaign_id, 'ewc_qualifier')
+                stage = get_stage_record(campaign_id, 'ewc_qualifier', year=year)
     if not stage or not stage.stage_data:
         return None
     return json.loads(stage.stage_data)
@@ -1981,9 +1986,9 @@ def run_ewc_qualifier_stage(campaign_id: int) -> CampaignStage:
 # VCT Masters (Masters Toronto) Stage Execution & Interactive Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_master_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_master_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Masters Toronto data (roster, matches, standings) for a campaign."""
-    stage = get_stage_record(campaign_id, 'master')
+    stage = get_stage_record(campaign_id, 'master', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -2125,9 +2130,9 @@ def run_master_stage(campaign_id: int) -> Dict[str, Any]:
 # Esports World Cup (EWC) Stage Execution & Interactive Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_ewc_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_ewc_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full EWC data (roster, groups, playoffs, standings) for a campaign."""
-    stage = get_stage_record(campaign_id, 'ewc')
+    stage = get_stage_record(campaign_id, 'ewc', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -2726,15 +2731,15 @@ def _prepare_stage2_stage(campaign: Campaign):
         stage2_record.stage_data = json.dumps(s2_data)
 
 
-def get_stage2_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_stage2_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Stage 2 data (rosters, regional_results) for a campaign."""
-    stage = get_stage_record(campaign_id, 'stage2')
+    stage = get_stage_record(campaign_id, 'stage2', year=year)
     if not stage or not stage.stage_data:
         campaign = get_campaign(campaign_id)
         if campaign:
             _prepare_stage2_stage(campaign)
             db.session.commit()
-            stage = get_stage_record(campaign_id, 'stage2')
+            stage = get_stage_record(campaign_id, 'stage2', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -2979,15 +2984,15 @@ def sim_stage2_all_interactive(campaign_id: int, auto_confirm: bool = True) -> D
 # VALORANT Champions Paris Stage Execution & Interactive Resolving
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_champion_data(campaign_id: int) -> Optional[Dict[str, Any]]:
+def get_champion_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """Retrieve full Champions Paris data (roster, groups, playoffs, standings) for a campaign."""
-    stage = get_stage_record(campaign_id, 'champion')
+    stage = get_stage_record(campaign_id, 'champion', year=year)
     if not stage or not stage.stage_data:
         campaign = get_campaign(campaign_id)
         if campaign:
             _prepare_champion_stage(campaign)
             db.session.commit()
-            stage = get_stage_record(campaign_id, 'champion')
+            stage = get_stage_record(campaign_id, 'champion', year=year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
@@ -3180,6 +3185,11 @@ def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
     k_titles = {}
 
     k_stage = get_stage_record(campaign_id, 'kickoff', year=year)
+    if not k_stage:
+        k_stage = CampaignStage.query.filter_by(
+            campaign_id=campaign_id, stage_key='kickoff'
+        ).order_by(CampaignStage.year.desc()).first()
+
     if k_stage and k_stage.stage_data:
         try:
             k_data = json.loads(k_stage.stage_data)
@@ -3192,7 +3202,15 @@ def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
                 if not champ and reg_d.get('major_qualifiers'):
                     champ = reg_d['major_qualifiers'][0]
                 if champ:
-                    k_titles[r] = champ
+                    if isinstance(champ, dict):
+                        c_dict = dict(champ)
+                        if 'id' not in c_dict and 'club_id' in c_dict:
+                            c_dict['id'] = c_dict['club_id']
+                        k_titles[r] = c_dict
+                    elif isinstance(champ, int):
+                        c = Club.query.get(champ)
+                        if c:
+                            k_titles[r] = c.to_dict()
         except Exception:
             pass
 
@@ -3201,16 +3219,24 @@ def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
             p = CampaignStagePlacement.query.filter_by(
                 campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
             ).first()
+            if not p:
+                p = CampaignStagePlacement.query.filter_by(
+                    campaign_id=campaign_id, stage_key='kickoff', region_slug=r, rank=1
+                ).order_by(CampaignStagePlacement.year.desc()).first()
             if p and p.club:
                 k_titles[r] = p.club.to_dict()
 
     missing = [r for r in all_regions if r not in k_titles]
     if missing and k_stage and k_stage.stage_data:
-        record_stage_placements(campaign_id, 'kickoff', year=year)
+        record_stage_placements(campaign_id, 'kickoff', year=k_stage.year)
         for r in missing:
             p = CampaignStagePlacement.query.filter_by(
-                campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
+                campaign_id=campaign_id, year=k_stage.year, stage_key='kickoff', region_slug=r, rank=1
             ).first()
+            if not p:
+                p = CampaignStagePlacement.query.filter_by(
+                    campaign_id=campaign_id, stage_key='kickoff', region_slug=r, rank=1
+                ).order_by(CampaignStagePlacement.year.desc()).first()
             if p and p.club:
                 k_titles[r] = p.club.to_dict()
 
