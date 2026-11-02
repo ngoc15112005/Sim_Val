@@ -254,6 +254,54 @@
         </div>
       </div>
 
+      <!-- Liquipedia Group Standings Table -->
+      {% if grp.standings %}
+      <div class="table-scroll" style="margin-bottom: 14px;">
+        <table class="group-standings-table" style="width: 100%; font-size: 0.85em; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
+              <th style="width: 25px;">#</th>
+              <th>Đội tuyển</th>
+              <th style="width: 50px; text-align: center;">W-L</th>
+              <th style="width: 50px; text-align: center;">Diff</th>
+              <th style="width: 125px; text-align: center;">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in grp.standings %}
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); {% if s.is_seed1 %}background: rgba(34, 197, 94, 0.1);{% elif s.is_seed2 %}background: rgba(59, 130, 246, 0.08);{% elif s.status == 'eliminated' %}background: rgba(239, 68, 68, 0.05);{% endif %}">
+              <td style="color: var(--dim); font-weight: bold;">{{ loop.index }}</td>
+              <td style="padding: 6px 0;">
+                <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="openTeamProfileModal({{ s.team.id }})" title="Xem hồ sơ đội tuyển {{ s.team.name }}">
+                  {% if s.team.logo_url %}
+                  <img src="{{ s.team.logo_url }}" alt="" style="width: 18px; height: 18px; object-fit: contain;">
+                  {% endif %}
+                  <strong class="team-profile-trigger" style="color: #fff;">{{ s.team.short_code }}</strong>
+                  <span style="font-size: 0.8em; color: var(--dim);">{{ s.team.name }}</span>
+                </div>
+              </td>
+              <td style="text-align: center; font-weight: bold;">
+                <span style="color: #4ade80;">{{ s.wins }}</span> - <span style="color: #f87171;">{{ s.losses }}</span>
+              </td>
+              <td style="text-align: center; color: var(--dim);">{{ '%+d'|format(s.map_diff) }}</td>
+              <td style="text-align: center;">
+                {% if s.is_seed1 %}
+                <span class="status-text qualified" style="color: #4ade80; font-weight: bold; font-size: 0.8em;">★ Seed #1 Playoffs</span>
+                {% elif s.is_seed2 %}
+                <span class="status-text qualified" style="color: #60a5fa; font-weight: bold; font-size: 0.8em;">★ Seed #2 Playoffs</span>
+                {% elif s.status == 'eliminated' %}
+                <span class="status-text eliminated" style="color: #f87171; font-size: 0.8em;">Bị loại</span>
+                {% else %}
+                <span class="status-text pending" style="color: var(--dim); font-size: 0.8em;">Đang đấu</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
       <!-- Liquipedia GSL Match Flow -->
       <div class="group-matches-flow">
         <!-- Opening Matches -->

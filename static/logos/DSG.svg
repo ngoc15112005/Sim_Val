@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="20" fill="#1e1b18"/>
+  <path d="M25 35 C25 25, 75 25, 75 35 C85 45, 80 75, 70 80 C60 85, 40 85, 30 80 C20 75, 15 45, 25 35 Z" fill="#f59e0b" stroke="#b45309" stroke-width="3"/>
+  <rect x="30" y="42" width="17" height="12" rx="3" fill="#000"/>
+  <rect x="53" y="42" width="17" height="12" rx="3" fill="#000"/>
+  <rect x="47" y="46" width="6" height="3" fill="#000"/>
+  <text x="50" y="72" font-family="Arial, sans-serif" font-size="14" font-weight="900" fill="#000" text-anchor="middle">DSG</text>
+</svg>

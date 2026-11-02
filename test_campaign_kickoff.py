@@ -94,7 +94,7 @@ class TestCampaignKickoff(unittest.TestCase):
         r = self.client.get(f'/campaign/{campaign.id}/stage/kickoff?region=pacific')
         self.assertEqual(r.status_code, 200)
         self.assertIn('VCT Kickoff (12 Đội / Khu Vực)'.encode('utf-8'), r.data)
-        self.assertIn('KẾT QUẢ VCT KICKOFF PACIFIC 2025'.encode('utf-8'), r.data)
+        self.assertIn(f'KẾT QUẢ VCT KICKOFF PACIFIC {campaign.current_year}'.encode('utf-8'), r.data)
 
         # Cleanup
         db.session.delete(campaign)

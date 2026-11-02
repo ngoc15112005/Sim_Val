@@ -264,7 +264,7 @@ def init_champion_state(teams: List[Dict[str, Any]]) -> Dict[str, Any]:
                 'template': tmpl,
             }
 
-        groups_data[label] = {
+        grp_obj = {
             'label': label,
             'teams': grp_teams,
             'matches': matches,
@@ -272,6 +272,8 @@ def init_champion_state(teams: List[Dict[str, Any]]) -> Dict[str, Any]:
             'winner_seed2': None,
             'status': 'in_progress',
         }
+        update_champion_group_standings(grp_obj)
+        groups_data[label] = grp_obj
 
     return {
         'status': 'in_progress',
@@ -285,6 +287,97 @@ def init_champion_state(teams: List[Dict[str, Any]]) -> Dict[str, Any]:
         'standings': [],
         'rewards_awarded': False,
     }
+
+
+def update_champion_group_standings(grp: Dict[str, Any]):
+    """Calculate Liquipedia-style group standings (W-L, Map Diff, Qualification status) for a Champions GSL group."""
+    teams = grp.get('teams', [])
+    matches = grp.get('matches', {})
+    stats = {}
+    for t in teams:
+        if isinstance(t, dict) and t.get('id'):
+            stats[t['id']] = {
+                'team': t,
+                'club_id': t['id'],
+                'wins': 0,
+                'losses': 0,
+                'map_w': 0,
+                'map_l': 0,
+                'status': 'pending',
+                'is_seed1': False,
+                'is_seed2': False,
+            }
+
+    # Inspect all completed matches in group
+    for m in matches.values():
+        if isinstance(m, dict) and m.get('status') == 'completed':
+            w_id = m.get('winner_id')
+            ta = m.get('team_a') or {}
+            tb = m.get('team_b') or {}
+            ta_id = ta.get('id') if isinstance(ta, dict) else None
+            tb_id = tb.get('id') if isinstance(tb, dict) else None
+            l_id = tb_id if w_id == ta_id else ta_id
+
+            if w_id and w_id in stats:
+                stats[w_id]['wins'] += 1
+            if l_id and l_id in stats:
+                stats[l_id]['losses'] += 1
+
+            sa = m.get('team_a_score', 0)
+            sb = m.get('team_b_score', 0)
+            if ta_id and ta_id in stats:
+                stats[ta_id]['map_w'] += sa
+                stats[ta_id]['map_l'] += sb
+            if tb_id and tb_id in stats:
+                stats[tb_id]['map_w'] += sb
+                stats[tb_id]['map_l'] += sa
+
+    # Check qualification & elimination status
+    w_seed1 = grp.get('winner_seed1')
+    if w_seed1 and isinstance(w_seed1, dict) and w_seed1.get('id') in stats:
+        stats[w_seed1['id']]['status'] = 'qualified'
+        stats[w_seed1['id']]['is_seed1'] = True
+
+    w_seed2 = grp.get('winner_seed2')
+    if w_seed2 and isinstance(w_seed2, dict) and w_seed2.get('id') in stats:
+        stats[w_seed2['id']]['status'] = 'qualified'
+        stats[w_seed2['id']]['is_seed2'] = True
+
+    label = grp.get('label', '')
+    em = matches.get(f'group{label}_elimination_match')
+    if em and em.get('status') == 'completed' and em.get('loser'):
+        l4 = em['loser']
+        l4_id = l4.get('id') if isinstance(l4, dict) else None
+        if l4_id in stats and stats[l4_id]['status'] != 'qualified':
+            stats[l4_id]['status'] = 'eliminated'
+
+    dm = matches.get(f'group{label}_decider_match')
+    if dm and dm.get('status') == 'completed' and dm.get('loser'):
+        l3 = dm['loser']
+        l3_id = l3.get('id') if isinstance(l3, dict) else None
+        if l3_id in stats and stats[l3_id]['status'] != 'qualified':
+            stats[l3_id]['status'] = 'eliminated'
+
+    standings = []
+    for s in stats.values():
+        s['map_diff'] = s['map_w'] - s['map_l']
+        standings.append(s)
+
+    def _rank_key(item):
+        if item['is_seed1']:
+            return (0, 0)
+        elif item['is_seed2']:
+            return (1, 0)
+        elif item['status'] == 'pending':
+            return (2, -item['wins'], item['losses'], -item['map_diff'])
+        else:
+            return (3, -item['wins'], item['losses'], -item['map_diff'])
+
+    standings.sort(key=_rank_key)
+    for idx, s in enumerate(standings, start=1):
+        s['rank'] = idx
+
+    grp['standings'] = standings
 
 
 def advance_champion_state(data: Dict[str, Any]) -> bool:
@@ -343,6 +436,8 @@ def advance_champion_state(data: Dict[str, Any]) -> bool:
             advancing_runners.append(grp['winner_seed2'])
         else:
             all_groups_done = False
+
+        update_champion_group_standings(grp)
 
     # 2. Transition to Playoffs when groups finish
     if all_groups_done and data['current_stage'] == 'groups':

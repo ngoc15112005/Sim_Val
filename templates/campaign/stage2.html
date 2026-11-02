@@ -490,6 +490,11 @@
 
 <script>
 const activeStage1Region = "{{ active_region }}";
+
+function reloadStage2CurrentRegion() {
+  window.location.href = window.location.pathname + '?region=' + activeStage1Region;
+}
+
 let currentModalMatchId = null;
 let currentModalTeamAId = null;
 let currentModalTeamAName = '';
@@ -504,7 +509,7 @@ async function rollStage2Match(matchId) {
       match_id: matchId
     });
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
     }
@@ -523,7 +528,7 @@ async function simStage2Round() {
       region: activeStage1Region
     });
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
       btn.disabled = false;
@@ -548,7 +553,7 @@ async function simStage2Region() {
       region: activeStage1Region
     });
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;
@@ -571,7 +576,7 @@ async function simStage2All() {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/sim-all`, {});
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;
@@ -671,7 +676,7 @@ async function submitStage1QuickScore(winnerId, scoreA, scoreB) {
       maps: []
     });
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể cập nhật tỷ số"));
     }
@@ -724,7 +729,7 @@ async function submitStage1CustomMaps() {
       maps: maps
     });
     if (res.success) {
-      window.location.reload();
+      reloadStage2CurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể cập nhật tỷ số"));
     }

@@ -5,9 +5,9 @@
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
     <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold;">
-      {{ campaign.name }} • Vòng Khởi Động VCT 2025
+      {{ campaign.name }} • Vòng Khởi Động VCT {{ campaign.current_year }}
     </div>
-    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Kickoff (12 Đội / Khu Vực)</h1>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Kickoff (12 Đội / Khu Vực) • {{ campaign.current_year }}</h1>
     <div style="font-size: 0.9em; color: var(--dim);">
       Thể thức: Nhánh thắng & Nhánh thua (Double Elimination 22 trận) • Chọn <strong>Top 2 đội</strong> tham dự VCT Major (Masters Bangkok).
     </div>
@@ -65,7 +65,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
       <div>
         <h2 style="color: #4ade80; margin: 0; font-size: 1.3em;">
-          🏆 KẾT QUẢ VCT KICKOFF {{ r_slug|upper }} 2025
+          🏆 KẾT QUẢ VCT KICKOFF {{ r_slug|upper }} {{ campaign.current_year }}
         </h2>
         <p style="color: var(--dim); font-size: 0.9em; margin-top: 2px;">
           Top 2 đội giành vé đại diện khu vực tham dự <strong>VCT Major (Masters Bangkok)</strong> và cộng điểm Championship Points (CP).
@@ -156,7 +156,7 @@
       <div>
         <h2 style="color: var(--accent); margin: 0; font-size: 1.25em;">Cây Nhánh Đấu Double Elimination (22 trận)</h2>
         <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-          Định dạng chuẩn VCT 2025 • Top 2 đội (Nhà Vô Địch & Á Quân) giành vé tham dự VCT Major Bangkok.
+          Định dạng chuẩn VCT {{ campaign.current_year }} • Top 2 đội (Nhà Vô Địch & Á Quân) giành vé tham dự VCT Major Bangkok.
         </p>
       </div>
       <div>
@@ -371,9 +371,22 @@ function switchKickoffRegion(rSlug) {
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.kickoff-region-view').forEach(v => v.classList.remove('active'));
 
-  event.target.closest('.region-tab-btn').classList.add('active');
+  const btns = document.querySelectorAll('.region-tab-btn');
+  btns.forEach(b => {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(rSlug)) {
+      b.classList.add('active');
+    }
+  });
   const view = document.getElementById(`kickoff-view-${rSlug}`);
   if (view) view.classList.add('active');
+
+  const url = new URL(window.location);
+  url.searchParams.set('region', rSlug);
+  window.history.replaceState(null, '', url);
+}
+
+function reloadKickoffCurrentRegion() {
+  window.location.href = window.location.pathname + '?region=' + activeKickoffRegion;
 }
 
 async function rollKoMatch(matchId) {
@@ -383,7 +396,7 @@ async function rollKoMatch(matchId) {
       match_id: matchId
     });
     if (res.success) {
-      window.location.reload();
+      reloadKickoffCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
     }
@@ -402,7 +415,7 @@ async function simCurrentKoRound() {
       region_slug: activeKickoffRegion
     });
     if (res.success) {
-      window.location.reload();
+      reloadKickoffCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
       btn.disabled = false;
@@ -427,7 +440,7 @@ async function simSelectedKoRegion() {
       region_slug: activeKickoffRegion
     });
     if (res.success) {
-      window.location.reload();
+      reloadKickoffCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;
@@ -450,7 +463,7 @@ async function simAllKoRegions() {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {});
     if (res.success) {
-      window.location.reload();
+      reloadKickoffCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;
@@ -635,7 +648,7 @@ async function sendKoManualRequest(winnerId, maps) {
       maps: maps
     });
     if (res.success) {
-      window.location.reload();
+      reloadKickoffCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể lưu kết quả"));
       if (btn) {

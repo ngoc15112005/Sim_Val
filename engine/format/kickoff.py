@@ -769,6 +769,8 @@ def advance_kickoff_region(region_data: Dict[str, Any]) -> bool:
                 })
 
         region_data['standings'] = standings
+        region_data['champion'] = champion
+        region_data['runner_up'] = runner_up
         region_data['major_qualifiers'] = [champion, runner_up]
         region_data['status'] = 'completed'
         region_data['total_matches_count'] = len(matches)

@@ -95,6 +95,7 @@ from engine.format.champion_sim import (
     resolve_champion_match,
     sim_champion_round,
     sim_champion_remaining,
+    update_champion_group_standings,
 )
 
 
@@ -405,6 +406,7 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
     ).first()
 
     kickoff_rosters = {}
+    clubs_by_id = {c.id: c for c in Club.query.all()}
     for r_slug in ['pacific', 'americas', 'emea', 'china']:
         # 8 Partner teams
         partner_states = CampaignClubState.query.filter_by(
@@ -416,6 +418,7 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
                 'id': cs.club.id,
                 'name': cs.club.name,
                 'short_code': cs.club.short_code,
+                'logo_url': cs.club.logo_url or (clubs_by_id.get(cs.club.id).logo_url if cs.club.id in clubs_by_id else ''),
                 'story_rating': cs.story_rating,
                 'effective_rating': cs.effective_rating,
                 'is_partner': True,
@@ -431,6 +434,7 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
                 'id': t['id'],
                 'name': t['name'],
                 'short_code': t['short_code'],
+                'logo_url': t.get('logo_url') or (clubs_by_id.get(t['id']).logo_url if t['id'] in clubs_by_id else ''),
                 'story_rating': t.get('story_rating', 80),
                 'is_partner': False,
                 'entry_source': f'Open Qualifier Seed #{idx + 1}',
@@ -488,6 +492,35 @@ def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     if updated:
         stage.stage_data = json.dumps(data)
         db.session.commit()
+
+    # Hydrate logo_urls for all teams in rosters, matches, standings, major_qualifiers
+    club_logos = {c.id: c.logo_url for c in Club.query.all()}
+    def _hydrate_team(t):
+        if isinstance(t, dict) and t.get('id'):
+            tid = t['id']
+            if tid in club_logos and club_logos[tid]:
+                t['logo_url'] = club_logos[tid]
+
+    for r_slug, r_roster in rosters.items():
+        if isinstance(r_roster, list):
+            for t in r_roster:
+                _hydrate_team(t)
+
+    for r_slug, reg_d in data.get('regional_results', {}).items():
+        if isinstance(reg_d, dict):
+            for m in reg_d.get('matches', []):
+                if isinstance(m, dict):
+                    _hydrate_team(m.get('team_a'))
+                    _hydrate_team(m.get('team_b'))
+                    _hydrate_team(m.get('winner'))
+                    _hydrate_team(m.get('loser'))
+            for s in reg_d.get('standings', []):
+                if isinstance(s, dict):
+                    _hydrate_team(s.get('team'))
+            for q in reg_d.get('major_qualifiers', []):
+                _hydrate_team(q)
+            _hydrate_team(reg_d.get('champion'))
+            _hydrate_team(reg_d.get('runner_up'))
 
     return data
 
@@ -2897,6 +2930,42 @@ def get_champion_data(campaign_id: int) -> Optional[Dict[str, Any]]:
         stage.stage_data = json.dumps(data)
         db.session.commit()
 
+    # Hydrate group standings and team logos
+    res = data.get('result')
+    if res and res.get('groups'):
+        club_logos = {c.id: c.logo_url for c in Club.query.all()}
+        def _hydrate_t(t):
+            if isinstance(t, dict) and t.get('id'):
+                tid = t['id']
+                if tid in club_logos and club_logos[tid]:
+                    t['logo_url'] = club_logos[tid]
+
+        for grp in res['groups'].values():
+            update_champion_group_standings(grp)
+            for s in grp.get('standings', []):
+                _hydrate_t(s.get('team'))
+            for t in grp.get('teams', []):
+                _hydrate_t(t)
+            for m in grp.get('matches', {}).values():
+                if isinstance(m, dict):
+                    _hydrate_t(m.get('team_a'))
+                    _hydrate_t(m.get('team_b'))
+                    _hydrate_t(m.get('winner'))
+                    _hydrate_t(m.get('loser'))
+            _hydrate_t(grp.get('winner_seed1'))
+            _hydrate_t(grp.get('winner_seed2'))
+
+        for m in res.get('playoff_matches', []):
+            if isinstance(m, dict):
+                _hydrate_t(m.get('team_a'))
+                _hydrate_t(m.get('team_b'))
+                _hydrate_t(m.get('winner'))
+                _hydrate_t(m.get('loser'))
+        _hydrate_t(res.get('champion'))
+        _hydrate_t(res.get('runner_up'))
+        _hydrate_t(res.get('third_place'))
+        _hydrate_t(res.get('fourth_place'))
+
     return data
 
 
@@ -3076,79 +3145,182 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
 
     # 1. Kickoff Regional Winners
     k_stage = get_stage_record(campaign_id, 'kickoff', year=year)
+    k_titles = {}
     if k_stage and k_stage.stage_data:
-        k_data = json.loads(k_stage.stage_data)
-        k_reg = k_data.get('regional_results', {})
-        titles['kickoff'] = {
-            r: k_reg.get(r, {}).get('champion')
-            for r in ['pacific', 'americas', 'emea', 'china']
-            if k_reg.get(r, {}).get('champion')
-        }
+        try:
+            k_data = json.loads(k_stage.stage_data)
+            k_reg = k_data.get('regional_results', {})
+            for r in ['pacific', 'americas', 'emea', 'china']:
+                reg_d = k_reg.get(r, {})
+                champ = reg_d.get('champion')
+                if not champ and reg_d.get('standings'):
+                    champ = reg_d['standings'][0].get('team')
+                if not champ and reg_d.get('major_qualifiers'):
+                    champ = reg_d['major_qualifiers'][0]
+                if champ:
+                    k_titles[r] = champ
+        except Exception:
+            pass
+
+    # Fallback to persistent CampaignStagePlacement records for Kickoff
+    for r in ['pacific', 'americas', 'emea', 'china']:
+        if r not in k_titles:
+            p = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
+            ).first()
+            if p and p.club:
+                k_titles[r] = p.club.to_dict()
+
+    titles['kickoff'] = k_titles
 
     # 2. Masters Bangkok (Major)
     m_stage = get_stage_record(campaign_id, 'major', year=year)
+    m_champ = None
+    m_ru = None
     if m_stage and m_stage.stage_data:
-        m_data = json.loads(m_stage.stage_data)
-        m_res = m_data.get('result', {})
-        titles['major'] = {
-            'champion': m_res.get('champion'),
-            'runner_up': m_res.get('runner_up'),
-        }
+        try:
+            m_data = json.loads(m_stage.stage_data)
+            m_res = m_data.get('result', {})
+            m_champ = m_res.get('champion')
+            m_ru = m_res.get('runner_up')
+        except Exception:
+            pass
+    if not m_champ:
+        p1 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='major', rank=1).first()
+        if p1 and p1.club:
+            m_champ = p1.club.to_dict()
+    if not m_ru:
+        p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='major', rank=2).first()
+        if p2 and p2.club:
+            m_ru = p2.club.to_dict()
+    titles['major'] = {'champion': m_champ, 'runner_up': m_ru}
 
     # 3. Stage 1 Regional Winners
     s1_stage = get_stage_record(campaign_id, 'stage1', year=year)
+    s1_titles = {}
     if s1_stage and s1_stage.stage_data:
-        s1_data = json.loads(s1_stage.stage_data)
-        s1_reg = s1_data.get('regional_results', {})
-        titles['stage1'] = {
-            r: s1_reg.get(r, {}).get('champion')
-            for r in ['pacific', 'americas', 'emea', 'china']
-            if s1_reg.get(r, {}).get('champion')
-        }
+        try:
+            s1_data = json.loads(s1_stage.stage_data)
+            s1_reg = s1_data.get('regional_results', {})
+            for r in ['pacific', 'americas', 'emea', 'china']:
+                reg_d = s1_reg.get(r, {})
+                champ = reg_d.get('champion')
+                if not champ and reg_d.get('standings'):
+                    champ = reg_d['standings'][0].get('team')
+                if champ:
+                    s1_titles[r] = champ
+        except Exception:
+            pass
+    for r in ['pacific', 'americas', 'emea', 'china']:
+        if r not in s1_titles:
+            p = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=year, stage_key='stage1', region_slug=r, rank=1
+            ).first()
+            if p and p.club:
+                s1_titles[r] = p.club.to_dict()
+    titles['stage1'] = s1_titles
 
     # 4. Masters Toronto (Master)
     mt_stage = get_stage_record(campaign_id, 'master', year=year)
+    mt_champ = None
+    mt_ru = None
     if mt_stage and mt_stage.stage_data:
-        mt_data = json.loads(mt_stage.stage_data)
-        mt_res = mt_data.get('result', {})
-        titles['master'] = {
-            'champion': mt_res.get('champion'),
-            'runner_up': mt_res.get('runner_up'),
-        }
+        try:
+            mt_data = json.loads(mt_stage.stage_data)
+            mt_res = mt_data.get('result', {})
+            mt_champ = mt_res.get('champion')
+            mt_ru = mt_res.get('runner_up')
+        except Exception:
+            pass
+    if not mt_champ:
+        p1 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='master', rank=1).first()
+        if p1 and p1.club:
+            mt_champ = p1.club.to_dict()
+    if not mt_ru:
+        p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='master', rank=2).first()
+        if p2 and p2.club:
+            mt_ru = p2.club.to_dict()
+    titles['master'] = {'champion': mt_champ, 'runner_up': mt_ru}
 
     # 5. Esports World Cup (EWC)
     ewc_stage = get_stage_record(campaign_id, 'ewc', year=year)
+    ewc_champ = None
+    ewc_ru = None
+    ewc_3rd = None
     if ewc_stage and ewc_stage.stage_data:
-        ewc_data = json.loads(ewc_stage.stage_data)
-        ewc_res = ewc_data.get('result', {})
-        titles['ewc'] = {
-            'champion': ewc_res.get('champion'),
-            'runner_up': ewc_res.get('runner_up'),
-            'third_place': ewc_res.get('third_place'),
-        }
+        try:
+            ewc_data = json.loads(ewc_stage.stage_data)
+            ewc_res = ewc_data.get('result', {})
+            ewc_champ = ewc_res.get('champion')
+            ewc_ru = ewc_res.get('runner_up')
+            ewc_3rd = ewc_res.get('third_place')
+        except Exception:
+            pass
+    if not ewc_champ:
+        p1 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='ewc', rank=1).first()
+        if p1 and p1.club:
+            ewc_champ = p1.club.to_dict()
+    if not ewc_ru:
+        p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='ewc', rank=2).first()
+        if p2 and p2.club:
+            ewc_ru = p2.club.to_dict()
+    titles['ewc'] = {'champion': ewc_champ, 'runner_up': ewc_ru, 'third_place': ewc_3rd}
 
     # 6. Stage 2 Regional Winners
     s2_stage = get_stage_record(campaign_id, 'stage2', year=year)
+    s2_titles = {}
     if s2_stage and s2_stage.stage_data:
-        s2_data = json.loads(s2_stage.stage_data)
-        s2_reg = s2_data.get('regional_results', {})
-        titles['stage2'] = {
-            r: s2_reg.get(r, {}).get('champion')
-            for r in ['pacific', 'americas', 'emea', 'china']
-            if s2_reg.get(r, {}).get('champion')
-        }
+        try:
+            s2_data = json.loads(s2_stage.stage_data)
+            s2_reg = s2_data.get('regional_results', {})
+            for r in ['pacific', 'americas', 'emea', 'china']:
+                reg_d = s2_reg.get(r, {})
+                champ = reg_d.get('champion')
+                if not champ and reg_d.get('standings'):
+                    champ = reg_d['standings'][0].get('team')
+                if champ:
+                    s2_titles[r] = champ
+        except Exception:
+            pass
+    for r in ['pacific', 'americas', 'emea', 'china']:
+        if r not in s2_titles:
+            p = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=year, stage_key='stage2', region_slug=r, rank=1
+            ).first()
+            if p and p.club:
+                s2_titles[r] = p.club.to_dict()
+    titles['stage2'] = s2_titles
 
     # 7. VALORANT Champions Paris
     ch_stage = get_stage_record(campaign_id, 'champion', year=year)
+    ch_champ = None
+    ch_ru = None
+    ch_3rd = None
+    ch_4th = None
     if ch_stage and ch_stage.stage_data:
-        ch_data = json.loads(ch_stage.stage_data)
-        ch_res = ch_data.get('result', {})
-        titles['champion'] = {
-            'champion': ch_res.get('champion'),
-            'runner_up': ch_res.get('runner_up'),
-            'third_place': ch_res.get('third_place'),
-            'fourth_place': ch_res.get('fourth_place'),
-        }
+        try:
+            ch_data = json.loads(ch_stage.stage_data)
+            ch_res = ch_data.get('result', {})
+            ch_champ = ch_res.get('champion')
+            ch_ru = ch_res.get('runner_up')
+            ch_3rd = ch_res.get('third_place')
+            ch_4th = ch_res.get('fourth_place')
+        except Exception:
+            pass
+    if not ch_champ:
+        p1 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='champion', rank=1).first()
+        if p1 and p1.club:
+            ch_champ = p1.club.to_dict()
+    if not ch_ru:
+        p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='champion', rank=2).first()
+        if p2 and p2.club:
+            ch_ru = p2.club.to_dict()
+    titles['champion'] = {
+        'champion': ch_champ,
+        'runner_up': ch_ru,
+        'third_place': ch_3rd,
+        'fourth_place': ch_4th,
+    }
 
     # Leaderboards
     leaderboards = {
