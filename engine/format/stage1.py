@@ -1,51 +1,82 @@
 """
-engine/format/stage1.py — VCT Stage 1 Interactive Engine (Regular Season + Playoffs)
+engine/format/stage1.py — VCT Stage 1 Interactive Engine (Regular Season + Modified Double Elimination Playoffs)
 
-Official VCT 2025 Format:
-- 12 teams per region (Pacific, Americas, EMEA, China) from Kickoff
-- Group Partition: Group Alpha (6 teams) and Group Omega (6 teams)
+Official VCT 2026 Unified Format for All 4 Regions (Americas, EMEA, Pacific, China):
+- 12 teams per region from Kickoff
+- Single unified format across all four regions (No China Cross Play Decider / Seed Decider)
 - Regular Season (Vòng Bảng):
-  * Cross-group play: Alpha vs Omega (36 matches BO3, 6 Weeks × 6 matches/week)
-  * 1 Championship Point per match win!
-  * Top 3 teams from Group Alpha + Top 3 teams from Group Omega advance to Playoffs (6 teams total)
-  * Ranks 4-6 from each group are eliminated (Ranks 7-12)
-- Playoffs (6-team Double Elimination, 8 matches):
-  * Knockout Round 1:
-    - KO 1: Alpha #2 vs Omega #3 (BO3) -> Loser 5th-6th (0 CP)
-    - KO 2: Omega #2 vs Alpha #3 (BO3) -> Loser 5th-6th (0 CP)
-  * Upper Semifinals (Alpha #1 & Omega #1 have BYES):
-    - USF 1: Alpha #1 vs Winner KO 2 (BO3)
-    - USF 2: Omega #1 vs Winner KO 1 (BO3)
-  * Upper Final: Winner USF 1 vs Winner USF 2 (BO3)
-  * Lower Semifinal: Loser USF 1 vs Loser USF 2 (BO3) -> Loser 4th (+1 CP, qualifies to EWC)
-  * Lower Final: Loser Upper Final vs Winner Lower Semifinal (BO5) -> Loser 3rd (+2 CP, qualifies to Masters Toronto #3 & EWC)
-  * Grand Final: Winner Upper Final vs Winner Lower Final (BO5)
-    - Winner: Champion (+5 CP, qualifies to Masters Toronto #1 & EWC)
-    - Loser: Runner-up (+3 CP, qualifies to Masters Toronto #2 & EWC)
-- Qualifiers:
-  * Top 3 to Masters Toronto (Seed 1, 2, 3)
-  * Top 4 to EWC (Pool 1, 2, 3, 4)
+  * Group Partition: Group Alpha (6 teams) and Group Omega (6 teams)
+  * Single Round Robin intra-group only (each team plays 5 other teams in their group)
+  * Exactly 15 Bo3 matches per group = 30 matches total per region (5 matches per team)
+  * No cross-group matches between Alpha and Omega in regular season
+  * 1 Championship Point per regular season match win (max 5 CP)
+  * Top 4 teams from each group advance to Playoffs (8 teams total)
+  * Bottom 2 teams from each group (ranks 5 and 6) are eliminated
+- Playoffs: 8-Team Modified Double Elimination (12 matches total):
+  * Upper Round 1 (Bo3):
+    - UBR1-M1: Omega #2 vs Alpha #3
+    - UBR1-M2: Alpha #2 vs Omega #3
+  * Upper Semifinals (Bo3, Alpha #1 & Omega #1 have BYES):
+    - UBSF-M1: Alpha #1 vs Winner(UBR1-M1)
+    - UBSF-M2: Omega #1 vs Winner(UBR1-M2)
+  * Lower Round 1 (Bo3, Alpha #4 & Omega #4 start here):
+    - LBR1-M1: Omega #4 vs Loser(UBR1-M1)
+    - LBR1-M2: Alpha #4 vs Loser(UBR1-M2)
+  * Lower Round 2 (Bo3, Cross-pairing):
+    - LBR2-M1: Winner(LBR1-M2) vs Loser(UBSF-M1)
+    - LBR2-M2: Winner(LBR1-M1) vs Loser(UBSF-M2)
+  * Upper Final (Bo3):
+    - UBF: Winner(UBSF-M1) vs Winner(UBSF-M2)
+  * Lower Round 3 (Bo3):
+    - LBR3: Winner(LBR2-M1) vs Winner(LBR2-M2)
+  * Lower Final (Bo5):
+    - LBF: Loser(UBF) vs Winner(LBR3)
+  * Grand Final (Bo5, No Bracket Reset):
+    - GF: Winner(UBF) vs Winner(LBF)
+- Final Placements & Championship Points:
+  * 1st: Winner(GF) (+6 CP, Masters Seed 1, Skips Masters Swiss stage)
+  * 2nd: Loser(GF) (+4 CP, Masters Seed 2)
+  * 3rd: Loser(LBF) (+3 CP, Masters Seed 3)
+  * 4th: Loser(LBR3) (+2 CP)
+  * 5th-6th: Losers(LBR2) (+0 CP)
+  * 7th-8th: Losers(LBR1) (+0 CP)
+  * 9th-12th: Regular season eliminated teams (+0 CP)
+  * Total CP = regularSeasonMatchWins + playoffPlacementBonus
 """
 
 import copy
 import random
 from typing import Any, Dict, List, Optional, Tuple
+
 from engine.match import validate_and_normalize_manual_maps
+from engine.tiebreaker import compute_vct_group_standings
 
 
 def stage1_config() -> Dict[str, Any]:
     return {
+        'regions': ["americas", "emea", "pacific", "china"],
         'teams_per_region': 12,
         'group_alpha_teams': 6,
         'group_omega_teams': 6,
+        'group_format': "SINGLE_ROUND_ROBIN",
+        'group_match_best_of': 3,
         'regular_season_weeks': 5,
         'regular_season_matches': 30,
-        'playoff_teams': 6,
-        'playoff_matches': 8,
-        'total_matches': 38,
+        'qualified_per_group': 4,
+        'eliminated_per_group': 2,
+        'playoff_format': "MODIFIED_DOUBLE_ELIMINATION",
+        'playoff_teams': 8,
+        'playoff_matches': 12,
+        'default_playoff_best_of': 3,
+        'lower_final_best_of': 5,
+        'grand_final_best_of': 5,
+        'grand_final_reset': False,
+        'total_matches': 42,
         'regular_win_cp': 1,
-        'playoff_cp': {1: 5, 2: 3, 3: 2, 4: 1},
+        'playoff_cp': {1: 6, 2: 4, 3: 3, 4: 2, 5: 0, 6: 0, 7: 0, 8: 0},
         'masters_qualifiers_count': 3,
+        'champion_skips_masters_swiss': True,
+        'china_seed_decider_enabled': False,
         'ewc_qualifiers_count': 4,
     }
 
@@ -67,9 +98,11 @@ def partition_stage1_groups(participants: List[Dict[str, Any]]) -> Tuple[List[Di
         t_copy = copy.deepcopy(t)
         if idx in alpha_indices:
             t_copy['group'] = 'Alpha'
+            t_copy['groupId'] = 'ALPHA'
             group_alpha.append(t_copy)
         else:
             t_copy['group'] = 'Omega'
+            t_copy['groupId'] = 'OMEGA'
             group_omega.append(t_copy)
 
     return group_alpha, group_omega
@@ -211,74 +244,8 @@ def simulate_stage1_match(team_a: Dict[str, Any], team_b: Dict[str, Any], bo: in
 
 def compute_stage1_group_standings(group_teams: List[Dict[str, Any]],
                                    completed_matches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    stats = {}
-    for t in group_teams:
-        t_id = t.get('id') or t.get('club_id')
-        stats[t_id] = {
-            'team': t,
-            'club_id': t_id,
-            'name': t.get('name'),
-            'short_code': t.get('short_code'),
-            'logo_url': t.get('logo_url'),
-            'group': t.get('group'),
-            'story_rating': t.get('story_rating', 80),
-            'wins': 0,
-            'losses': 0,
-            'map_won': 0,
-            'map_lost': 0,
-            'map_diff': 0,
-            'round_won': 0,
-            'round_lost': 0,
-            'round_diff': 0,
-            'cp_earned': 0,
-        }
-
-    for m in completed_matches:
-        if m.get('status') != 'completed':
-            continue
-        a_id = m.get('team_a_id')
-        b_id = m.get('team_b_id')
-        sc_a = m.get('team_a_score', 0)
-        sc_b = m.get('team_b_score', 0)
-        maps = m.get('maps', [])
-
-        rd_a = sum(map_info.get('team_a_score', 0) for map_info in maps)
-        rd_b = sum(map_info.get('team_b_score', 0) for map_info in maps)
-
-        if a_id in stats:
-            if sc_a > sc_b:
-                stats[a_id]['wins'] += 1
-                stats[a_id]['cp_earned'] += 1
-            else:
-                stats[a_id]['losses'] += 1
-            stats[a_id]['map_won'] += sc_a
-            stats[a_id]['map_lost'] += sc_b
-            stats[a_id]['map_diff'] = stats[a_id]['map_won'] - stats[a_id]['map_lost']
-            stats[a_id]['round_won'] += rd_a
-            stats[a_id]['round_lost'] += rd_b
-            stats[a_id]['round_diff'] = stats[a_id]['round_won'] - stats[a_id]['round_lost']
-
-        if b_id in stats:
-            if sc_b > sc_a:
-                stats[b_id]['wins'] += 1
-                stats[b_id]['cp_earned'] += 1
-            else:
-                stats[b_id]['losses'] += 1
-            stats[b_id]['map_won'] += sc_b
-            stats[b_id]['map_lost'] += sc_a
-            stats[b_id]['map_diff'] = stats[b_id]['map_won'] - stats[b_id]['map_lost']
-            stats[b_id]['round_won'] += rd_b
-            stats[b_id]['round_lost'] += rd_a
-            stats[b_id]['round_diff'] = stats[b_id]['round_won'] - stats[b_id]['round_lost']
-
-    standings = list(stats.values())
-    standings.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff'], -s['story_rating']))
-
-    for i, s in enumerate(standings):
-        s['rank'] = i + 1
-        s['advanced'] = (i < 3)
-
-    return standings
+    """Compute Group Standings using the official VCT 2026 5-tier mini-table tiebreaker."""
+    return compute_vct_group_standings(group_teams, completed_matches, qualify_count=4)
 
 
 def generate_round_robin_schedule(teams: List[Dict[str, Any]]) -> List[List[Tuple[Dict[str, Any], Dict[str, Any]]]]:
@@ -306,6 +273,20 @@ def generate_round_robin_schedule(teams: List[Dict[str, Any]]) -> List[List[Tupl
     return schedule
 
 
+def _matches_target_id(match_obj: Dict[str, Any], target_id: str) -> bool:
+    """Helper to check if match_obj matches target_id by match_id or aliases."""
+    if not match_obj:
+        return False
+    mid = match_obj.get('match_id', '')
+    if mid == target_id or mid.lower() == target_id.lower():
+        return True
+    aliases = match_obj.get('aliases', [])
+    for a in aliases:
+        if a == target_id or a.lower() == target_id.lower():
+            return True
+    return False
+
+
 def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]]) -> Dict[str, Any]:
     if len(participants) != 12:
         raise ValueError(f"Stage 1 requires exactly 12 teams, got {len(participants)}")
@@ -324,7 +305,9 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
             regular_matches.append({
                 'match_id': m_id,
                 'round_type': 'regular',
+                'phase': 'regular_season',
                 'group': 'Alpha',
+                'groupId': 'ALPHA',
                 'week': w,
                 'match_index': m_idx,
                 'label': f"Tuần {w} - Bảng Alpha - Trận {idx + 1}",
@@ -334,6 +317,7 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
                 'team_b_id': t_b.get('id') or t_b.get('club_id'),
                 'bo': 3,
                 'status': 'pending',
+                'ready': True,
                 'winner': None,
                 'loser': None,
                 'winner_id': None,
@@ -350,7 +334,9 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
             regular_matches.append({
                 'match_id': m_id,
                 'round_type': 'regular',
+                'phase': 'regular_season',
                 'group': 'Omega',
+                'groupId': 'OMEGA',
                 'week': w,
                 'match_index': m_idx,
                 'label': f"Tuần {w} - Bảng Omega - Trận {idx + 1}",
@@ -360,6 +346,7 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
                 'team_b_id': t_b.get('id') or t_b.get('club_id'),
                 'bo': 3,
                 'status': 'pending',
+                'ready': True,
                 'winner': None,
                 'loser': None,
                 'winner_id': None,
@@ -372,89 +359,155 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
     alpha_standings = compute_stage1_group_standings(group_alpha, [])
     omega_standings = compute_stage1_group_standings(group_omega, [])
 
+    # 12 Playoff Matches (Modified Double Elimination)
     playoff_templates = [
-        # Knockout Round 1 (Upper QF)
+        # Upper Bracket Round 1 (Bo3)
         {
-            'match_id': 'ko_1',
-            'round_type': 'ko',
-            'round_name': 'ko_1',
-            'label': 'Knockout Vòng 1 - Trận 1',
+            'match_id': 'UBR1-M1',
+            'aliases': ['ubr1_m1', 'ko_1'],
+            'round_type': 'ub_r1',
+            'bracket': 'upper',
+            'round_name': 'UBR1-M1',
+            'label': 'Upper Round 1 - Trận 1 (Omega #2 vs Alpha #3)',
+            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 2},
+            'team_b_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 3},
+            'bo': 3,
+        },
+        {
+            'match_id': 'UBR1-M2',
+            'aliases': ['ubr1_m2', 'ko_2'],
+            'round_type': 'ub_r1',
+            'bracket': 'upper',
+            'round_name': 'UBR1-M2',
+            'label': 'Upper Round 1 - Trận 2 (Alpha #2 vs Omega #3)',
             'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 2},
             'team_b_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 3},
+            'bo': 3,
+        },
+        # Upper Bracket Semifinals (Bo3)
+        {
+            'match_id': 'UBSF-M1',
+            'aliases': ['ubsf_m1', 'upper_sf_1'],
+            'round_type': 'upper_sf',
+            'bracket': 'upper',
+            'round_name': 'UBSF-M1',
+            'label': 'Bán kết Nhánh thắng 1 (Alpha #1 vs Thắng UBR1-M1)',
+            'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 1},
+            'team_b_source': {'type': 'winner_of', 'value': 'UBR1-M1'},
+            'bo': 3,
+        },
+        {
+            'match_id': 'UBSF-M2',
+            'aliases': ['ubsf_m2', 'upper_sf_2'],
+            'round_type': 'upper_sf',
+            'bracket': 'upper',
+            'round_name': 'UBSF-M2',
+            'label': 'Bán kết Nhánh thắng 2 (Omega #1 vs Thắng UBR1-M2)',
+            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 1},
+            'team_b_source': {'type': 'winner_of', 'value': 'UBR1-M2'},
+            'bo': 3,
+        },
+        # Lower Bracket Round 1 (Bo3)
+        {
+            'match_id': 'LBR1-M1',
+            'aliases': ['lbr1_m1'],
+            'round_type': 'lb_r1',
+            'bracket': 'lower',
+            'round_name': 'LBR1-M1',
+            'label': 'Vòng 1 Nhánh thua 1 (Omega #4 vs Thua UBR1-M1)',
+            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 4},
+            'team_b_source': {'type': 'loser_of', 'value': 'UBR1-M1'},
+            'bo': 3,
+            'loser_standing_rank': 7,
+        },
+        {
+            'match_id': 'LBR1-M2',
+            'aliases': ['lbr1_m2'],
+            'round_type': 'lb_r1',
+            'bracket': 'lower',
+            'round_name': 'LBR1-M2',
+            'label': 'Vòng 1 Nhánh thua 2 (Alpha #4 vs Thua UBR1-M2)',
+            'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 4},
+            'team_b_source': {'type': 'loser_of', 'value': 'UBR1-M2'},
+            'bo': 3,
+            'loser_standing_rank': 8,
+        },
+        # Lower Bracket Round 2 (Bo3 - Cross pairing intentional)
+        {
+            'match_id': 'LBR2-M1',
+            'aliases': ['lbr2_m1'],
+            'round_type': 'lb_r2',
+            'bracket': 'lower',
+            'round_name': 'LBR2-M1',
+            'label': 'Vòng 2 Nhánh thua 1 (Thắng LBR1-M2 vs Thua UBSF-M1)',
+            'team_a_source': {'type': 'winner_of', 'value': 'LBR1-M2'},
+            'team_b_source': {'type': 'loser_of', 'value': 'UBSF-M1'},
             'bo': 3,
             'loser_standing_rank': 5,
         },
         {
-            'match_id': 'ko_2',
-            'round_type': 'ko',
-            'round_name': 'ko_2',
-            'label': 'Knockout Vòng 1 - Trận 2',
-            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 2},
-            'team_b_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 3},
+            'match_id': 'LBR2-M2',
+            'aliases': ['lbr2_m2'],
+            'round_type': 'lb_r2',
+            'bracket': 'lower',
+            'round_name': 'LBR2-M2',
+            'label': 'Vòng 2 Nhánh thua 2 (Thắng LBR1-M1 vs Thua UBSF-M2)',
+            'team_a_source': {'type': 'winner_of', 'value': 'LBR1-M1'},
+            'team_b_source': {'type': 'loser_of', 'value': 'UBSF-M2'},
             'bo': 3,
             'loser_standing_rank': 6,
         },
-        # Upper Semifinals
+        # Upper Bracket Final (Bo3)
         {
-            'match_id': 'upper_sf_1',
-            'round_type': 'upper_sf',
-            'round_name': 'upper_sf_1',
-            'label': 'Bán kết Nhánh thắng 1',
-            'team_a_source': {'type': 'group_seed', 'group': 'Alpha', 'seed': 1},
-            'team_b_source': {'type': 'winner_of', 'value': 'ko_2'},
-            'bo': 3,
-        },
-        {
-            'match_id': 'upper_sf_2',
-            'round_type': 'upper_sf',
-            'round_name': 'upper_sf_2',
-            'label': 'Bán kết Nhánh thắng 2',
-            'team_a_source': {'type': 'group_seed', 'group': 'Omega', 'seed': 1},
-            'team_b_source': {'type': 'winner_of', 'value': 'ko_1'},
-            'bo': 3,
-        },
-        # Upper Final
-        {
-            'match_id': 'upper_final',
+            'match_id': 'UBF',
+            'aliases': ['upper_final', 'ubf'],
             'round_type': 'upper_final',
-            'round_name': 'upper_final',
-            'label': 'Chung kết Nhánh thắng (Tranh vé Chung kết & Masters)',
-            'team_a_source': {'type': 'winner_of', 'value': 'upper_sf_1'},
-            'team_b_source': {'type': 'winner_of', 'value': 'upper_sf_2'},
+            'bracket': 'upper',
+            'round_name': 'UBF',
+            'label': 'Chung kết Nhánh thắng (Thắng UBSF-M1 vs Thắng UBSF-M2)',
+            'team_a_source': {'type': 'winner_of', 'value': 'UBSF-M1'},
+            'team_b_source': {'type': 'winner_of', 'value': 'UBSF-M2'},
             'bo': 3,
             'is_major_decider': 1,
         },
-        # Lower Semifinal
+        # Lower Bracket Round 3 (Bo3)
         {
-            'match_id': 'lower_semifinal',
-            'round_type': 'lower_sf',
-            'round_name': 'lower_semifinal',
-            'label': 'Bán kết Nhánh thua (Tranh vé EWC #4)',
-            'team_a_source': {'type': 'loser_of', 'value': 'upper_sf_1'},
-            'team_b_source': {'type': 'loser_of', 'value': 'upper_sf_2'},
+            'match_id': 'LBR3',
+            'aliases': ['lbr3', 'lower_semifinal'],
+            'round_type': 'lb_r3',
+            'bracket': 'lower',
+            'round_name': 'LBR3',
+            'label': 'Vòng 3 Nhánh thua (Thắng LBR2-M1 vs Thắng LBR2-M2)',
+            'team_a_source': {'type': 'winner_of', 'value': 'LBR2-M1'},
+            'team_b_source': {'type': 'winner_of', 'value': 'LBR2-M2'},
             'bo': 3,
             'loser_standing_rank': 4,
+            'is_major_decider': 1,
         },
-        # Lower Final
+        # Lower Bracket Final (Bo5)
         {
-            'match_id': 'lower_final',
+            'match_id': 'LBF',
+            'aliases': ['lower_final', 'lbf'],
             'round_type': 'lower_final',
-            'round_name': 'lower_final',
-            'label': 'Chung kết Nhánh thua (Tranh vé Masters #2)',
-            'team_a_source': {'type': 'loser_of', 'value': 'upper_final'},
-            'team_b_source': {'type': 'winner_of', 'value': 'lower_semifinal'},
+            'bracket': 'lower',
+            'round_name': 'LBF',
+            'label': 'Chung kết Nhánh thua (Thua UBF vs Thắng LBR3)',
+            'team_a_source': {'type': 'loser_of', 'value': 'UBF'},
+            'team_b_source': {'type': 'winner_of', 'value': 'LBR3'},
             'bo': 5,
             'loser_standing_rank': 3,
             'is_major_decider': 1,
         },
-        # Grand Final
+        # Grand Final (Bo5 - No reset)
         {
-            'match_id': 'grand_final',
+            'match_id': 'GF',
+            'aliases': ['grand_final', 'gf'],
             'round_type': 'grand_final',
-            'round_name': 'grand_final',
-            'label': 'Chung kết Tổng VCT Stage 1',
-            'team_a_source': {'type': 'winner_of', 'value': 'upper_final'},
-            'team_b_source': {'type': 'winner_of', 'value': 'lower_final'},
+            'bracket': 'grand_final',
+            'round_name': 'GF',
+            'label': 'Chung kết Tổng VCT Stage 1 (Thắng UBF vs Thắng LBF)',
+            'team_a_source': {'type': 'winner_of', 'value': 'UBF'},
+            'team_b_source': {'type': 'winner_of', 'value': 'LBF'},
             'bo': 5,
             'winner_standing_rank': 1,
             'loser_standing_rank': 2,
@@ -465,7 +518,9 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
     for tmpl in playoff_templates:
         playoff_matches.append({
             'match_id': tmpl['match_id'],
+            'aliases': tmpl.get('aliases', []),
             'round_type': tmpl['round_type'],
+            'bracket': tmpl.get('bracket', 'upper'),
             'round_name': tmpl['round_name'],
             'label': tmpl['label'],
             'team_a_source': tmpl['team_a_source'],
@@ -493,6 +548,7 @@ def init_stage1_region_state(region_slug: str, participants: List[Dict[str, Any]
 
     state = {
         'region': region_slug,
+        'regionId': region_slug.upper(),
         'status': 'in_progress',
         'current_phase': 'regular_season',  # 'regular_season', 'playoffs', 'completed'
         'participants': participants,
@@ -520,7 +576,16 @@ def _resolve_stage1_playoff_slots(state: Dict[str, Any]):
     alpha_standings = state.get('alpha_standings', [])
     omega_standings = state.get('omega_standings', [])
     playoff_matches = state.get('playoff_matches', [])
-    completed_playoffs = {m['match_id']: m for m in playoff_matches if m.get('status') == 'completed'}
+
+    # Index completed playoffs by both match_id and all aliases
+    completed_playoffs: Dict[str, Dict[str, Any]] = {}
+    for m in playoff_matches:
+        if m.get('status') == 'completed':
+            completed_playoffs[m['match_id']] = m
+            completed_playoffs[m['match_id'].lower()] = m
+            for a in m.get('aliases', []):
+                completed_playoffs[a] = m
+                completed_playoffs[a.lower()] = m
 
     reg_completed = all(m.get('status') == 'completed' for m in state.get('regular_matches', []))
 
@@ -529,7 +594,7 @@ def _resolve_stage1_playoff_slots(state: Dict[str, Any]):
         if stype == 'group_seed':
             grp = src.get('group')
             seed = src.get('seed')
-            st_list = alpha_standings if grp == 'Alpha' else omega_standings
+            st_list = alpha_standings if grp in ('Alpha', 'ALPHA') else omega_standings
             label = f"{grp} #{seed}"
             if reg_completed and len(st_list) >= seed:
                 return st_list[seed - 1]['team'], label
@@ -538,15 +603,17 @@ def _resolve_stage1_playoff_slots(state: Dict[str, Any]):
         elif stype == 'winner_of':
             ref_id = src.get('value')
             label = f"Thắng {ref_id}"
-            if ref_id in completed_playoffs:
-                return completed_playoffs[ref_id].get('winner'), label
+            if ref_id in completed_playoffs or (isinstance(ref_id, str) and ref_id.lower() in completed_playoffs):
+                target = completed_playoffs.get(ref_id) or completed_playoffs.get(ref_id.lower())
+                return target.get('winner'), label
             return None, label
 
         elif stype == 'loser_of':
             ref_id = src.get('value')
             label = f"Thua {ref_id}"
-            if ref_id in completed_playoffs:
-                return completed_playoffs[ref_id].get('loser'), label
+            if ref_id in completed_playoffs or (isinstance(ref_id, str) and ref_id.lower() in completed_playoffs):
+                target = completed_playoffs.get(ref_id) or completed_playoffs.get(ref_id.lower())
+                return target.get('loser'), label
             return None, label
 
         return None, 'TBD'
@@ -560,8 +627,8 @@ def _resolve_stage1_playoff_slots(state: Dict[str, Any]):
 
         pm['team_a'] = team_a
         pm['team_b'] = team_b
-        pm['team_a_id'] = (team_a.get('id') or team_a.get('club_id')) if team_a else None
-        pm['team_b_id'] = (team_b.get('id') or team_b.get('club_id')) if team_b else None
+        pm['team_a_id'] = (team_a.get('id') if 'id' in team_a else team_a.get('club_id')) if team_a else None
+        pm['team_b_id'] = (team_b.get('id') if 'id' in team_b else team_b.get('club_id')) if team_b else None
         pm['team_a_source_label'] = label_a
         pm['team_b_source_label'] = label_b
         pm['ready'] = (team_a is not None and team_b is not None)
@@ -586,30 +653,42 @@ def advance_stage1_region(state: Dict[str, Any]) -> bool:
         state['current_phase'] = 'completed'
         state['status'] = 'completed'
 
-        completed_map = {m['match_id']: m for m in playoff_matches}
-        gf = completed_map.get('grand_final')
-        lf = completed_map.get('lower_final')
-        lsf = completed_map.get('lower_semifinal')
-        ko1 = completed_map.get('ko_1')
-        ko2 = completed_map.get('ko_2')
+        completed_map: Dict[str, Dict[str, Any]] = {}
+        for m in playoff_matches:
+            completed_map[m['match_id']] = m
+            completed_map[m['match_id'].lower()] = m
+            for a in m.get('aliases', []):
+                completed_map[a] = m
+                completed_map[a.lower()] = m
+
+        gf = completed_map.get('GF') or completed_map.get('grand_final')
+        lbf = completed_map.get('LBF') or completed_map.get('lower_final')
+        lbr3 = completed_map.get('LBR3') or completed_map.get('lower_semifinal')
+        lbr2_1 = completed_map.get('LBR2-M1')
+        lbr2_2 = completed_map.get('LBR2-M2')
+        lbr1_1 = completed_map.get('LBR1-M1')
+        lbr1_2 = completed_map.get('LBR1-M2')
 
         champ = gf.get('winner') if gf else None
         runner = gf.get('loser') if gf else None
-        third = lf.get('loser') if lf else None
-        fourth = lsf.get('loser') if lsf else None
-        fifth_a = ko1.get('loser') if ko1 else None
-        fifth_b = ko2.get('loser') if ko2 else None
+        third = lbf.get('loser') if lbf else None
+        fourth = lbr3.get('loser') if lbr3 else None
+        fifth_a = lbr2_1.get('loser') if lbr2_1 else None
+        fifth_b = lbr2_2.get('loser') if lbr2_2 else None
+        seventh_a = lbr1_1.get('loser') if lbr1_1 else None
+        seventh_b = lbr1_2.get('loser') if lbr1_2 else None
 
         state['champion'] = champ
         state['runner_up'] = runner
         state['third_place'] = third
         state['fourth_place'] = fourth
 
-        # Masters Toronto: Top 3
+        # Masters London / Toronto: Top 3
+        # Champion skips Masters Swiss stage!
         state['masters_qualifiers'] = [
-            {'team': champ, 'regional_seed': 1, 'title': f"{state['region'].upper()} Stage 1 Champion"},
-            {'team': runner, 'regional_seed': 2, 'title': f"{state['region'].upper()} Stage 1 Runner-up"},
-            {'team': third, 'regional_seed': 3, 'title': f"{state['region'].upper()} Stage 1 3rd Place"},
+            {'team': champ, 'regional_seed': 1, 'title': f"{state['region'].upper()} Stage 1 Champion (Direct Playoffs Bye)"},
+            {'team': runner, 'regional_seed': 2, 'title': f"{state['region'].upper()} Stage 1 Runner-up (Masters Swiss)"},
+            {'team': third, 'regional_seed': 3, 'title': f"{state['region'].upper()} Stage 1 3rd Place (Masters Swiss)"},
         ]
 
         # Direct EWC Qualifiers: Top 2 (Champion & Runner-up)
@@ -619,51 +698,54 @@ def advance_stage1_region(state: Dict[str, Any]) -> bool:
         ]
         state['ewc_qualifiers'] = state['ewc_direct_qualifiers']
 
-        # Eliminated from group stage: Ranks 7-12
+        # Eliminated from group stage: Ranks 9-12 (Alpha 5-6, Omega 5-6)
         eliminated_groups = []
-        for s in state['alpha_standings'][3:]:
+        for s in state['alpha_standings'][4:]:
             eliminated_groups.append(s)
-        for s in state['omega_standings'][3:]:
+        for s in state['omega_standings'][4:]:
             eliminated_groups.append(s)
         eliminated_groups.sort(key=lambda s: (-s['wins'], s['losses'], -s['map_diff'], -s['round_diff']))
 
         # Teams advancing to EWC Regional Qualifier:
         # Phase 2: Ranks 3-8 (6 teams)
         state['ewc_phase2_teams'] = [
-            t for t in [third, fourth, fifth_a, fifth_b,
-                        eliminated_groups[0]['team'] if len(eliminated_groups) > 0 else None,
-                        eliminated_groups[1]['team'] if len(eliminated_groups) > 1 else None]
+            t for t in [third, fourth, fifth_a, fifth_b, seventh_a, seventh_b]
             if t is not None
         ]
 
         # Phase 1: Ranks 9-12 (4 teams)
         state['ewc_phase1_teams'] = [
-            el['team'] for el in eliminated_groups[2:6]
+            el['team'] for el in eliminated_groups
         ]
 
-        # Full 12 team standings
+        # Full 12 team placements:
+        # 1st: +6 CP, 2nd: +4 CP, 3rd: +3 CP, 4th: +2 CP, 5-8: +0 CP, 9-12: +0 CP
         standings = []
         if champ:
-            standings.append({'rank': 1, 'team': champ, 'club_id': champ.get('id') or champ.get('club_id'), 'cp': 5, 'desc': 'Vô địch Stage 1 (Vé Masters & EWC)'})
+            standings.append({'rank': 1, 'team': champ, 'club_id': champ.get('id') or champ.get('club_id'), 'cp': 6, 'desc': 'Vô địch Stage 1 (+6 CP, Vé Masters & EWC)'})
         if runner:
-            standings.append({'rank': 2, 'team': runner, 'club_id': runner.get('id') or runner.get('club_id'), 'cp': 3, 'desc': 'Á quân Stage 1 (Vé Masters & EWC)'})
+            standings.append({'rank': 2, 'team': runner, 'club_id': runner.get('id') or runner.get('club_id'), 'cp': 4, 'desc': 'Á quân Stage 1 (+4 CP, Vé Masters & EWC)'})
         if third:
-            standings.append({'rank': 3, 'team': third, 'club_id': third.get('id') or third.get('club_id'), 'cp': 2, 'desc': 'Hạng 3 Stage 1 (Vé Masters & EWC Phase 2)'})
+            standings.append({'rank': 3, 'team': third, 'club_id': third.get('id') or third.get('club_id'), 'cp': 3, 'desc': 'Hạng 3 Stage 1 (+3 CP, Vé Masters & EWC Phase 2)'})
         if fourth:
-            standings.append({'rank': 4, 'team': fourth, 'club_id': fourth.get('id') or fourth.get('club_id'), 'cp': 1, 'desc': 'Hạng 4 Stage 1 (Vé EWC Phase 2)'})
+            standings.append({'rank': 4, 'team': fourth, 'club_id': fourth.get('id') or fourth.get('club_id'), 'cp': 2, 'desc': 'Hạng 4 Stage 1 (+2 CP, Vé EWC Phase 2)'})
         if fifth_a:
-            standings.append({'rank': 5, 'team': fifth_a, 'club_id': fifth_a.get('id') or fifth_a.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Vé EWC Phase 2)'})
+            standings.append({'rank': 5, 'team': fifth_a, 'club_id': fifth_a.get('id') or fifth_a.get('club_id'), 'cp': 0, 'desc': 'Hạng 5-6 Stage 1 (+0 CP, Vé EWC Phase 2)'})
         if fifth_b:
-            standings.append({'rank': 6, 'team': fifth_b, 'club_id': fifth_b.get('id') or fifth_b.get('club_id'), 'cp': 0, 'desc': 'Top 5-6 (Vé EWC Phase 2)'})
+            standings.append({'rank': 6, 'team': fifth_b, 'club_id': fifth_b.get('id') or fifth_b.get('club_id'), 'cp': 0, 'desc': 'Hạng 5-6 Stage 1 (+0 CP, Vé EWC Phase 2)'})
+        if seventh_a:
+            standings.append({'rank': 7, 'team': seventh_a, 'club_id': seventh_a.get('id') or seventh_a.get('club_id'), 'cp': 0, 'desc': 'Hạng 7-8 Stage 1 (+0 CP, Vé EWC Phase 2)'})
+        if seventh_b:
+            standings.append({'rank': 8, 'team': seventh_b, 'club_id': seventh_b.get('id') or seventh_b.get('club_id'), 'cp': 0, 'desc': 'Hạng 7-8 Stage 1 (+0 CP, Vé EWC Phase 2)'})
 
         for idx, el in enumerate(eliminated_groups):
             t = el['team']
             standings.append({
-                'rank': 7 + idx,
+                'rank': 9 + idx,
                 'team': t,
                 'club_id': t.get('id') or t.get('club_id'),
                 'cp': 0,
-                'desc': f"Hạng {el['rank']} Bảng {el['group']}",
+                'desc': f"Hạng {el['rank']} Bảng {el['group']} (+0 CP)",
             })
 
         state['standings'] = standings
@@ -673,24 +755,24 @@ def advance_stage1_region(state: Dict[str, Any]) -> bool:
 
 
 def resolve_stage1_match(state: Dict[str, Any], match_id: str,
-                         winner_id: Optional[int] = None,
-                         maps: Optional[List[Dict[str, Any]]] = None,
-                         rating_lookup: Optional[Dict[int, int]] = None,
-                         form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
+                          winner_id: Optional[int] = None,
+                          maps: Optional[List[Dict[str, Any]]] = None,
+                          rating_lookup: Optional[Dict[int, int]] = None,
+                          form_lookup: Optional[Dict[int, int]] = None) -> Dict[str, Any]:
     # Check if match is in regular matches
     reg_matches = state.get('regular_matches', [])
     target_match = None
     is_regular = False
 
     for m in reg_matches:
-        if m['match_id'] == match_id:
+        if _matches_target_id(m, match_id):
             target_match = m
             is_regular = True
             break
 
     if not target_match:
         for m in state.get('playoff_matches', []):
-            if m['match_id'] == match_id:
+            if _matches_target_id(m, match_id):
                 target_match = m
                 is_regular = False
                 break
@@ -707,17 +789,31 @@ def resolve_stage1_match(state: Dict[str, Any], match_id: str,
     else:
         # 2. If modifying a playoff match, check downstream matches!
         downstream_map = {
-            'ko_1': ['upper_sf_2'],
-            'ko_2': ['upper_sf_1'],
-            'upper_sf_1': ['upper_final', 'lower_semifinal'],
-            'upper_sf_2': ['upper_final', 'lower_semifinal'],
-            'upper_final': ['grand_final', 'lower_final'],
-            'lower_semifinal': ['lower_final'],
-            'lower_final': ['grand_final'],
-            'grand_final': [],
+            'UBR1-M1': ['UBSF-M1', 'LBR1-M1'],
+            'UBR1-M2': ['UBSF-M2', 'LBR1-M2'],
+            'UBSF-M1': ['UBF', 'LBR2-M1'],
+            'UBSF-M2': ['UBF', 'LBR2-M2'],
+            'LBR1-M1': ['LBR2-M2'],
+            'LBR1-M2': ['LBR2-M1'],
+            'LBR2-M1': ['LBR3'],
+            'LBR2-M2': ['LBR3'],
+            'UBF': ['GF', 'LBF'],
+            'LBR3': ['LBF'],
+            'LBF': ['GF'],
+            'GF': [],
         }
-        for ds_id in downstream_map.get(match_id, []):
-            ds_match = next((m for m in state['playoff_matches'] if m['match_id'] == ds_id), None)
+
+        # Find canonical key in downstream_map
+        cur_mid = target_match['match_id']
+        ds_targets = downstream_map.get(cur_mid, [])
+        if not ds_targets:
+            for k, v in downstream_map.items():
+                if _matches_target_id(target_match, k):
+                    ds_targets = v
+                    break
+
+        for ds_id in ds_targets:
+            ds_match = next((m for m in state['playoff_matches'] if _matches_target_id(m, ds_id)), None)
             if ds_match and ds_match.get('status') == 'completed':
                 raise ValueError(f"Không thể sửa trận {match_id} vì trận đấu sau ({ds_match.get('label')}) đã hoàn thành. Hãy sửa từ trận mới nhất.")
 

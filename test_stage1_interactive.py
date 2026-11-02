@@ -79,12 +79,12 @@ class TestStage1Interactive(unittest.TestCase):
         # Check standings
         self.assertEqual(len(self.state['alpha_standings']), 6)
         self.assertEqual(len(self.state['omega_standings']), 6)
-        top3_alpha = [s for s in self.state['alpha_standings'] if s['advanced']]
-        self.assertEqual(len(top3_alpha), 3)
+        top4_alpha = [s for s in self.state['alpha_standings'] if s['advanced']]
+        self.assertEqual(len(top4_alpha), 4)
 
-        # Check playoff knockout round is ready
-        ko1 = next(m for m in self.state['playoff_matches'] if m['match_id'] == 'ko_1')
-        ko2 = next(m for m in self.state['playoff_matches'] if m['match_id'] == 'ko_2')
+        # Check playoff Upper Round 1 is ready
+        ko1 = next(m for m in self.state['playoff_matches'] if m['match_id'] in ('UBR1-M1', 'ko_1'))
+        ko2 = next(m for m in self.state['playoff_matches'] if m['match_id'] in ('UBR1-M2', 'ko_2'))
         self.assertTrue(ko1['ready'])
         self.assertTrue(ko2['ready'])
         self.assertIsNotNone(ko1['team_a'])
@@ -93,7 +93,7 @@ class TestStage1Interactive(unittest.TestCase):
     def test_playoffs_and_full_completion(self):
         """Simulate remaining until complete and verify final standings and qualifiers."""
         total = sim_stage1_remaining(self.state)
-        self.assertEqual(total, 38)  # 30 regular + 8 playoffs
+        self.assertEqual(total, 42)  # 30 regular + 12 playoffs
         self.assertEqual(self.state['status'], 'completed')
         self.assertIsNotNone(self.state['champion'])
         self.assertIsNotNone(self.state['runner_up'])
@@ -113,13 +113,13 @@ class TestStage1Interactive(unittest.TestCase):
         standings = self.state['standings']
         self.assertEqual(len(standings), 12)
         self.assertEqual(standings[0]['rank'], 1)
-        self.assertEqual(standings[0]['cp'], 5)
+        self.assertEqual(standings[0]['cp'], 6)
         self.assertEqual(standings[1]['rank'], 2)
-        self.assertEqual(standings[1]['cp'], 3)
+        self.assertEqual(standings[1]['cp'], 4)
         self.assertEqual(standings[2]['rank'], 3)
-        self.assertEqual(standings[2]['cp'], 2)
+        self.assertEqual(standings[2]['cp'], 3)
         self.assertEqual(standings[3]['rank'], 4)
-        self.assertEqual(standings[3]['cp'], 1)
+        self.assertEqual(standings[3]['cp'], 2)
         self.assertEqual(standings[4]['rank'], 5)
         self.assertEqual(standings[4]['cp'], 0)
 
@@ -129,9 +129,9 @@ class TestStage1Interactive(unittest.TestCase):
         for _ in range(6):
             sim_stage1_round(self.state)
 
-        # Play KO 1
-        ko1 = next(m for m in self.state['playoff_matches'] if m['match_id'] == 'ko_1')
-        resolve_stage1_match(self.state, 'ko_1')
+        # Play UBR1-M1
+        ubr1 = next(m for m in self.state['playoff_matches'] if m['match_id'] in ('UBR1-M1', 'ko_1'))
+        resolve_stage1_match(self.state, ubr1['match_id'])
 
         # Now attempting to edit a regular season match should raise ValueError
         m_reg = self.state['regular_matches'][0]
@@ -139,12 +139,12 @@ class TestStage1Interactive(unittest.TestCase):
             resolve_stage1_match(self.state, m_reg['match_id'], winner_id=m_reg['team_a_id'])
         self.assertIn("Playoffs", str(ctx.exception))
 
-        # Play Upper SF 2 (which depends on KO 1)
-        resolve_stage1_match(self.state, 'upper_sf_2')
+        # Play Upper SF 1 (which depends on UBR1-M1)
+        resolve_stage1_match(self.state, 'UBSF-M1')
 
-        # Now attempting to edit KO 1 should raise ValueError because Upper SF 2 is completed!
+        # Now attempting to edit UBR1-M1 should raise ValueError because UBSF-M1 is completed!
         with self.assertRaises(ValueError) as ctx2:
-            resolve_stage1_match(self.state, 'ko_1', winner_id=ko1['team_a_id'])
+            resolve_stage1_match(self.state, ubr1['match_id'], winner_id=ubr1['team_a_id'])
         self.assertIn("đã hoàn thành", str(ctx2.exception))
 
 

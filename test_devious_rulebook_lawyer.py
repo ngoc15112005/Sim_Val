@@ -70,9 +70,9 @@ class TestDeviousRulebookLawyer(unittest.TestCase):
                 first_ranks = current_ranks
             self.assertEqual(current_ranks, first_ranks, "Standings sorting must be strictly deterministic!")
 
-        # Exactly 3 teams advance (rank 1, 2, 3)
+        # Exactly 4 teams advance in VCT 2026 (rank 1, 2, 3, 4)
         advancing = [s for s in standings if s['advanced']]
-        self.assertEqual(len(advancing), 3)
+        self.assertEqual(len(advancing), 4)
         self.assertEqual([s['rank'] for s in standings], [1, 2, 3, 4, 5, 6], "Ranks must be strictly 1 to 6 without duplicates")
 
     def test_case_6_swiss_graph_deadlock_graceful_fallback(self):

@@ -12,7 +12,7 @@
         VCT Stage 2 {{ campaign.current_year }}
       </h1>
       <div style="font-size: 0.85em; color: var(--dim);">
-        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (30 trận BO3 - 5 trận/đội) + Vòng Playoffs (8 trận BO3/BO5) • Top 3 đi Masters Toronto, Top 4 đi EWC
+        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (30 trận BO3 - 5 trận/đội) + Vòng Playoffs (12 trận BO3/BO5) • Top 4 đi Champions Paris
       </div>
     </div>
 
@@ -57,7 +57,7 @@
         {% if cur_reg.status == 'completed' %}
           <span style="color: #4ade80;">🏆 Đã hoàn thành toàn bộ Stage 2 {{ active_region|upper }}!</span>
         {% elif cur_reg.current_phase == 'playoffs' %}
-          <span style="color: #fbbf24;">⚡ Vòng Playoffs 6 Đội (Double Elimination)</span>
+          <span style="color: #fbbf24;">⚡ Vòng Playoffs 8 Đội (Modified Double Elimination)</span>
         {% else %}
           <span style="color: #60a5fa;">📅 Vòng Bảng (Bảng Alpha & Bảng Omega - 5 trận/đội)</span>
         {% endif %}
@@ -103,9 +103,10 @@
         Đến VALORANT Champions Paris ➔
       </a>
       {% endif %}
-    </div<!-- Qualifiers Cards -->
+    </div>
+
+    <!-- Champions Qualifiers -->
     <div style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px;">
-      <!-- Champions Qualifiers -->
       <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; padding: 14px;">
         <div style="font-size: 0.85em; color: #fbbf24; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">
           🇫🇷 4 Vé Tham Dự VALORANT Champions Paris ({{ active_region|upper }}):
@@ -134,8 +135,6 @@
   </div>
   {% endif %}
 
-   %}
-
   <!-- Main Stage Layout: Left (Bracket/Matches) + Right (Standings & CP) -->
   <div style="display: grid; grid-template-columns: 2.2fr 1fr; gap: 20px;">
     <!-- LEFT COLUMN: Stage 2 Content -->
@@ -146,13 +145,13 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
           <div>
             <h3 style="margin: 0; font-size: 1.15em; color: #fbbf24;">
-              ⚔️ Giai đoạn 2: Vòng Playoffs (6 Đội Hybrid Double Elimination)
+              ⚔️ Giai đoạn 2: Vòng Playoffs (8 Đội Modified Double Elimination)
             </h3>
             <div style="font-size: 0.8em; color: var(--dim); margin-top: 2px;">
-              Top 3 mỗi bảng tranh tài • 3 đội đứng đầu giành vé VCT Masters Toronto & Esports World Cup.
+              Top 4 mỗi bảng tranh tài • Tìm ra Nhà vô địch & Á quân đến Champions Paris.
             </div>
           </div>
-          <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">8 Trận • Chung kết BO5</span>
+          <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">12 Trận • Chung kết BO5</span>
         </div>
 
         <div class="playoff-tree is-8team" id="playoff-tree-stage2-{{ active_region }}">
@@ -160,12 +159,12 @@
           <div class="upper-bracket">
             <div class="bracket-label">Upper Bracket</div>
             <div class="bracket-rounds">
-              <!-- Knockout Round -->
+              <!-- Upper Round 1 -->
               <div class="bracket-column">
-                <div class="round-header"><span>Knockout R1</span></div>
+                <div class="round-header"><span>Upper Round 1</span></div>
                 <div class="round-matches">
                   {% for m in cur_reg.playoff_matches %}
-                    {% if m.round_type == 'ko' %}
+                    {% if m.round_type in ['ub_r1', 'ko'] %}
                       <div class="match-box-wrapper">{% include 'campaign/_stage2_match_card.html' %}</div>
                     {% endif %}
                   {% endfor %}
@@ -202,12 +201,36 @@
           <div class="lower-bracket">
             <div class="bracket-label">Lower Bracket</div>
             <div class="bracket-rounds">
-              <!-- Lower Semifinal -->
+              <!-- Lower Round 1 -->
               <div class="bracket-column">
-                <div class="round-header"><span>Lower Semi</span></div>
+                <div class="round-header"><span>Lower Round 1</span></div>
                 <div class="round-matches">
                   {% for m in cur_reg.playoff_matches %}
-                    {% if m.round_type == 'lower_sf' %}
+                    {% if m.round_type == 'lb_r1' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage2_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Lower Round 2 -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Lower Round 2</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type == 'lb_r2' %}
+                      <div class="match-box-wrapper">{% include 'campaign/_stage2_match_card.html' %}</div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <!-- Lower Round 3 -->
+              <div class="bracket-column">
+                <div class="round-header"><span>Lower Round 3</span></div>
+                <div class="round-matches">
+                  {% for m in cur_reg.playoff_matches %}
+                    {% if m.round_type in ['lb_r3', 'lower_sf'] %}
                       <div class="match-box-wrapper">{% include 'campaign/_stage2_match_card.html' %}</div>
                     {% endif %}
                   {% endfor %}
@@ -251,7 +274,7 @@
               📅 Giai đoạn 1: Vòng Bảng (30 Trận BO3 - 5 Trận/Đội)
             </h3>
             <div style="font-size: 0.8em; color: var(--dim); margin-top: 2px;">
-              Mỗi trận thắng được nhận ngay <strong>+1 Championship Point</strong>. Top 3 mỗi bảng vào Playoffs.
+              Mỗi trận thắng được nhận ngay <strong>+1 Championship Point</strong>. Top 4 mỗi bảng vào Playoffs.
             </div>
           </div>
         </div>
@@ -262,7 +285,7 @@
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
             <div style="font-weight: bold; color: #93c5fd; font-size: 0.85em; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between;">
               <span>Bảng Alpha</span>
-              <span style="font-size: 0.8em; color: var(--dim);">Top 3 vào Playoffs</span>
+              <span style="font-size: 0.8em; color: var(--dim);">Top 4 vào Playoffs</span>
             </div>
             <table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">
               <thead>
@@ -275,9 +298,9 @@
               </thead>
               <tbody>
                 {% for s in cur_reg.alpha_standings %}
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); {% if loop.index <= 3 %}background: rgba(59, 130, 246, 0.08); font-weight: bold;{% endif %}">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); {% if loop.index <= 4 %}background: rgba(59, 130, 246, 0.08); font-weight: bold;{% endif %}">
                   <td style="padding: 5px 4px; display: flex; align-items: center; gap: 4px;">
-                    <span style="color: {% if loop.index <= 3 %}#60a5fa{% else %}var(--dim){% endif %}; font-size: 0.8em; width: 14px;">#{{ loop.index }}</span>
+                    <span style="color: {% if loop.index <= 4 %}#60a5fa{% else %}var(--dim){% endif %}; font-size: 0.8em; width: 14px;">#{{ loop.index }}</span>
                     <span>{{ s.short_code }}</span>
                   </td>
                   <td style="text-align: center; padding: 4px;">{{ s.wins }}-{{ s.losses }}</td>
@@ -295,7 +318,7 @@
           <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
             <div style="font-weight: bold; color: #f472b6; font-size: 0.85em; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between;">
               <span>Bảng Omega</span>
-              <span style="font-size: 0.8em; color: var(--dim);">Top 3 vào Playoffs</span>
+              <span style="font-size: 0.8em; color: var(--dim);">Top 4 vào Playoffs</span>
             </div>
             <table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">
               <thead>
@@ -308,9 +331,9 @@
               </thead>
               <tbody>
                 {% for s in cur_reg.omega_standings %}
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); {% if loop.index <= 3 %}background: rgba(244, 114, 182, 0.08); font-weight: bold;{% endif %}">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); {% if loop.index <= 4 %}background: rgba(244, 114, 182, 0.08); font-weight: bold;{% endif %}">
                   <td style="padding: 5px 4px; display: flex; align-items: center; gap: 4px;">
-                    <span style="color: {% if loop.index <= 3 %}#f472b6{% else %}var(--dim){% endif %}; font-size: 0.8em; width: 14px;">#{{ loop.index }}</span>
+                    <span style="color: {% if loop.index <= 4 %}#f472b6{% else %}var(--dim){% endif %}; font-size: 0.8em; width: 14px;">#{{ loop.index }}</span>
                     <span>{{ s.short_code }}</span>
                   </td>
                   <td style="text-align: center; padding: 4px;">{{ s.wins }}-{{ s.losses }}</td>
@@ -325,7 +348,7 @@
           </div>
         </div>
 
-        <!-- Matches by Week (6 Weeks) -->
+        <!-- Matches by Week (5 Weeks) -->
         <div>
           <h4 style="font-size: 0.95em; color: #fff; margin-bottom: 10px;">Lịch thi đấu 5 Tuần (Bảng Alpha & Bảng Omega):</h4>
           {% for w in range(1, 6) %}
@@ -348,13 +371,13 @@
 
     <!-- RIGHT COLUMN: Standings & Championship Points -->
     <div>
-      <!-- VCT 2025 CP Leaderboard for Current Region -->
+      <!-- VCT 2026 CP Leaderboard for Current Region -->
       <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
         <h3 style="margin: 0 0 4px 0; font-size: 1.05em; color: #fff;">
           🏆 BXH Championship Points {{ active_region|upper }}
         </h3>
         <div style="font-size: 0.75em; color: var(--dim); margin-bottom: 10px;">
-          Tích lũy qua Kickoff, Major, Stage 2 (1 CP/thắng + Playoffs)
+          Tích lũy qua Kickoff, Major, Stage 1, Stage 2 (1 CP/thắng + Playoffs)
         </div>
 
         <table style="width: 100%; border-collapse: collapse; font-size: 0.8em;">
@@ -362,7 +385,7 @@
             <tr style="border-bottom: 1px solid var(--border); color: var(--dim);">
               <th style="text-align: left; padding: 6px 4px;">#</th>
               <th style="text-align: left; padding: 6px 4px;">Đội</th>
-              <th style="text-align: center; padding: 6px 4px;">S1 W</th>
+              <th style="text-align: center; padding: 6px 4px;">S2 W</th>
               <th style="text-align: right; padding: 6px 4px;">Tổng CP</th>
             </tr>
           </thead>
@@ -373,7 +396,7 @@
               <td style="padding: 6px 4px;">
                 <span style="color: #fff; font-weight: bold;">{{ t.short_code }}</span>
                 {% if t.stage2_rank %}
-                  <span style="font-size: 0.7em; color: var(--yellow); margin-left: 2px;">(S1 #{{ t.stage2_rank }})</span>
+                  <span style="font-size: 0.7em; color: var(--yellow); margin-left: 2px;">(S2 #{{ t.stage2_rank }})</span>
                 {% endif %}
               </td>
               <td style="text-align: center; padding: 6px 4px; color: var(--dim);">{{ t.regular_season_wins or 0 }}</td>
@@ -388,16 +411,17 @@
 
       <!-- Stage 2 Rules Summary -->
       <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 0.8em; color: var(--dim);">
-        <h4 style="color: #fff; margin: 0 0 6px 0; font-size: 0.95em;">📌 Quy chuẩn VCT 2025 Stage 2:</h4>
+        <h4 style="color: #fff; margin: 0 0 6px 0; font-size: 0.95em;">📌 Quy chuẩn VCT 2026 Stage 2:</h4>
         <ul style="padding-left: 16px; margin: 0; line-height: 1.5;">
-          <li><strong>Vòng bảng:</strong> 1 điểm CP cho mỗi trận thắng.</li>
+          <li><strong>Vòng bảng:</strong> 1 điểm CP cho mỗi trận thắng. Top 4 mỗi bảng vào Playoffs.</li>
           <li><strong>Playoffs:</strong>
-            <br>• Vô địch: <strong>+5 CP</strong> (Vé Masters Toronto Seed 1 & EWC Pool 1)
-            <br>• Á quân: <strong>+3 CP</strong> (Vé Masters Toronto Seed 2 & EWC Pool 2)
-            <br>• Hạng 3: <strong>+2 CP</strong> (Vé Masters Toronto Seed 3 & EWC Pool 3)
-            <br>• Hạng 4: <strong>+1 CP</strong> (Vé EWC Pool 4)
+            <br>• Vô địch: <strong>+7 CP</strong> (Vé Champions Paris Seed 1)
+            <br>• Á quân: <strong>+5 CP</strong> (Vé Champions Paris Seed 2)
+            <br>• Hạng 3: <strong>+4 CP</strong>
+            <br>• Hạng 4: <strong>+3 CP</strong>
+            <br>• Hạng 5-8: <strong>+0 CP</strong>
           </li>
-          <li><strong>Tiêu chí xếp hạng Vòng bảng:</strong> Trận thắng (W-L) ➔ Hiệu số Map ➔ Hiệu số Round ➔ Story Rating.</li>
+          <li><strong>Tiêu chí Tiebreaker Vòng bảng:</strong> Head-to-Head Trận ➔ Head-to-Head Map ➔ Head-to-Head Round ➔ Hiệu số Map tổng ➔ Hiệu số Round tổng.</li>
         </ul>
       </div>
     </div>

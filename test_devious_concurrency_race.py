@@ -66,7 +66,7 @@ class TestDeviousConcurrencyRace(unittest.TestCase):
         sim_stage1_round(state)
         self.assertEqual(state['current_phase'], 'regular_season')
 
-        ko1 = next(m for m in state['playoff_matches'] if m['match_id'] == 'ko_1')
+        ko1 = next(m for m in state['playoff_matches'] if m['match_id'] in ('UBR1-M1', 'ko_1') or 'ko_1' in m.get('aliases', []))
         with self.assertRaises(ValueError) as ctx:
             resolve_stage1_match(state, ko1['match_id'])
         # Must complain that teams are not determined / season not complete

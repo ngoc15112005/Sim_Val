@@ -27,11 +27,11 @@ class TestChampionshipPoints(unittest.TestCase):
         # 3. Stage 1 Regular Season
         self.assertEqual(get_stage_points('stage1_regular', regular_wins=4), 4)
 
-        # 4. Stage 1 Playoffs
-        self.assertEqual(get_stage_points('stage1_playoffs', rank=1), 5)
-        self.assertEqual(get_stage_points('stage1_playoffs', rank=2), 3)
-        self.assertEqual(get_stage_points('stage1_playoffs', rank=3), 2)
-        self.assertEqual(get_stage_points('stage1_playoffs', rank=4), 1)
+        # 4. Stage 1 Playoffs (Official VCT 2026: 6, 4, 3, 2)
+        self.assertEqual(get_stage_points('stage1_playoffs', rank=1), 6)
+        self.assertEqual(get_stage_points('stage1_playoffs', rank=2), 4)
+        self.assertEqual(get_stage_points('stage1_playoffs', rank=3), 3)
+        self.assertEqual(get_stage_points('stage1_playoffs', rank=4), 2)
 
         # 5. Masters Toronto (VCT Masters)
         self.assertEqual(get_stage_points('master', rank=1), 7)

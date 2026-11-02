@@ -60,7 +60,7 @@ class TestCampaignStage1Integration(unittest.TestCase):
         self.assertEqual(len(pac['group_alpha']), 6)
         self.assertEqual(len(pac['group_omega']), 6)
         self.assertEqual(len(pac['regular_matches']), 30)
-        self.assertEqual(len(pac['playoff_matches']), 8)
+        self.assertEqual(len(pac['playoff_matches']), 12)
 
         # 3. Test HTTP View
         resp = self.client.get(f'/campaign/{cid}/stage/stage1?region=pacific')

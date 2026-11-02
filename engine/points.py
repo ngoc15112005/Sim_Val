@@ -19,10 +19,10 @@ Points Table:
   * 4th: 1 CP
 - Stage 1 Regular Season: 1 CP per match win
 - Stage 1 Playoffs (Regional):
-  * 1st: 5 CP
-  * 2nd: 3 CP
-  * 3rd: 2 CP
-  * 4th: 1 CP
+  * 1st: 6 CP
+  * 2nd: 4 CP
+  * 3rd: 3 CP
+  * 4th: 2 CP
 - Masters Toronto (VCT Masters, 12 teams):
   * 1st: 7 CP
   * 2nd: 5 CP
@@ -100,13 +100,13 @@ def get_stage_points(stage_key: str, rank: Optional[int] = None, regular_wins: i
 
     elif stage_key == 'stage1_playoffs':
         if rank == 1:
-            return 5
+            return 6
         elif rank == 2:
-            return 3
+            return 4
         elif rank == 3:
-            return 2
+            return 3
         elif rank == 4:
-            return 1
+            return 2
         return 0
 
     elif stage_key == 'master':  # Masters Toronto
