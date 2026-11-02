@@ -70,6 +70,16 @@
 
 <div id="ewcq-view-{{ r_slug }}" class="ewcq-region-view {% if (region_slug == r_slug) or (not region_slug and loop.first) %}active{% endif %}">
 
+  <!-- Shared Stage Review & Confirmation Component -->
+  {% set stage_key = 'ewc_qualifier' %}
+  {% set is_regional = True %}
+  {% set active_region = r_slug %}
+  {% set review_target_name = 'EWC Regional Qualifier ' ~ r_slug|upper %}
+  {% set is_confirmed = reg and reg.is_confirmed %}
+  {% set matches_completed = reg.matches_completed if reg else False %}
+  {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/master' if all_completed else None) %}
+  {% include 'campaign/_stage_confirmation_bar.html' %}
+
   {% if reg %}
 
   <!-- Direct Qualifiers & Region Summary Banner -->
@@ -485,6 +495,10 @@ async function simSingleMatch(matchId) {
   }
 }
 
+function reloadEwcCurrentRegion() {
+  window.location.href = window.location.pathname + '?region=' + currentRegion;
+}
+
 async function simCurrentRound() {
   const btn = document.getElementById('btn-sim-round');
   btn.disabled = true;
@@ -493,11 +507,11 @@ async function simCurrentRound() {
     const res = await fetch(`/api/campaign/${campaignId}/ewc_qualifier/sim-round`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ region: currentRegion })
+      body: JSON.stringify({ region: currentRegion, auto_confirm: false })
     });
     const data = await res.json();
     if (data.success) {
-      window.location.reload();
+      reloadEwcCurrentRegion();
     } else {
       alert('Lỗi: ' + (data.error || 'Lỗi khi mô phỏng vòng'));
       btn.disabled = false;
@@ -519,11 +533,11 @@ async function simSelectedRegion() {
     const res = await fetch(`/api/campaign/${campaignId}/ewc_qualifier/sim-region`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ region: currentRegion })
+      body: JSON.stringify({ region: currentRegion, auto_confirm: false })
     });
     const data = await res.json();
     if (data.success) {
-      window.location.reload();
+      reloadEwcCurrentRegion();
     } else {
       alert('Lỗi: ' + (data.error || 'Lỗi khi mô phỏng khu vực'));
       btn.disabled = false;
@@ -545,14 +559,22 @@ async function simAllRegions() {
     const res = await fetch(`/api/campaign/${campaignId}/ewc_qualifier/sim-all`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ auto_confirm: false })
     });
     const data = await res.json();
     if (data.success) {
-      window.location.reload();
+      reloadEwcCurrentRegion();
     } else {
       alert('Lỗi: ' + (data.error || 'Lỗi khi mô phỏng'));
       btn.disabled = false;
+      btn.textContent = '🌟 Sim cả 4 khu vực';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = '🌟 Sim cả 4 khu vực';
+  }
+}
       btn.textContent = '🌟 Sim cả 4 khu vực';
     }
   } catch (err) {

@@ -655,6 +655,7 @@ def advance_ewc_state(ewc_data: Dict[str, Any]) -> bool:
                         'desc': f'Bị loại ở Vòng Bảng {label}',
                     })
 
+            ewc_data['matches_completed'] = True
             ewc_data['standings'] = final_standings
             ewc_data['status'] = 'completed'
             return True
@@ -687,6 +688,9 @@ def resolve_ewc_match(ewc_data: Dict[str, Any], match_id_or_round_name: str,
 
     if not target:
         raise ValueError(f"Match {match_id_or_round_name} not found in EWC")
+
+    if ewc_data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu EWC đã được xác nhận và khóa chính thức!")
 
     if not target.get('team_a') or not target.get('team_b'):
         raise ValueError("Match participants are not fully determined yet.")

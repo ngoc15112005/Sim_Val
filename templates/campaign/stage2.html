@@ -51,14 +51,25 @@
 
   {% set cur_reg = stage2_data.regional_results[active_region] if (stage2_data and stage2_data.regional_results and active_region in stage2_data.regional_results) else None %}
 
+  <!-- Shared Stage Review & Confirmation Component -->
+  {% set stage_key = 'stage2' %}
+  {% set is_regional = True %}
+  {% set review_target_name = 'VCT Stage 2 ' ~ active_region|upper %}
+  {% set is_confirmed = cur_reg and cur_reg.is_confirmed %}
+  {% set matches_completed = cur_reg.matches_completed if cur_reg else False %}
+  {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/champion' if (stage and stage.status == 'completed') else None) %}
+  {% include 'campaign/_stage_confirmation_bar.html' %}
+
   {% if cur_reg %}
   <!-- Control Toolbar -->
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.8em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Giai đoạn hiện tại:</span>
       <div style="font-size: 1.1em; font-weight: 800; color: #fff; margin-top: 2px;">
-        {% if cur_reg.status == 'completed' %}
-          <span style="color: #4ade80;">🏆 Đã hoàn thành toàn bộ Stage 2 {{ active_region|upper }}!</span>
+        {% if cur_reg.is_confirmed %}
+          <span style="color: #4ade80;">🔒 Đã hoàn thành & Khóa kết quả Stage 2 {{ active_region|upper }}!</span>
+        {% elif cur_reg.matches_completed %}
+          <span style="color: #fbbf24;">🔔 Hoàn thành các trận — Chờ xác nhận kết quả!</span>
         {% elif cur_reg.current_phase == 'playoffs' %}
           <span style="color: #fbbf24;">⚡ Vòng Playoffs 8 Đội (Modified Double Elimination)</span>
         {% else %}
@@ -68,7 +79,7 @@
     </div>
 
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-      {% if cur_reg.status != 'completed' %}
+      {% if not cur_reg.is_confirmed %}
       <button type="button" class="btn-start" id="btn-sim-round" onclick="simStage2Round()" style="padding: 8px 14px; font-size: 0.85em; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd; border-radius: 6px; cursor: pointer;">
         ⚡ Sim tuần/vòng này
       </button>
@@ -77,9 +88,11 @@
       </button>
       {% endif %}
 
+      {% if not (stage and stage.status == 'completed') %}
       <button type="button" class="btn-start" id="btn-sim-all" onclick="simStage2All()" style="padding: 8px 14px; font-size: 0.85em; background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; color: #86efac; border-radius: 6px; cursor: pointer;">
         🌟 Sim cả 4 khu vực
       </button>
+      {% endif %}
     </div>
   </div>
 
@@ -119,8 +132,9 @@
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-weight: 800; font-size: 0.95em; color: var(--yellow);">#{{ loop.index }}</span>
-              {% if q.team.logo_url %}
-              <img src="{{ q.team.logo_url }}" alt="" style="width: 24px; height: 24px; object-fit: contain;" onerror="this.style.display='none'">
+              {% set t_logo = (q.team.logo_url if q.team else '') or (clubs_by_id[q.team.id].logo_url if q.team and clubs_by_id and q.team.id in clubs_by_id else '') %}
+              {% if t_logo %}
+              <img src="{{ t_logo }}" alt="" style="width: 24px; height: 24px; object-fit: contain;" onerror="this.style.display='none'">
               {% endif %}
               <div>
                 <span style="font-weight: bold; color: #fff;">{{ q.team.name }}</span>
@@ -443,7 +457,7 @@
       <h3 id="stage2-modal-match-title" style="margin: 0; color: #fff; font-size: 1.15em;">
         Nhập tỷ số trận đấu
       </h3>
-      <button type="button" onclick="closeStage1ManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">
+      <button type="button" onclick="closeStage2ManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">
         &times;
       </button>
     </div>
@@ -480,7 +494,7 @@
         <!-- Filled dynamically -->
       </div>
       <div style="margin-top: 10px; text-align: right;">
-        <button type="button" class="btn-start" onclick="submitStage1CustomMaps()" style="padding: 6px 14px; font-size: 0.85em; background: #22c55e; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">
+        <button type="button" class="btn-start" onclick="submitStage2CustomMaps()" style="padding: 6px 14px; font-size: 0.85em; background: #22c55e; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">
           Lưu tỷ số chi tiết
         </button>
       </div>
@@ -489,10 +503,10 @@
 </div>
 
 <script>
-const activeStage1Region = "{{ active_region }}";
+const activeStage2Region = "{{ active_region }}";
 
 function reloadStage2CurrentRegion() {
-  window.location.href = window.location.pathname + '?region=' + activeStage1Region;
+  window.location.href = window.location.pathname + '?region=' + activeStage2Region;
 }
 
 let currentModalMatchId = null;
@@ -505,7 +519,7 @@ let currentModalBo = 3;
 async function rollStage2Match(matchId) {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/match/sim`, {
-      region: activeStage1Region,
+      region: activeStage2Region,
       match_id: matchId
     });
     if (res.success) {
@@ -525,7 +539,8 @@ async function simStage2Round() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/sim-round`, {
-      region: activeStage1Region
+      region: activeStage2Region,
+      auto_confirm: false
     });
     if (res.success) {
       reloadStage2CurrentRegion();
@@ -542,7 +557,7 @@ async function simStage2Round() {
 }
 
 async function simStage2Region() {
-  if (!confirm(`Bạn có chắc muốn mô phỏng toàn bộ các trận còn lại của khu vực ${activeStage1Region.toUpperCase()}?`)) return;
+  if (!confirm(`Bạn có chắc muốn mô phỏng toàn bộ các trận còn lại của khu vực ${activeStage2Region.toUpperCase()}?`)) return;
 
   const btn = document.getElementById('btn-sim-region');
   btn.disabled = true;
@@ -550,7 +565,8 @@ async function simStage2Region() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/sim-region`, {
-      region: activeStage1Region
+      region: activeStage2Region,
+      auto_confirm: false
     });
     if (res.success) {
       reloadStage2CurrentRegion();
@@ -567,14 +583,16 @@ async function simStage2Region() {
 }
 
 async function simStage2All() {
-  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ 4 khu vực Stage 2 (chọn 12 đội đi Masters & 16 đội đi EWC)?")) return;
+  if (!confirm("Bạn có chắc muốn mô phỏng toàn bộ 4 khu vực Stage 2 (chọn 16 đội đi Champions Paris)?")) return;
 
   const btn = document.getElementById('btn-sim-all');
   btn.disabled = true;
   btn.textContent = '⏳ Đang mô phỏng 4 khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/sim-all`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/sim-all`, {
+      auto_confirm: false
+    });
     if (res.success) {
       reloadStage2CurrentRegion();
     } else {
@@ -606,37 +624,37 @@ function openStage2ManualModal(matchId, matchLabel, teamAId, teamACode, teamANam
   const quickContainer = document.getElementById('stage2-modal-quick-buttons');
   if (currentModalBo === 5) {
     quickContainer.innerHTML = `
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamAId}, 3, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamACode} Thắng 3 - 0
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamAId}, 3, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamACode} Thắng 3 - 1
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamAId}, 3, 2)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamACode} Thắng 3 - 2
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamBId}, 0, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamBCode} Thắng 3 - 0
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamBId}, 1, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamBCode} Thắng 3 - 1
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamBId}, 2, 3)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.85em;">
         ${teamBCode} Thắng 3 - 2
       </button>
     `;
   } else {
     quickContainer.innerHTML = `
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamAId}, 2, 0)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
         ${teamACode} Thắng 2 - 0
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamAId}, 2, 1)" style="padding: 8px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
         ${teamACode} Thắng 2 - 1
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamBId}, 0, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
         ${teamBCode} Thắng 2 - 0
       </button>
-      <button type="button" class="btn-start" onclick="submitStage1QuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
+      <button type="button" class="btn-start" onclick="submitStage2QuickScore(${teamBId}, 1, 2)" style="padding: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fff; cursor: pointer; border-radius: 6px; font-size: 0.9em;">
         ${teamBCode} Thắng 2 - 1
       </button>
     `;
@@ -663,14 +681,14 @@ function openStage2ManualModal(matchId, matchLabel, teamAId, teamACode, teamANam
   modal.style.display = 'flex';
 }
 
-function closeStage1ManualModal() {
+function closeStage2ManualModal() {
   document.getElementById('stage2-manual-modal').style.display = 'none';
 }
 
-async function submitStage1QuickScore(winnerId, scoreA, scoreB) {
+async function submitStage2QuickScore(winnerId, scoreA, scoreB) {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/match/manual`, {
-      region: activeStage1Region,
+      region: activeStage2Region,
       match_id: currentModalMatchId,
       winner_id: winnerId,
       maps: []
@@ -685,7 +703,7 @@ async function submitStage1QuickScore(winnerId, scoreA, scoreB) {
   }
 }
 
-async function submitStage1CustomMaps() {
+async function submitStage2CustomMaps() {
   const maps = [];
   let winsA = 0;
   let winsB = 0;
@@ -723,7 +741,7 @@ async function submitStage1CustomMaps() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/match/manual`, {
-      region: activeStage1Region,
+      region: activeStage2Region,
       match_id: currentModalMatchId,
       winner_id: winnerId,
       maps: maps

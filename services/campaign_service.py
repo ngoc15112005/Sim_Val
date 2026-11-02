@@ -267,15 +267,19 @@ def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_oq_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_oq_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Helper to update dynamic ratings and advance campaign if all 4 regions are finished."""
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and reg_res.get('status') == 'completed':
-            if not reg_res.get('ratings_awarded'):
+        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+            reg_res['matches_completed'] = True
+            if auto_confirm:
+                reg_res['is_confirmed'] = True
+
+            if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
                 for cid in qual_ids:
                     if cid in club_states:
@@ -288,11 +292,13 @@ def _check_and_finalize_oq_regions(campaign: Campaign, stage: CampaignStage, dat
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regions', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'kickoff'
-        _prepare_kickoff_stage(campaign, data['regions'])
+        record_stage_placements(campaign.id, 'open_qualifier', year=stage.year)
+        _advance_campaign_to_next_stage(campaign, 'open_qualifier', data)
 
 
 def resolve_oq_match(campaign_id: int, region_slug: str, match_id: str,
@@ -330,7 +336,7 @@ def resolve_oq_match(campaign_id: int, region_slug: str, match_id: str,
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_oq_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all current playable pending matches in the active round of a region."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -352,12 +358,12 @@ def sim_oq_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_oq_regions(campaign, stage, data)
+    _check_and_finalize_oq_regions(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_oq_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_region(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single region until completed."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -379,18 +385,19 @@ def sim_oq_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_oq_regions(campaign, stage, data)
+    _check_and_finalize_oq_regions(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'region_data': reg_data}
 
 
-def run_open_qualifier_stage(campaign_id: int, region_slug: Optional[str] = None) -> Dict[str, Any]:
+def run_open_qualifier_stage(campaign_id: int, region_slug: Optional[str] = None,
+                             auto_confirm: bool = True) -> Dict[str, Any]:
     """Execute Open Qualifier simulation for one region or all regions (backward compatible)."""
     regions_to_run = [region_slug] if region_slug else ['pacific', 'americas', 'emea', 'china']
     results_summary = {}
 
     for r_slug in regions_to_run:
-        res = sim_oq_region(campaign_id, r_slug)
+        res = sim_oq_region(campaign_id, r_slug, auto_confirm=auto_confirm)
         r_data = res['region_data']
         results_summary[r_slug] = {
             'qualified_teams': r_data.get('qualified_teams', []),
@@ -525,15 +532,19 @@ def get_kickoff_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award CP, story ratings, and advance campaign when all 4 Kickoff regions complete."""
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug in all_regions:
         reg_data = data.get('regional_results', {}).get(r_slug)
-        if reg_data and reg_data.get('status') == 'completed':
-            if not reg_data.get('rewards_awarded'):
+        if reg_data and (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+            reg_data['matches_completed'] = True
+            if auto_confirm:
+                reg_data['is_confirmed'] = True
+
+            if reg_data.get('is_confirmed') and not reg_data.get('rewards_awarded'):
                 cp_awards = []
                 for s in reg_data.get('standings', []):
                     cp_awards.append({
@@ -553,12 +564,11 @@ def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
         record_stage_placements(campaign.id, 'kickoff', year=stage.year)
-        campaign.current_stage = 'major'
-        _prepare_major_stage(campaign, data['regional_results'])
+        _advance_campaign_to_next_stage(campaign, 'kickoff', data)
 
 
 def resolve_ko_match(campaign_id: int, region_slug: str, match_id: str,
@@ -595,7 +605,7 @@ def resolve_ko_match(campaign_id: int, region_slug: str, match_id: str,
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_ko_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_ko_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all currently playable pending matches in the active round/wave."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -614,12 +624,12 @@ def sim_ko_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
 
     sim_count = sim_kickoff_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_kickoff_regions(campaign, stage, data)
+    _check_and_finalize_kickoff_regions(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_ko_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_ko_region(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single Kickoff region until completed."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -638,13 +648,14 @@ def sim_ko_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
 
     sim_kickoff_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_kickoff_regions(campaign, stage, data)
+    _check_and_finalize_kickoff_regions(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'region_data': reg_data}
 
 
 def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
-                      manual_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                      manual_overrides: Optional[Dict[str, Any]] = None,
+                      auto_confirm: bool = True) -> Dict[str, Any]:
     """Execute Kickoff simulation (22 matches per region) for one or all regions."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -688,48 +699,61 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
             form_lookup=form_lookup,
             manual_overrides=existing_overrides
         )
+        sim_res['matches_completed'] = True
+        if auto_confirm:
+            sim_res['is_confirmed'] = True
+            cp_awards = []
+            for s in sim_res['standings']:
+                cp_awards.append({
+                    'club_id': s['club_id'],
+                    'rank': s['rank'],
+                })
+            award_stage_cp(campaign_id, 'kickoff', cp_awards)
+        else:
+            sim_res['is_confirmed'] = False
 
         data['regional_results'][r_slug] = sim_res
-
-        cp_awards = []
-        for s in sim_res['standings']:
-            cp_awards.append({
-                'club_id': s['club_id'],
-                'rank': s['rank'],
-            })
-        award_stage_cp(campaign_id, 'kickoff', cp_awards)
 
         summary_results[r_slug] = {
             'champion': sim_res['standings'][0]['team'],
             'runner_up': sim_res['standings'][1]['team'],
             'major_qualifiers': sim_res['major_qualifiers'],
             'total_matches': sim_res['total_matches_count'],
+            'matches_completed': sim_res.get('matches_completed', True),
+            'is_confirmed': sim_res.get('is_confirmed', False),
+            'matches': sim_res.get('matches'),
+            'standings': sim_res.get('standings'),
         }
 
     stage.stage_data = json.dumps(data)
 
     all_regions = ['pacific', 'americas', 'emea', 'china']
-    if all(r in data['regional_results'] and data['regional_results'][r].get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(r in data['regional_results'] and data['regional_results'][r].get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data['regional_results'][r]['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
         record_stage_placements(campaign.id, 'kickoff', year=stage.year)
-        campaign.current_stage = 'major'
-        _prepare_major_stage(campaign, data['regional_results'])
+        _advance_campaign_to_next_stage(campaign, 'kickoff', data)
 
     db.session.commit()
     return summary_results
 
 
-def override_kickoff_match(campaign_id: int, region_slug: str, round_name: str,
-                           winner_id: int, maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def override_kickoff_match(campaign_id: int, region_slug: str, round_name: Optional[str] = None,
+                           winner_id: int = None, maps: Optional[List[Dict[str, Any]]] = None,
+                           match_id: Optional[str] = None, auto_confirm: bool = False) -> Dict[str, Any]:
     """Force a specific winner / map scores for a Kickoff match and re-simulate the bracket."""
+    key = round_name or match_id
+    if not key:
+        raise ValueError("round_name or match_id is required")
     overrides = {
-        round_name: {
+        key: {
             'winner_id': winner_id,
             'maps': maps or [],
         }
     }
-    return run_kickoff_stage(campaign_id, region_slug=region_slug, manual_overrides=overrides)
+    return run_kickoff_stage(campaign_id, region_slug=region_slug, manual_overrides=overrides, auto_confirm=auto_confirm)
 
 
 def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str, Any]):
@@ -818,11 +842,15 @@ def get_major_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award CP, story ratings, and advance campaign when Major completes."""
     res = data.get('result')
-    if res and res.get('status') == 'completed':
-        if not res.get('rewards_awarded'):
+    if res and (res.get('status') == 'completed' or res.get('matches_completed')):
+        res['matches_completed'] = True
+        if auto_confirm:
+            res['is_confirmed'] = True
+
+        if res.get('is_confirmed') and not res.get('rewards_awarded'):
             cp_awards = []
             for s in res.get('standings', []):
                 cp_awards.append({
@@ -843,11 +871,11 @@ def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Di
 
             res['rewards_awarded'] = True
 
-        stage.status = 'completed'
-        stage.completed_at = datetime.now(timezone.utc)
-        record_stage_placements(campaign.id, 'major', year=stage.year)
-        campaign.current_stage = 'oq_stage1'
-        _prepare_oq_stage1_stage(campaign)
+        if auto_confirm:
+            stage.status = 'completed'
+            stage.completed_at = datetime.now(timezone.utc)
+            record_stage_placements(campaign.id, 'major', year=stage.year)
+            _advance_campaign_to_next_stage(campaign, 'major', data)
 
     stage.stage_data = json.dumps(data)
 
@@ -874,7 +902,7 @@ def resolve_major_match_interactive(campaign_id: int, match_id: str,
     return {'match': resolved, 'major_data': major_data}
 
 
-def sim_major_round_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_major_round_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all currently playable pending matches in the active round/wave of Major."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -889,12 +917,12 @@ def sim_major_round_interactive(campaign_id: int) -> Dict[str, Any]:
 
     sim_count = sim_major_round(major_data)
 
-    _check_and_finalize_major(campaign, stage, data)
+    _check_and_finalize_major(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'major_data': major_data}
 
 
-def sim_major_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_major_tournament_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches in VCT Major until Grand Final completes."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -909,12 +937,12 @@ def sim_major_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
 
     sim_major_remaining(major_data)
 
-    _check_and_finalize_major(campaign, stage, data)
+    _check_and_finalize_major(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'major_data': major_data}
 
 
-def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]] = None, auto_confirm: bool = True) -> Dict[str, Any]:
     """Execute VCT Major (Masters Bangkok) 8-team international tournament:
     - Swiss Stage (8 teams, 10 matches BO3, 4 qualify, 4 out)
     - Double Elimination Playoffs (4 teams, 6 matches BO3/BO5)
@@ -960,46 +988,58 @@ def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]]
         manual_overrides=data['manual_overrides'],
         previous_result=prev_result
     )
+    sim_res['matches_completed'] = True
     data['result'] = sim_res
 
-    # Award official VCT 2025 Championship Points
-    # 1st: 5 CP, 2nd: 3 CP, 3rd: 2 CP, 4th: 1 CP, 5th-8th: 0 CP
-    cp_awards = []
-    for s in sim_res['standings']:
-        cp_awards.append({
-            'club_id': s['club_id'],
-            'rank': s['rank'],
-        })
-    award_stage_cp(campaign_id, 'major', cp_awards)
+    if auto_confirm:
+        sim_res['is_confirmed'] = True
+        # Award official VCT 2025 Championship Points
+        # 1st: 5 CP, 2nd: 3 CP, 3rd: 2 CP, 4th: 1 CP, 5th-8th: 0 CP
+        cp_awards = []
+        for s in sim_res['standings']:
+            cp_awards.append({
+                'club_id': s['club_id'],
+                'rank': s['rank'],
+            })
+        award_stage_cp(campaign_id, 'major', cp_awards)
 
-    stage.status = 'completed'
-    stage.completed_at = datetime.now(timezone.utc)
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign_id, 'major', year=stage.year)
+
+        # Advance campaign circuit to Open Qualifier Stage 1
+        campaign.current_stage = 'oq_stage1'
+        _prepare_oq_stage1_stage(campaign)
+    else:
+        sim_res['is_confirmed'] = False
+
     stage.stage_data = json.dumps(data)
-    record_stage_placements(campaign_id, 'major', year=stage.year)
-
-    # Advance campaign circuit to Open Qualifier Stage 1
-    campaign.current_stage = 'oq_stage1'
-    _prepare_oq_stage1_stage(campaign)
-
     db.session.commit()
     return {
         'champion': sim_res['champion'],
         'runner_up': sim_res['runner_up'],
         'total_matches': sim_res['total_matches_count'],
         'standings': sim_res['standings'],
+        'matches_completed': sim_res['matches_completed'],
+        'is_confirmed': sim_res['is_confirmed'],
+        'matches': sim_res.get('swiss_matches', []) + sim_res.get('playoff_matches', []),
     }
 
 
-def override_major_match(campaign_id: int, round_name: str,
-                         winner_id: int, maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def override_major_match(campaign_id: int, round_name: Optional[str] = None,
+                         winner_id: int = None, maps: Optional[List[Dict[str, Any]]] = None,
+                         auto_confirm: bool = False, match_id: Optional[str] = None) -> Dict[str, Any]:
     """Force a specific winner / map scores for a Major match and re-simulate the bracket."""
+    key = round_name or match_id
+    if not key:
+        raise ValueError("round_name or match_id is required")
     overrides = {
-        round_name: {
+        key: {
             'winner_id': winner_id,
             'maps': maps or [],
         }
     }
-    return run_major_stage(campaign_id, manual_overrides=overrides)
+    return run_major_stage(campaign_id, manual_overrides=overrides, auto_confirm=auto_confirm)
 
 
 def _prepare_oq_stage1_stage(campaign: Campaign):
@@ -1107,15 +1147,19 @@ def get_oq_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return json.loads(stage.stage_data)
 
 
-def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Update dynamic ratings and advance campaign to Stage 1 when all 4 regions complete."""
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and reg_res.get('status') == 'completed':
-            if not reg_res.get('ratings_awarded'):
+        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+            reg_res['matches_completed'] = True
+            if auto_confirm:
+                reg_res['is_confirmed'] = True
+
+            if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
                 for cid in qual_ids:
                     if cid in club_states:
@@ -1128,11 +1172,13 @@ def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regions', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'stage1'
-        _prepare_stage1_stage(campaign)
+        record_stage_placements(campaign.id, 'oq_stage1', year=stage.year)
+        _advance_campaign_to_next_stage(campaign, 'oq_stage1', data)
 
 
 def resolve_oq_stage1_match(campaign_id: int, region_slug: str, match_id: str,
@@ -1165,7 +1211,7 @@ def resolve_oq_stage1_match(campaign_id: int, region_slug: str, match_id: str,
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_oq_stage1_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_stage1_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate active round in Open Qualifier Stage 1 for a region."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1182,12 +1228,12 @@ def sim_oq_stage1_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_oq_stage1(campaign, stage, data)
+    _check_and_finalize_oq_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_oq_stage1_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_stage1_region(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single region in Open Qualifier Stage 1."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1204,12 +1250,12 @@ def sim_oq_stage1_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_oq_stage1(campaign, stage, data)
+    _check_and_finalize_oq_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'region_data': reg_data}
 
 
-def sim_oq_stage1_all(campaign_id: int) -> Dict[str, Any]:
+def sim_oq_stage1_all(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all 4 regions in Open Qualifier Stage 1 to completion."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1229,7 +1275,7 @@ def sim_oq_stage1_all(campaign_id: int) -> Dict[str, Any]:
             reg_data = data['regions'][r_slug]
             sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_oq_stage1(campaign, stage, data)
+    _check_and_finalize_oq_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'data': data}
 
@@ -1471,61 +1517,65 @@ def _prepare_ewc_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
         ewc_stage.stage_data = json.dumps(e_data)
 
 
-def _check_and_finalize_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug, reg_data in data.get('regional_results', {}).items():
-        if reg_data.get('status') == 'completed' and not reg_data.get('rewards_awarded'):
-            # 1. Award regular season CP (+1 CP per win)
-            reg_awards = []
-            for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
-                reg_awards.append({
-                    'club_id': s['club_id'],
-                    'regular_wins': s['wins'],
-                    'map_diff': s['map_diff'],
-                    'round_diff': s['round_diff'],
-                })
-            award_stage_cp(campaign.id, 'stage1_regular', reg_awards)
+        if (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+            reg_data['matches_completed'] = True
+            if auto_confirm:
+                reg_data['is_confirmed'] = True
 
-            # 2. Award playoff CP (1st: 5, 2nd: 3, 3rd: 2, 4th: 1)
-            playoff_awards = []
-            for s in reg_data.get('standings', []):
-                playoff_awards.append({
-                    'club_id': s['club_id'],
-                    'rank': s['rank'],
-                })
-            award_stage_cp(campaign.id, 'stage1_playoffs', playoff_awards)
+            if reg_data.get('is_confirmed') and not reg_data.get('rewards_awarded'):
+                # 1. Award regular season CP (+1 CP per win)
+                reg_awards = []
+                for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
+                    reg_awards.append({
+                        'club_id': s['club_id'],
+                        'regular_wins': s['wins'],
+                        'map_diff': s['map_diff'],
+                        'round_diff': s['round_diff'],
+                    })
+                award_stage_cp(campaign.id, 'stage1_regular', reg_awards)
 
-            # 3. Rating boosts
-            champ = reg_data.get('champion')
-            runner = reg_data.get('runner_up')
-            third = reg_data.get('third_place')
-            if champ:
-                c_id = champ.get('id') or champ.get('club_id')
-                if c_id in club_states:
-                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
-            if runner:
-                r_id = runner.get('id') or runner.get('club_id')
-                if r_id in club_states:
-                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
-            if third:
-                t_id = third.get('id') or third.get('club_id')
-                if t_id in club_states:
-                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
+                # 2. Award playoff CP (1st: 5, 2nd: 3, 3rd: 2, 4th: 1)
+                playoff_awards = []
+                for s in reg_data.get('standings', []):
+                    playoff_awards.append({
+                        'club_id': s['club_id'],
+                        'rank': s['rank'],
+                    })
+                award_stage_cp(campaign.id, 'stage1_playoffs', playoff_awards)
 
-            reg_data['rewards_awarded'] = True
+                # 3. Rating boosts
+                champ = reg_data.get('champion')
+                runner = reg_data.get('runner_up')
+                third = reg_data.get('third_place')
+                if champ:
+                    c_id = champ.get('id') or champ.get('club_id')
+                    if c_id in club_states:
+                        club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+                if runner:
+                    r_id = runner.get('id') or runner.get('club_id')
+                    if r_id in club_states:
+                        club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+                if third:
+                    t_id = third.get('id') or third.get('club_id')
+                    if t_id in club_states:
+                        club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
+
+                reg_data['rewards_awarded'] = True
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regional_results', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
         record_stage_placements(campaign.id, 'stage1', year=stage.year)
-        campaign.current_stage = 'ewc_qualifier'
-        _prepare_ewc_qualifier_stage(campaign, data['regional_results'])
-        _prepare_master_stage(campaign, data['regional_results'])
-        _prepare_ewc_stage(campaign, data['regional_results'])
+        _advance_campaign_to_next_stage(campaign, 'stage1', data)
 
 
 def resolve_stage1_match_interactive(campaign_id: int, region_slug: str, match_id: str,
@@ -1560,7 +1610,7 @@ def resolve_stage1_match_interactive(campaign_id: int, region_slug: str, match_i
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_stage1_round_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_stage1_round_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all currently playable pending matches in the active week/wave."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1579,12 +1629,12 @@ def sim_stage1_round_interactive(campaign_id: int, region_slug: str) -> Dict[str
 
     sim_count = sim_stage1_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_stage1(campaign, stage, data)
+    _check_and_finalize_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_stage1_region_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_stage1_region_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single region in Stage 1."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1603,12 +1653,12 @@ def sim_stage1_region_interactive(campaign_id: int, region_slug: str) -> Dict[st
 
     sim_count = sim_stage1_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_stage1(campaign, stage, data)
+    _check_and_finalize_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_stage1_all_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_stage1_all_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for all 4 regions in Stage 1."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1629,7 +1679,7 @@ def sim_stage1_all_interactive(campaign_id: int) -> Dict[str, Any]:
             reg_data = data['regional_results'][r_slug]
             total_sim += sim_stage1_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_stage1(campaign, stage, data)
+    _check_and_finalize_stage1(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'total_sim': total_sim, 'stage1_data': data}
 
@@ -1781,34 +1831,38 @@ def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_q
         ewc_stage.stage_data = json.dumps(e_data)
 
 
-def _check_and_finalize_ewc_qualifier(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_ewc_qualifier(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug, reg_data in data.get('regions', {}).items():
-        if reg_data.get('status') == 'completed' and not reg_data.get('rewards_awarded'):
-            champ = reg_data.get('champion')
-            runner = reg_data.get('runner_up')
-            if champ:
-                c_id = champ.get('id') or champ.get('club_id')
-                if c_id in club_states:
-                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
-            if runner:
-                r_id = runner.get('id') or runner.get('club_id')
-                if r_id in club_states:
-                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
-            reg_data['rewards_awarded'] = True
+        if (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+            reg_data['matches_completed'] = True
+            if auto_confirm:
+                reg_data['is_confirmed'] = True
+
+            if reg_data.get('is_confirmed') and not reg_data.get('rewards_awarded'):
+                champ = reg_data.get('champion')
+                runner = reg_data.get('runner_up')
+                if champ:
+                    c_id = champ.get('id') or champ.get('club_id')
+                    if c_id in club_states:
+                        club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+                if runner:
+                    r_id = runner.get('id') or runner.get('club_id')
+                    if r_id in club_states:
+                        club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+                reg_data['rewards_awarded'] = True
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regions', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'master'
-        s1_record = CampaignStage.query.filter_by(
-            campaign_id=campaign.id, year=campaign.current_year, stage_key='stage1'
-        ).first()
-        _finalize_ewc_roster(campaign, s1_record, data)
+        record_stage_placements(campaign.id, 'ewc_qualifier', year=stage.year)
+        _advance_campaign_to_next_stage(campaign, 'ewc_qualifier', data)
 
 
 def resolve_ewc_qualifier_match_interactive(campaign_id: int, region_slug: str, match_id: str,
@@ -1843,7 +1897,7 @@ def resolve_ewc_qualifier_match_interactive(campaign_id: int, region_slug: str, 
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_ewc_qualifier_round_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_ewc_qualifier_round_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate currently playable round for the region."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1862,12 +1916,12 @@ def sim_ewc_qualifier_round_interactive(campaign_id: int, region_slug: str) -> D
 
     resolved_matches = sim_ewc_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    _check_and_finalize_ewc_qualifier(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'resolved_count': len(resolved_matches), 'region_data': reg_data}
 
 
-def sim_ewc_qualifier_region_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_ewc_qualifier_region_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches in one region until finished."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1886,12 +1940,12 @@ def sim_ewc_qualifier_region_interactive(campaign_id: int, region_slug: str) -> 
 
     count = sim_ewc_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    _check_and_finalize_ewc_qualifier(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'simulated_count': count, 'region_data': reg_data}
 
 
-def sim_ewc_qualifier_all_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_ewc_qualifier_all_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches across all 4 regions in EWC Qualifier."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -1912,7 +1966,7 @@ def sim_ewc_qualifier_all_interactive(campaign_id: int) -> Dict[str, Any]:
             reg_data = data['regions'][r_slug]
             total_sim += sim_ewc_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_ewc_qualifier(campaign, stage, data)
+    _check_and_finalize_ewc_qualifier(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'total_sim': total_sim, 'ewc_qualifier_data': data}
 
@@ -1943,11 +1997,15 @@ def get_master_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_master(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_master(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award CP, story ratings, and advance campaign when Masters Toronto completes."""
     res = data.get('result')
-    if res and res.get('status') == 'completed':
-        if not res.get('rewards_awarded'):
+    if res and (res.get('status') == 'completed' or res.get('matches_completed')):
+        res['matches_completed'] = True
+        if auto_confirm:
+            res['is_confirmed'] = True
+
+        if res.get('is_confirmed') and not res.get('rewards_awarded'):
             cp_awards = []
             for s in res.get('standings', []):
                 cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
@@ -1979,10 +2037,11 @@ def _check_and_finalize_master(campaign: Campaign, stage: CampaignStage, data: D
 
             res['rewards_awarded'] = True
 
-        stage.status = 'completed'
-        stage.completed_at = datetime.now(timezone.utc)
-        record_stage_placements(campaign.id, 'master', year=stage.year)
-        campaign.current_stage = 'ewc'
+        if auto_confirm:
+            stage.status = 'completed'
+            stage.completed_at = datetime.now(timezone.utc)
+            record_stage_placements(campaign.id, 'master', year=stage.year)
+            _advance_campaign_to_next_stage(campaign, 'master', data)
 
     stage.stage_data = json.dumps(data)
 
@@ -2011,7 +2070,7 @@ def resolve_master_match_interactive(campaign_id: int, match_id: str,
     return {'match': resolved, 'master_data': master_data}
 
 
-def sim_master_round_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_master_round_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all currently playable pending matches in the active round/wave of Masters Toronto."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2028,12 +2087,12 @@ def sim_master_round_interactive(campaign_id: int) -> Dict[str, Any]:
     master_data = data['result']
     sim_count = sim_master_round(master_data)
 
-    _check_and_finalize_master(campaign, stage, data)
+    _check_and_finalize_master(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'master_data': master_data}
 
 
-def sim_master_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_master_tournament_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches in Masters Toronto until Grand Final completes."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2050,7 +2109,7 @@ def sim_master_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
     master_data = data['result']
     sim_master_remaining(master_data)
 
-    _check_and_finalize_master(campaign, stage, data)
+    _check_and_finalize_master(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'master_data': master_data}
 
@@ -2082,11 +2141,15 @@ def get_ewc_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_ewc(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_ewc(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award story ratings and advance campaign when EWC completes."""
     res = data.get('result')
-    if res and res.get('status') == 'completed':
-        if not res.get('rewards_awarded'):
+    if res and (res.get('status') == 'completed' or res.get('matches_completed')):
+        res['matches_completed'] = True
+        if auto_confirm:
+            res['is_confirmed'] = True
+
+        if res.get('is_confirmed') and not res.get('rewards_awarded'):
             club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
             if res.get('champion'):
                 champ = res['champion']
@@ -2111,11 +2174,11 @@ def _check_and_finalize_ewc(campaign: Campaign, stage: CampaignStage, data: Dict
 
             res['rewards_awarded'] = True
 
-        stage.status = 'completed'
-        stage.completed_at = datetime.now(timezone.utc)
-        record_stage_placements(campaign.id, 'ewc', year=stage.year)
-        campaign.current_stage = 'oq_stage2'
-        _prepare_oq_stage2_stage(campaign)
+        if auto_confirm:
+            stage.status = 'completed'
+            stage.completed_at = datetime.now(timezone.utc)
+            record_stage_placements(campaign.id, 'ewc', year=stage.year)
+            _advance_campaign_to_next_stage(campaign, 'ewc', data)
 
     stage.stage_data = json.dumps(data)
 
@@ -2144,7 +2207,7 @@ def resolve_ewc_match_interactive(campaign_id: int, match_id: str,
     return {'match': resolved, 'ewc_data': ewc_data}
 
 
-def sim_ewc_round_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_ewc_round_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all currently playable pending matches in the active round/wave of EWC."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2161,12 +2224,12 @@ def sim_ewc_round_interactive(campaign_id: int) -> Dict[str, Any]:
     ewc_data = data['result']
     sim_count = sim_ewc_round(ewc_data)
 
-    _check_and_finalize_ewc(campaign, stage, data)
+    _check_and_finalize_ewc(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'ewc_data': ewc_data}
 
 
-def sim_ewc_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_ewc_tournament_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches in EWC until Grand Final completes."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2183,7 +2246,7 @@ def sim_ewc_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
     ewc_data = data['result']
     sim_ewc_remaining(ewc_data)
 
-    _check_and_finalize_ewc(campaign, stage, data)
+    _check_and_finalize_ewc(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'ewc_data': ewc_data}
 
@@ -2395,15 +2458,19 @@ def get_oq_stage2_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return json.loads(stage.stage_data)
 
 
-def _check_and_finalize_oq_stage2(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_oq_stage2(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Update dynamic ratings and advance campaign to Stage 2 when all 4 regions complete."""
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and reg_res.get('status') == 'completed':
-            if not reg_res.get('ratings_awarded'):
+        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+            reg_res['matches_completed'] = True
+            if auto_confirm:
+                reg_res['is_confirmed'] = True
+
+            if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
                 for cid in qual_ids:
                     if cid in club_states:
@@ -2416,11 +2483,13 @@ def _check_and_finalize_oq_stage2(campaign: Campaign, stage: CampaignStage, data
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regions', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regions', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
-        campaign.current_stage = 'stage2'
-        _prepare_stage2_stage(campaign)
+        record_stage_placements(campaign.id, 'oq_stage2', year=stage.year)
+        _advance_campaign_to_next_stage(campaign, 'oq_stage2', data)
 
 
 def resolve_oq_stage2_match(campaign_id: int, region_slug: str, match_id: str,
@@ -2453,7 +2522,7 @@ def resolve_oq_stage2_match(campaign_id: int, region_slug: str, match_id: str,
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_oq_stage2_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_stage2_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate active round in Open Qualifier Stage 2 for a region."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2470,12 +2539,12 @@ def sim_oq_stage2_round(campaign_id: int, region_slug: str) -> Dict[str, Any]:
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_oq_stage2(campaign, stage, data)
+    _check_and_finalize_oq_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_oq_stage2_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_oq_stage2_region(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single region in Open Qualifier Stage 2."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2492,12 +2561,12 @@ def sim_oq_stage2_region(campaign_id: int, region_slug: str) -> Dict[str, Any]:
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_oq_stage2(campaign, stage, data)
+    _check_and_finalize_oq_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'region_data': reg_data}
 
 
-def sim_oq_stage2_all(campaign_id: int) -> Dict[str, Any]:
+def sim_oq_stage2_all(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all 4 regions in Open Qualifier Stage 2 to completion."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2517,7 +2586,7 @@ def sim_oq_stage2_all(campaign_id: int) -> Dict[str, Any]:
             reg_data = data['regions'][r_slug]
             sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_oq_stage2(campaign, stage, data)
+    _check_and_finalize_oq_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'data': data}
 
@@ -2737,72 +2806,71 @@ def _prepare_champion_stage(campaign: Campaign, qualifiers: Optional[List[Dict[s
         champ_stage.stage_data = json.dumps(c_data)
 
 
-def _check_and_finalize_stage2(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_stage2(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award CP, update leaderboard and determine Champions Paris qualifiers."""
     all_regions = ['pacific', 'americas', 'emea', 'china']
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug, reg_data in data.get('regional_results', {}).items():
-        if reg_data.get('status') == 'completed' and not reg_data.get('rewards_awarded'):
-            # 1. Award regular season CP (+1 CP per win)
-            reg_awards = []
-            for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
-                reg_awards.append({
-                    'club_id': s['club_id'],
-                    'regular_wins': s['wins'],
-                    'map_diff': s['map_diff'],
-                    'round_diff': s['round_diff'],
-                })
-            award_stage_cp(campaign.id, 'stage2_regular', reg_awards)
+        if (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+            reg_data['matches_completed'] = True
+            if auto_confirm:
+                reg_data['is_confirmed'] = True
 
-            # 2. Award playoff CP (1st: 7, 2nd: 5, 3rd: 4, 4th: 3)
-            playoff_awards = []
-            for s in reg_data.get('standings', []):
-                playoff_awards.append({
-                    'club_id': s['club_id'],
-                    'rank': s['rank'],
-                })
-            award_stage_cp(campaign.id, 'stage2_playoffs', playoff_awards)
+            if reg_data.get('is_confirmed') and not reg_data.get('rewards_awarded'):
+                # 1. Award regular season CP (+1 CP per win)
+                reg_awards = []
+                for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
+                    reg_awards.append({
+                        'club_id': s['club_id'],
+                        'regular_wins': s['wins'],
+                        'map_diff': s['map_diff'],
+                        'round_diff': s['round_diff'],
+                    })
+                award_stage_cp(campaign.id, 'stage2_regular', reg_awards)
 
-            # 3. Rating boosts
-            champ = reg_data.get('champion')
-            runner = reg_data.get('runner_up')
-            third = reg_data.get('third_place')
-            if champ:
-                c_id = champ.get('id') or champ.get('club_id')
-                if c_id in club_states:
-                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
-            if runner:
-                r_id = runner.get('id') or runner.get('club_id')
-                if r_id in club_states:
-                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
-            if third:
-                t_id = third.get('id') or third.get('club_id')
-                if t_id in club_states:
-                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
+                # 2. Award playoff CP (1st: 7, 2nd: 5, 3rd: 4, 4th: 3)
+                playoff_awards = []
+                for s in reg_data.get('standings', []):
+                    playoff_awards.append({
+                        'club_id': s['club_id'],
+                        'rank': s['rank'],
+                    })
+                award_stage_cp(campaign.id, 'stage2_playoffs', playoff_awards)
 
-            # 4. Calculate Champions Paris Qualifiers for this region
-            champs_info = get_champions_paris_qualifiers(campaign.id, r_slug)
-            reg_data['champions_qualifiers'] = champs_info.get('qualifiers', [])
-            reg_data['cp_leaderboard'] = champs_info.get('leaderboard', [])
+                # 3. Rating boosts
+                champ = reg_data.get('champion')
+                runner = reg_data.get('runner_up')
+                third = reg_data.get('third_place')
+                if champ:
+                    c_id = champ.get('id') or champ.get('club_id')
+                    if c_id in club_states:
+                        club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+                if runner:
+                    r_id = runner.get('id') or runner.get('club_id')
+                    if r_id in club_states:
+                        club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+                if third:
+                    t_id = third.get('id') or third.get('club_id')
+                    if t_id in club_states:
+                        club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
 
-            reg_data['rewards_awarded'] = True
+                # 4. Calculate Champions Paris Qualifiers for this region
+                champs_info = get_champions_paris_qualifiers(campaign.id, r_slug)
+                reg_data['champions_qualifiers'] = champs_info.get('qualifiers', [])
+                reg_data['cp_leaderboard'] = champs_info.get('leaderboard', [])
+
+                reg_data['rewards_awarded'] = True
 
     stage.stage_data = json.dumps(data)
 
-    if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+    if auto_confirm and all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
+        for r in all_regions:
+            data.get('regional_results', {}).get(r, {})['is_confirmed'] = True
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
         record_stage_placements(campaign.id, 'stage2', year=stage.year)
-        campaign.current_stage = 'champion'
-
-        # Gather all 16 Champions qualifiers
-        all_champions_teams = []
-        for r in all_regions:
-            reg_q = data.get('regional_results', {}).get(r, {}).get('champions_qualifiers', [])
-            all_champions_teams.extend(reg_q)
-
-        _prepare_champion_stage(campaign, all_champions_teams)
+        _advance_campaign_to_next_stage(campaign, 'stage2', data)
 
 
 def resolve_stage2_match_interactive(campaign_id: int, region_slug: str, match_id: str,
@@ -2835,7 +2903,7 @@ def resolve_stage2_match_interactive(campaign_id: int, region_slug: str, match_i
     return {'match': resolved, 'region_data': reg_data}
 
 
-def sim_stage2_round_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_stage2_round_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate active week or active playoff wave for a single region in Stage 2."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2852,12 +2920,12 @@ def sim_stage2_round_interactive(campaign_id: int, region_slug: str) -> Dict[str
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage2_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_stage2(campaign, stage, data)
+    _check_and_finalize_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_stage2_region_interactive(campaign_id: int, region_slug: str) -> Dict[str, Any]:
+def sim_stage2_region_interactive(campaign_id: int, region_slug: str, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches for a single region in Stage 2."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2874,12 +2942,12 @@ def sim_stage2_region_interactive(campaign_id: int, region_slug: str) -> Dict[st
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage2_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
-    _check_and_finalize_stage2(campaign, stage, data)
+    _check_and_finalize_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'region_data': reg_data}
 
 
-def sim_stage2_all_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_stage2_all_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all 4 regions in Stage 2 to completion."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -2900,7 +2968,7 @@ def sim_stage2_all_interactive(campaign_id: int) -> Dict[str, Any]:
             reg_data = data['regional_results'][r_slug]
             total_sim += sim_stage2_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
 
-    _check_and_finalize_stage2(campaign, stage, data)
+    _check_and_finalize_stage2(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'total_sim': total_sim, 'stage2_data': data}
 
@@ -2969,11 +3037,15 @@ def get_champion_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     return data
 
 
-def _check_and_finalize_champion(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any]):
+def _check_and_finalize_champion(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
     """Award story ratings and advance to Year-End Hall of Fame when Champions completes."""
     res = data.get('result')
-    if res and res.get('status') == 'completed':
-        if not res.get('rewards_awarded'):
+    if res and (res.get('status') == 'completed' or res.get('matches_completed')):
+        res['matches_completed'] = True
+        if auto_confirm:
+            res['is_confirmed'] = True
+
+        if res.get('is_confirmed') and not res.get('rewards_awarded'):
             club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
             if res.get('champion'):
                 champ = res['champion']
@@ -3002,11 +3074,11 @@ def _check_and_finalize_champion(campaign: Campaign, stage: CampaignStage, data:
 
             res['rewards_awarded'] = True
 
-        stage.status = 'completed'
-        stage.completed_at = datetime.now(timezone.utc)
-        record_stage_placements(campaign.id, 'champion', year=stage.year)
-        campaign.current_stage = 'season_summary'
-        _prepare_season_summary_stage(campaign)
+        if auto_confirm:
+            stage.status = 'completed'
+            stage.completed_at = datetime.now(timezone.utc)
+            record_stage_placements(campaign.id, 'champion', year=stage.year)
+            _advance_campaign_to_next_stage(campaign, 'champion', data)
 
     stage.stage_data = json.dumps(data)
 
@@ -3032,7 +3104,7 @@ def resolve_champion_match_interactive(campaign_id: int, match_id: str,
     return {'match': resolved, 'champ_data': champ_data}
 
 
-def sim_champion_round_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_champion_round_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate active playable wave of matches in Champions Paris."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -3046,12 +3118,12 @@ def sim_champion_round_interactive(campaign_id: int) -> Dict[str, Any]:
     champ_data = data['result']
 
     sim_count = sim_champion_round(champ_data)
-    _check_and_finalize_champion(campaign, stage, data)
+    _check_and_finalize_champion(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'sim_count': sim_count, 'champ_data': champ_data}
 
 
-def sim_champion_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
+def sim_champion_tournament_interactive(campaign_id: int, auto_confirm: bool = True) -> Dict[str, Any]:
     """Simulate all remaining matches until Champions Paris completes."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -3065,7 +3137,7 @@ def sim_champion_tournament_interactive(campaign_id: int) -> Dict[str, Any]:
     champ_data = data['result']
     sim_champion_remaining(champ_data)
 
-    _check_and_finalize_champion(campaign, stage, data)
+    _check_and_finalize_champion(campaign, stage, data, auto_confirm=auto_confirm)
     db.session.commit()
     return {'champ_data': champ_data}
 
@@ -3102,6 +3174,49 @@ def _prepare_season_summary_stage(campaign: Campaign):
         summary_stage.stage_data = json.dumps(summary_data)
 
 
+def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
+    """Retrieve champions for all 4 Kickoff regions, with fail-safe fallback to placements."""
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    k_titles = {}
+
+    k_stage = get_stage_record(campaign_id, 'kickoff', year=year)
+    if k_stage and k_stage.stage_data:
+        try:
+            k_data = json.loads(k_stage.stage_data)
+            k_reg = k_data.get('regional_results', {})
+            for r in all_regions:
+                reg_d = k_reg.get(r, {})
+                champ = reg_d.get('champion')
+                if not champ and reg_d.get('standings'):
+                    champ = reg_d['standings'][0].get('team')
+                if not champ and reg_d.get('major_qualifiers'):
+                    champ = reg_d['major_qualifiers'][0]
+                if champ:
+                    k_titles[r] = champ
+        except Exception:
+            pass
+
+    for r in all_regions:
+        if r not in k_titles:
+            p = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
+            ).first()
+            if p and p.club:
+                k_titles[r] = p.club.to_dict()
+
+    missing = [r for r in all_regions if r not in k_titles]
+    if missing and k_stage and k_stage.stage_data:
+        record_stage_placements(campaign_id, 'kickoff', year=year)
+        for r in missing:
+            p = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
+            ).first()
+            if p and p.club:
+                k_titles[r] = p.club.to_dict()
+
+    return k_titles
+
+
 def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dict[str, Any]:
     """Gather all title winners, season awards, leaderboards, placements, and Hall of Fame records for any year."""
     campaign = get_campaign(campaign_id)
@@ -3131,6 +3246,16 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
                 archived['all_time_trophies'] = get_all_time_trophy_table(campaign_id)
                 archived['global_power_rankings'] = get_global_power_rankings(campaign_id)
 
+                if 'titles' not in archived:
+                    archived['titles'] = {}
+                arch_ko = archived['titles'].get('kickoff', {})
+                missing_ko = [r for r in ['pacific', 'americas', 'emea', 'china'] if r not in arch_ko or not arch_ko[r]]
+                if missing_ko:
+                    repaired_ko = _extract_kickoff_titles(campaign_id, target_year)
+                    if repaired_ko:
+                        arch_ko.update(repaired_ko)
+                        archived['titles']['kickoff'] = arch_ko
+
                 # Load stage placements for this year
                 stage_placements = {}
                 for sk in ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'):
@@ -3144,34 +3269,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
     titles = {}
 
     # 1. Kickoff Regional Winners
-    k_stage = get_stage_record(campaign_id, 'kickoff', year=year)
-    k_titles = {}
-    if k_stage and k_stage.stage_data:
-        try:
-            k_data = json.loads(k_stage.stage_data)
-            k_reg = k_data.get('regional_results', {})
-            for r in ['pacific', 'americas', 'emea', 'china']:
-                reg_d = k_reg.get(r, {})
-                champ = reg_d.get('champion')
-                if not champ and reg_d.get('standings'):
-                    champ = reg_d['standings'][0].get('team')
-                if not champ and reg_d.get('major_qualifiers'):
-                    champ = reg_d['major_qualifiers'][0]
-                if champ:
-                    k_titles[r] = champ
-        except Exception:
-            pass
-
-    # Fallback to persistent CampaignStagePlacement records for Kickoff
-    for r in ['pacific', 'americas', 'emea', 'china']:
-        if r not in k_titles:
-            p = CampaignStagePlacement.query.filter_by(
-                campaign_id=campaign_id, year=year, stage_key='kickoff', region_slug=r, rank=1
-            ).first()
-            if p and p.club:
-                k_titles[r] = p.club.to_dict()
-
-    titles['kickoff'] = k_titles
+    titles['kickoff'] = _extract_kickoff_titles(campaign_id, year)
 
     # 2. Masters Bangkok (Major)
     m_stage = get_stage_record(campaign_id, 'major', year=year)
@@ -3457,6 +3555,9 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
     # 2. Advance year and stage
     campaign.current_year = old_year + 1
     campaign.current_stage = 'open_qualifier'
+    if campaign.name:
+        import re
+        campaign.name = re.sub(r'\b20\d\d\b', str(campaign.current_year), campaign.name)
 
     # 3. Off-season rating aging & CP reset & Power Rating Carryover
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign.id).all()
@@ -4241,3 +4342,371 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
     }
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOURNAMENT CONFIRMATION & LOCKING WORKFLOW (OPTION A)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _advance_campaign_to_next_stage(campaign: Campaign, stage_key: str, data: Dict[str, Any]):
+    """Advance campaign circuit to the subsequent stage and initialize stage records/rosters."""
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    
+    if stage_key == 'open_qualifier':
+        campaign.current_stage = 'kickoff'
+        _prepare_kickoff_stage(campaign, data.get('regions', {}))
+    elif stage_key == 'kickoff':
+        campaign.current_stage = 'major'
+        _prepare_major_stage(campaign, data.get('regional_results', {}))
+    elif stage_key == 'major':
+        campaign.current_stage = 'oq_stage1'
+        _prepare_oq_stage1_stage(campaign)
+    elif stage_key == 'oq_stage1':
+        campaign.current_stage = 'stage1'
+        _prepare_stage1_stage(campaign)
+    elif stage_key == 'stage1':
+        campaign.current_stage = 'ewc_qualifier'
+        _prepare_ewc_qualifier_stage(campaign, data.get('regional_results', {}))
+        _prepare_master_stage(campaign, data.get('regional_results', {}))
+        _prepare_ewc_stage(campaign, data.get('regional_results', {}))
+    elif stage_key == 'ewc_qualifier':
+        campaign.current_stage = 'master'
+        s1_record = CampaignStage.query.filter_by(
+            campaign_id=campaign.id, year=campaign.current_year, stage_key='stage1'
+        ).first()
+        _finalize_ewc_roster(campaign, s1_record, data)
+    elif stage_key == 'master':
+        campaign.current_stage = 'ewc'
+    elif stage_key == 'ewc':
+        campaign.current_stage = 'oq_stage2'
+        _prepare_oq_stage2_stage(campaign)
+    elif stage_key == 'oq_stage2':
+        campaign.current_stage = 'stage2'
+        _prepare_stage2_stage(campaign)
+    elif stage_key == 'stage2':
+        campaign.current_stage = 'champion'
+        all_champions_teams = []
+        for r in all_regions:
+            reg_q = data.get('regional_results', {}).get(r, {}).get('champions_qualifiers', [])
+            all_champions_teams.extend(reg_q)
+        _prepare_champion_stage(campaign, all_champions_teams)
+    elif stage_key == 'champion':
+        campaign.current_stage = 'season_summary'
+        _prepare_season_summary_stage(campaign)
+
+
+def confirm_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> Dict[str, Any]:
+    """Explicitly confirm and permanently lock a single region's tournament results (Option A).
+    Awards championship points, ratings, sets is_confirmed=True. If all regions confirmed, advances campaign.
+    """
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, stage_key)
+    if not stage:
+        raise ValueError(f"Stage {stage_key} not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {}
+    
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2', 'ewc_qualifier']:
+        reg_map = data.get('regions', {})
+    elif stage_key in ['kickoff', 'stage1', 'stage2']:
+        reg_map = data.get('regional_results', {})
+    else:
+        raise ValueError(f"Stage {stage_key} is not a regional stage. Use confirm_stage_tournament.")
+
+    if region_slug not in reg_map:
+        raise ValueError(f"Region {region_slug} not found in stage {stage_key}")
+
+    reg_data = reg_map[region_slug]
+    if reg_data.get('is_confirmed'):
+        return {
+            'success': True,
+            'already_confirmed': True,
+            'region': region_slug,
+            'stage_key': stage_key,
+            'message': 'Khu vực này đã được xác nhận và khóa trước đó.'
+        }
+
+    reg_data['is_confirmed'] = True
+    reg_data['matches_completed'] = True
+    reg_data['status'] = 'completed'
+
+    # Apply stage-specific awards
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+    
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2']:
+        if not reg_data.get('ratings_awarded'):
+            qual_ids = {t['id'] for t in reg_data.get('qualified_teams', [])}
+            for cid in qual_ids:
+                if cid in club_states:
+                    club_states[cid].story_rating = min(99, club_states[cid].story_rating + 2)
+            for s in reg_data.get('swiss_standings', []):
+                cid = s['club_id']
+                if s['wins'] == 0 and cid in club_states:
+                    club_states[cid].story_rating = max(60, club_states[cid].story_rating - 1)
+            reg_data['ratings_awarded'] = True
+
+    elif stage_key == 'kickoff':
+        if not reg_data.get('rewards_awarded'):
+            cp_awards = []
+            for s in reg_data.get('standings', []):
+                cp_awards.append({'club_id': s['club_id'], 'rank': s['rank']})
+            award_stage_cp(campaign.id, 'kickoff', cp_awards)
+            if reg_data.get('major_qualifiers'):
+                c_id = reg_data['major_qualifiers'][0]['id']
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 2)
+                r_id = reg_data['major_qualifiers'][1]['id']
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 1)
+            reg_data['rewards_awarded'] = True
+
+    elif stage_key == 'stage1':
+        if not reg_data.get('rewards_awarded'):
+            reg_awards = []
+            for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
+                reg_awards.append({
+                    'club_id': s['club_id'],
+                    'regular_wins': s['wins'],
+                    'map_diff': s['map_diff'],
+                    'round_diff': s['round_diff'],
+                })
+            award_stage_cp(campaign.id, 'stage1_regular', reg_awards)
+            playoff_awards = []
+            for s in reg_data.get('standings', []):
+                playoff_awards.append({'club_id': s['club_id'], 'rank': s['rank']})
+            award_stage_cp(campaign.id, 'stage1_playoffs', playoff_awards)
+            champ = reg_data.get('champion')
+            runner = reg_data.get('runner_up')
+            third = reg_data.get('third_place')
+            if champ:
+                c_id = champ.get('id') or champ.get('club_id')
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+            if runner:
+                r_id = runner.get('id') or runner.get('club_id')
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+            if third:
+                t_id = third.get('id') or third.get('club_id')
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
+            reg_data['rewards_awarded'] = True
+
+    elif stage_key == 'stage2':
+        if not reg_data.get('rewards_awarded'):
+            reg_awards = []
+            for s in reg_data.get('alpha_standings', []) + reg_data.get('omega_standings', []):
+                reg_awards.append({
+                    'club_id': s['club_id'],
+                    'regular_wins': s['wins'],
+                    'map_diff': s['map_diff'],
+                    'round_diff': s['round_diff'],
+                })
+            award_stage_cp(campaign.id, 'stage2_regular', reg_awards)
+            playoff_awards = []
+            for s in reg_data.get('standings', []):
+                playoff_awards.append({'club_id': s['club_id'], 'rank': s['rank']})
+            award_stage_cp(campaign.id, 'stage2_playoffs', playoff_awards)
+            champ = reg_data.get('champion')
+            runner = reg_data.get('runner_up')
+            third = reg_data.get('third_place')
+            if champ:
+                c_id = champ.get('id') or champ.get('club_id')
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 3)
+            if runner:
+                r_id = runner.get('id') or runner.get('club_id')
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 2)
+            if third:
+                t_id = third.get('id') or third.get('club_id')
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 1)
+            champs_info = get_champions_paris_qualifiers(campaign.id, region_slug)
+            reg_data['champions_qualifiers'] = champs_info.get('qualifiers', [])
+            reg_data['cp_leaderboard'] = champs_info.get('leaderboard', [])
+            reg_data['rewards_awarded'] = True
+
+    elif stage_key == 'ewc_qualifier':
+        if not reg_data.get('rewards_awarded'):
+            champ = reg_data.get('champion')
+            runner = reg_data.get('runner_up')
+            if champ:
+                c_id = champ.get('id') or champ.get('club_id')
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 2)
+            if runner:
+                r_id = runner.get('id') or runner.get('club_id')
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 1)
+            reg_data['rewards_awarded'] = True
+
+    # Check if all 4 regions are now confirmed
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    all_done = all(reg_map.get(r, {}).get('is_confirmed') for r in all_regions)
+
+    if all_done:
+        stage.status = 'completed'
+        stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, stage_key, year=stage.year)
+        _advance_campaign_to_next_stage(campaign, stage_key, data)
+
+    stage.stage_data = json.dumps(data)
+    db.session.commit()
+
+    return {
+        'success': True,
+        'region': region_slug,
+        'stage_key': stage_key,
+        'is_confirmed': True,
+        'all_confirmed': all_done,
+        'champion': reg_data.get('champion'),
+        'runner_up': reg_data.get('runner_up'),
+        'qualifiers': reg_data.get('major_qualifiers') or reg_data.get('champions_qualifiers') or reg_data.get('ewc_qualifiers') or reg_data.get('qualified_teams', []),
+        'campaign_advanced': all_done,
+        'current_stage': campaign.current_stage,
+    }
+
+
+def confirm_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
+    """Confirm and permanently lock an international tournament (Major, Master, EWC, Champions)."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, stage_key)
+    if not stage:
+        raise ValueError(f"Stage {stage_key} not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {}
+    res = data.get('result', {}) if 'result' in data else data
+
+    if res.get('is_confirmed'):
+        return {
+            'success': True,
+            'already_confirmed': True,
+            'stage_key': stage_key,
+            'message': 'Giải đấu này đã được xác nhận và khóa trước đó.'
+        }
+
+    res['is_confirmed'] = True
+    res['matches_completed'] = True
+    res['status'] = 'completed'
+
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+
+    if stage_key == 'major':
+        if not res.get('rewards_awarded'):
+            cp_awards = []
+            for s in res.get('standings', []):
+                cp_awards.append({'club_id': s['club_id'], 'rank': s['rank']})
+            award_stage_cp(campaign.id, 'major', cp_awards)
+            if res.get('champion'):
+                champ_id = res['champion']['id']
+                if champ_id in club_states:
+                    club_states[champ_id].story_rating = min(99, club_states[champ_id].story_rating + 3)
+            if res.get('runner_up'):
+                runner_id = res['runner_up']['id']
+                if runner_id in club_states:
+                    club_states[runner_id].story_rating = min(99, club_states[runner_id].story_rating + 2)
+            res['rewards_awarded'] = True
+
+    elif stage_key == 'master':
+        if not res.get('rewards_awarded'):
+            for s in res.get('standings', []):
+                cid = s['club_id']
+                if cid in club_states:
+                    if s.get('rank') == 1:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 4)
+                    elif s.get('rank') == 2:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 3)
+                    elif s.get('rank') == 3:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 2)
+                    elif s.get('rank') == 4:
+                        club_states[cid].story_rating = min(99, club_states[cid].story_rating + 1)
+            res['rewards_awarded'] = True
+
+    elif stage_key == 'ewc':
+        if not res.get('rewards_awarded'):
+            if res.get('champion'):
+                c_id = res['champion']['id'] if isinstance(res['champion'], dict) else res['champion']
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 4)
+            if res.get('runner_up'):
+                r_id = res['runner_up']['id'] if isinstance(res['runner_up'], dict) else res['runner_up']
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 3)
+            if res.get('third_place'):
+                third = res['third_place']
+                t_id = third.get('id') if isinstance(third, dict) else third
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 2)
+            if res.get('fourth_place'):
+                fourth = res['fourth_place']
+                f_id = fourth.get('id') if isinstance(fourth, dict) else fourth
+                if f_id in club_states:
+                    club_states[f_id].story_rating = min(99, club_states[f_id].story_rating + 1)
+            res['rewards_awarded'] = True
+
+    elif stage_key == 'champion':
+        if not res.get('rewards_awarded'):
+            champ = res.get('champion')
+            runner = res.get('runner_up')
+            third = res.get('third_place')
+            fourth = res.get('fourth_place')
+            if champ:
+                c_id = champ['id'] if isinstance(champ, dict) else champ
+                if c_id in club_states:
+                    club_states[c_id].story_rating = min(99, club_states[c_id].story_rating + 6)
+                    club_states[c_id].set_stage_rank('champion', 1)
+            if runner:
+                r_id = runner['id'] if isinstance(runner, dict) else runner
+                if r_id in club_states:
+                    club_states[r_id].story_rating = min(99, club_states[r_id].story_rating + 4)
+                    club_states[r_id].set_stage_rank('champion', 2)
+            if third:
+                t_id = third['id'] if isinstance(third, dict) else third
+                if t_id in club_states:
+                    club_states[t_id].story_rating = min(99, club_states[t_id].story_rating + 3)
+                    club_states[t_id].set_stage_rank('champion', 3)
+            if fourth:
+                f_id = fourth['id'] if isinstance(fourth, dict) else fourth
+                if f_id in club_states:
+                    club_states[f_id].story_rating = min(99, club_states[f_id].story_rating + 3)
+                    club_states[f_id].set_stage_rank('champion', 4)
+            res['rewards_awarded'] = True
+
+    stage.status = 'completed'
+    stage.completed_at = datetime.now(timezone.utc)
+    record_stage_placements(campaign.id, stage_key, year=stage.year)
+    _advance_campaign_to_next_stage(campaign, stage_key, data)
+
+    stage.stage_data = json.dumps(data)
+    db.session.commit()
+
+    return {
+        'success': True,
+        'stage_key': stage_key,
+        'is_confirmed': True,
+        'champion': res.get('champion'),
+        'runner_up': res.get('runner_up'),
+        'third_place': res.get('third_place'),
+        'fourth_place': res.get('fourth_place'),
+        'campaign_advanced': True,
+        'current_stage': campaign.current_stage,
+    }
+
+
+def confirm_stage_all(campaign_id: int, stage_key: str) -> Dict[str, Any]:
+    """Confirm all regions or entire tournament at once."""
+    if stage_key in ['major', 'master', 'ewc', 'champion']:
+        return confirm_stage_tournament(campaign_id, stage_key)
+
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    last_res = None
+    for r in all_regions:
+        last_res = confirm_stage_region(campaign_id, stage_key, r)
+    return last_res

@@ -659,6 +659,7 @@ def _resolve_bracket_slots(region_data: Dict[str, Any]):
         region_data['champion'] = champ
         region_data['runner_up'] = runner
         region_data['ewc_qualifiers'] = [champ, runner]
+        region_data['matches_completed'] = True
         region_data['status'] = 'completed'
     else:
         region_data['champion'] = None
@@ -683,6 +684,9 @@ def resolve_ewc_qualifier_match(region_data: Dict[str, Any], match_id: str,
 
     if not target:
         raise ValueError(f"Match {match_id} not found in region {region_data.get('region_slug')}")
+
+    if region_data.get('is_confirmed'):
+        raise ValueError(f"Không thể chỉnh sửa trận đấu vì kết quả EWC Qualifier của khu vực {region_data.get('region_slug')} đã được xác nhận và khóa chính thức!")
 
     if not target.get('team_a') or not target.get('team_b'):
         raise ValueError(f"Match {match_id} cannot be played yet; participants not fully determined.")

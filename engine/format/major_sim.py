@@ -464,6 +464,7 @@ def advance_major_state(major_data: Dict[str, Any]) -> bool:
         major_data['champion'] = champion
         major_data['runner_up'] = runner_up
         major_data['standings'] = standings
+        major_data['matches_completed'] = True
         major_data['status'] = 'completed'
         major_data['total_matches_count'] = len(swiss_matches) + len(playoffs)
         return True
@@ -488,8 +489,8 @@ def resolve_major_match(major_data: Dict[str, Any], match_id_or_round_name: str,
     if not match_obj.get('team_a') or not match_obj.get('team_b'):
         raise ValueError(f"Match {match_obj['round_name']} does not have both teams determined yet")
 
-    if major_data.get('status') == 'completed':
-        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu Major đã hoàn thành!")
+    if major_data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu Major đã được xác nhận và khóa chính thức!")
 
     # Safeguard against invalid mid-tournament edits:
     if match_obj.get('status') == 'completed':

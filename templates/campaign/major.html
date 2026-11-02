@@ -30,12 +30,21 @@
   </div>
 </div>
 
+<!-- Shared Stage Review & Confirmation Component -->
+{% set stage_key = 'major' %}
+{% set is_regional = False %}
+{% set review_target_name = 'VCT Masters Bangkok' %}
+{% set is_confirmed = res and res.is_confirmed %}
+{% set matches_completed = res.matches_completed if res else False %}
+{% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/oq_stage1' if (res and res.is_confirmed) else None) %}
+{% include 'campaign/_stage_confirmation_bar.html' %}
+
 <!-- Simulation Control Bar -->
 <div class="card" style="margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
     <div>
-      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
-        {% if res and res.status == 'completed' %}ĐÃ HOÀN THÀNH (16 TRẬN){% else %}ĐANG DIỄN RA (8 ĐỘI TINH HOA){% endif %}
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.is_confirmed %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% elif res and res.matches_completed %}background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
+        {% if res and res.is_confirmed %}🔒 ĐÃ KHÓA KẾT QUẢ (16 TRẬN){% elif res and res.matches_completed %}🔔 CHỜ XÁC NHẬN (16 TRẬN){% else %}⚔️ ĐANG DIỄN RA (8 ĐỘI TINH HOA){% endif %}
       </span>
       <span style="font-size: 0.9em; color: var(--dim); margin-left: 10px;">
         Hệ thống điểm: <strong>Hạng 1 (+5 CP)</strong> • <strong>Hạng 2 (+3 CP)</strong> • <strong>Hạng 3 (+2 CP)</strong> • <strong>Hạng 4 (+1 CP)</strong>
@@ -473,7 +482,9 @@ async function simMajorRound() {
   btn.textContent = '⏳ Đang mô phỏng vòng...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim-round`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim-round`, {
+      auto_confirm: false
+    });
     if (res.success) {
       window.location.reload();
     } else {
@@ -496,7 +507,9 @@ async function simMajorTournament() {
   btn.textContent = '⏳ Đang mô phỏng Major...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/major/sim`, {
+      auto_confirm: false
+    });
     if (res.success) {
       window.location.reload();
     } else {

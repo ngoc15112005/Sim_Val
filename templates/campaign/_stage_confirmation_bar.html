@@ -1,0 +1,162 @@
+<!-- Shared Stage Review & Confirmation Component (Option A Permanent Lock Flow) -->
+{% set is_stage_locked = is_confirmed or (reg_obj and reg_obj.is_confirmed) %}
+{% set is_stage_review = (matches_completed or (reg_obj and reg_obj.matches_completed)) and not is_stage_locked %}
+
+{% if is_stage_review %}
+<!-- REVIEW & EDIT BANNER -->
+<div class="card review-confirmation-banner" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(234, 179, 8, 0.5); border-left: 6px solid #f59e0b; border-radius: 8px; padding: 16px 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div style="flex: 1; min-width: 280px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-size: 1.3em;">🔔</span>
+        <h3 style="margin: 0; color: #fbbf24; font-size: 1.15em;">
+          Tất cả các trận đấu của {{ review_target_name or 'khu vực này' }} đã hoàn thành!
+        </h3>
+      </div>
+      <p style="margin: 0; font-size: 0.88em; color: var(--dim); line-height: 1.5;">
+        Bạn đang ở chế độ <strong>Xem lại & Kiểm tra kết quả</strong>. Bạn có thể kiểm tra bảng xếp hạng, nhánh đấu, hoặc click vào biểu tượng cây bút để sửa điểm số nếu chưa ưng ý. Khi đã hài lòng, hãy bấm <strong>Xác nhận & Khóa kết quả</strong> để chính thức chốt giải đấu.
+      </p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      {% if is_regional %}
+      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '{{ active_region }}', '{{ review_target_name or active_region|upper }}', false)" style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+        <span>🔒</span> Xác nhận & Khóa {{ active_region|upper }}
+      </button>
+      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', 'Tất cả 4 khu vực', true)" style="padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <span>🌟</span> Khóa cả 4 khu vực
+      </button>
+      {% else %}
+      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', '{{ review_target_name or 'giải đấu' }}', false)" style="padding: 10px 22px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+        <span>🔒</span> Xác nhận & Khóa kết quả
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% elif is_stage_locked %}
+<!-- LOCKED BANNER -->
+<div class="card locked-confirmation-banner" style="margin-bottom: 20px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-left: 6px solid #22c55e; border-radius: 8px; padding: 12px 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 1.2em;">🔒</span>
+      <div>
+        <strong style="color: #4ade80; font-size: 0.95em;">
+          KẾT QUẢ ĐÃ ĐƯỢC XÁC NHẬN VÀ KHÓA VĨNH VIỄN
+        </strong>
+        <div style="font-size: 0.82em; color: var(--dim); margin-top: 2px;">
+          Tất cả thứ hạng, điểm Championship Points và suất tham dự đã được lưu vào hệ thống lịch sử.
+        </div>
+      </div>
+    </div>
+    {% if all_completed_advance_url %}
+    <a href="{{ all_completed_advance_url }}" class="btn-start" style="text-decoration: none; padding: 9px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+      Tiếp tục sang giải đấu tiếp theo ➡️
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Stage Confirmation Modal -->
+<div id="stage-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center;">
+  <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h3 style="margin: 0; color: #fbbf24; font-size: 1.2em; display: flex; align-items: center; gap: 8px;">
+        <span>⚠️</span> Xác nhận & Khóa kết quả vĩnh viễn
+      </h3>
+      <button type="button" onclick="closeStageConfirmModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
+    </div>
+
+    <p style="color: #fff; font-size: 0.95em; line-height: 1.5; margin-bottom: 12px;">
+      Bạn có chắc chắn muốn chốt và khóa vĩnh viễn kết quả của <strong id="stage-confirm-target-text" style="color: #fbbf24;"></strong>?
+    </p>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 0.85em; color: var(--dim); line-height: 1.6;">
+      <div style="font-weight: bold; color: #fff; margin-bottom: 6px;">Sau khi xác nhận:</div>
+      <div>🔒 <strong>Khóa chỉnh sửa:</strong> Tỉ số và bảng xếp hạng sẽ được khóa vĩnh viễn.</div>
+      <div>🏆 <strong>Cộng điểm & Thưởng:</strong> Điểm Championship Points và Story Rating sẽ chính thức trao thưởng.</div>
+      <div>🎟️ <strong>Trao vé:</strong> Các đội đủ điều kiện sẽ được chuyển tiếp sang giải đấu tiếp theo trong chuỗi VCT Circuit.</div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" onclick="closeStageConfirmModal()" class="btn-sm btn-manual" style="padding: 9px 18px; border-radius: 6px; cursor: pointer;">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-execute-stage-confirm" onclick="executeStageConfirmation()" style="padding: 9px 20px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer;">
+        Đồng ý Xác nhận & Khóa
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let pendingConfirmStageKey = '';
+let pendingConfirmRegionSlug = '';
+let pendingConfirmIsAll = false;
+
+function openStageConfirmModal(stageKey, regionSlug, targetName, isAll) {
+  pendingConfirmStageKey = stageKey;
+  pendingConfirmRegionSlug = regionSlug || '';
+  pendingConfirmIsAll = !!isAll;
+
+  const targetEl = document.getElementById('stage-confirm-target-text');
+  if (targetEl) targetEl.textContent = targetName || stageKey;
+
+  const modal = document.getElementById('stage-confirm-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeStageConfirmModal() {
+  const modal = document.getElementById('stage-confirm-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function executeStageConfirmation() {
+  const btn = document.getElementById('btn-execute-stage-confirm');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang xác nhận & khóa...';
+  }
+
+  let endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm`;
+  let payload = {};
+
+  if (pendingConfirmIsAll) {
+    endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm-all`;
+  } else if (pendingConfirmRegionSlug) {
+    endpoint = `/api/campaign/{{ campaign.id }}/${pendingConfirmStageKey}/confirm-region`;
+    payload = { region_slug: pendingConfirmRegionSlug };
+  }
+
+  try {
+    const res = await API.post(endpoint, payload);
+    if (res.success) {
+      if (typeof reloadKickoffCurrentRegion === 'function') {
+        reloadKickoffCurrentRegion();
+      } else if (typeof reloadStage1CurrentRegion === 'function') {
+        reloadStage1CurrentRegion();
+      } else if (typeof reloadStage2CurrentRegion === 'function') {
+        reloadStage2CurrentRegion();
+      } else if (typeof reloadEwcCurrentRegion === 'function') {
+        reloadEwcCurrentRegion();
+      } else if (typeof activeOqRegion !== 'undefined') {
+        window.location.href = window.location.pathname + '?region=' + activeOqRegion;
+      } else {
+        window.location.reload();
+      }
+    } else {
+      alert("Lỗi: " + (res.error || "Không thể xác nhận kết quả"));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Đồng ý Xác nhận & Khóa';
+      }
+    }
+  } catch (err) {
+    alert("Lỗi kết nối: " + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Đồng ý Xác nhận & Khóa';
+    }
+  }
+}
+</script>

@@ -51,14 +51,25 @@
 
   {% set cur_reg = stage1_data.regional_results[active_region] if (stage1_data and stage1_data.regional_results and active_region in stage1_data.regional_results) else None %}
 
+  <!-- Shared Stage Review & Confirmation Component -->
+  {% set stage_key = 'stage1' %}
+  {% set is_regional = True %}
+  {% set review_target_name = 'VCT Stage 1 ' ~ active_region|upper %}
+  {% set is_confirmed = cur_reg and cur_reg.is_confirmed %}
+  {% set matches_completed = cur_reg.matches_completed if cur_reg else False %}
+  {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/ewc_qualifier' if (stage and stage.status == 'completed') else None) %}
+  {% include 'campaign/_stage_confirmation_bar.html' %}
+
   {% if cur_reg %}
   <!-- Control Toolbar -->
   <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.8em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Giai đoạn hiện tại:</span>
       <div style="font-size: 1.1em; font-weight: 800; color: #fff; margin-top: 2px;">
-        {% if cur_reg.status == 'completed' %}
-          <span style="color: #4ade80;">🏆 Đã hoàn thành toàn bộ Stage 1 {{ active_region|upper }}!</span>
+        {% if cur_reg.is_confirmed %}
+          <span style="color: #4ade80;">🔒 Đã hoàn thành & Khóa kết quả Stage 1 {{ active_region|upper }}!</span>
+        {% elif cur_reg.matches_completed %}
+          <span style="color: #fbbf24;">🔔 Hoàn thành các trận — Chờ xác nhận kết quả!</span>
         {% elif cur_reg.current_phase == 'playoffs' %}
           <span style="color: #fbbf24;">⚡ Vòng Playoffs 6 Đội (Double Elimination)</span>
         {% else %}
@@ -68,7 +79,7 @@
     </div>
 
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-      {% if cur_reg.status != 'completed' %}
+      {% if not cur_reg.is_confirmed %}
       <button type="button" class="btn-start" id="btn-sim-round" onclick="simStage1Round()" style="padding: 8px 14px; font-size: 0.85em; background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #93c5fd; border-radius: 6px; cursor: pointer;">
         ⚡ Sim tuần/vòng này
       </button>
@@ -538,7 +549,8 @@ async function simStage1Round() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage1/sim-round`, {
-      region: activeStage1Region
+      region: activeStage1Region,
+      auto_confirm: false
     });
     if (res.success) {
       reloadStage1CurrentRegion();
@@ -563,7 +575,8 @@ async function simStage1Region() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage1/sim-region`, {
-      region: activeStage1Region
+      region: activeStage1Region,
+      auto_confirm: false
     });
     if (res.success) {
       reloadStage1CurrentRegion();
@@ -587,7 +600,9 @@ async function simStage1All() {
   btn.textContent = '⏳ Đang mô phỏng 4 khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/stage1/sim-all`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/stage1/sim-all`, {
+      auto_confirm: false
+    });
     if (res.success) {
       reloadStage1CurrentRegion();
     } else {
@@ -597,6 +612,10 @@ async function simStage1All() {
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
+    btn.disabled = false;
+    btn.textContent = '🌟 Sim cả 4 khu vực';
+  }
+}
     btn.disabled = false;
     btn.textContent = '🌟 Sim cả 4 khu vực';
   }

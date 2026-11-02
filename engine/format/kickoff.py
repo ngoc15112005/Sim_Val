@@ -772,6 +772,7 @@ def advance_kickoff_region(region_data: Dict[str, Any]) -> bool:
         region_data['champion'] = champion
         region_data['runner_up'] = runner_up
         region_data['major_qualifiers'] = [champion, runner_up]
+        region_data['matches_completed'] = True
         region_data['status'] = 'completed'
         region_data['total_matches_count'] = len(matches)
         return True
@@ -839,8 +840,8 @@ def resolve_kickoff_match(region_data: Dict[str, Any], match_id_or_round_name: s
     if not match_obj.get('team_a') or not match_obj.get('team_b'):
         raise ValueError(f"Match {match_obj['round_name']} does not have both teams determined yet")
 
-    if region_data.get('status') == 'completed':
-        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu Kickoff của khu vực này đã hoàn thành!")
+    if region_data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì kết quả giải đấu Kickoff của khu vực này đã được xác nhận và khóa chính thức!")
 
     # Guard against invalid edits if downstream matches are completed
     if match_obj.get('status') == 'completed':

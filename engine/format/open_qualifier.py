@@ -651,15 +651,15 @@ def resolve_open_qualifier_match(region_data: Dict[str, Any], match_id: str,
     if not match_obj.get('team_a') or not match_obj.get('team_b'):
         raise ValueError(f"Match {match_id} does not have both teams determined yet")
 
-    if region_data.get('status') == 'completed':
-        raise ValueError("Không thể chỉnh sửa trận đấu vì giai đoạn Open Qualifier của khu vực này đã hoàn thành!")
+    if region_data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giai đoạn Open Qualifier của khu vực này đã được xác nhận và khóa chính thức!")
 
     # Guard against invalid mid-tournament edits that would break format progression
     if match_obj.get('status') == 'completed':
         if match_obj.get('stage') == 'swiss':
             if region_data.get('current_stage') == 'playoffs':
                 if any(m.get('status') == 'completed' for m in region_data.get('playoff_matches', [])):
-                    raise ValueError("Không thể sửa trận Swiss này vì giai đoạn Playoffs đã có trận hoàn thành!")
+                    raise ValueError("Không thể sửa trận Swiss này vì giai đoạn Playoffs đã hoàn thành!")
                 # Reset playoffs back to pending Swiss
                 region_data['current_stage'] = 'swiss'
                 region_data['playoff_matches'] = []
@@ -832,6 +832,7 @@ def advance_open_qualifier_region(region_data: Dict[str, Any]) -> bool:
 
         if len(qualifiers_dict) == 4:
             region_data['qualified_teams'] = [qualifiers_dict[i] for i in [1, 2, 3, 4]]
+            region_data['matches_completed'] = True
             region_data['status'] = 'completed'
             region_data['total_matches_count'] = len(swiss_matches) + len(playoffs)
             return True

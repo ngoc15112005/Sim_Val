@@ -638,6 +638,7 @@ def advance_stage2_region(state: Dict[str, Any]) -> bool:
 
     if playoffs_done and state['current_phase'] == 'playoffs':
         state['current_phase'] = 'completed'
+        state['matches_completed'] = True
         state['status'] = 'completed'
 
         completed_map: Dict[str, Dict[str, Any]] = {}
@@ -743,6 +744,9 @@ def resolve_stage2_match(state: Dict[str, Any], match_id: str,
 
     if not target_match:
         raise ValueError(f"Match {match_id} not found in Stage 2")
+
+    if state.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì kết quả Stage 2 của khu vực này đã được xác nhận và khóa chính thức!")
 
     # Safeguards:
     # 1. If modifying a regular season match, ensure playoffs haven't started!

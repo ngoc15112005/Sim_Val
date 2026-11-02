@@ -32,13 +32,24 @@
   </div>
 </div>
 
+<!-- Shared Stage Review & Confirmation Component -->
+{% set stage_key = 'champion' %}
+{% set is_regional = False %}
+{% set review_target_name = 'VALORANT Champions Paris ' ~ campaign.current_year %}
+{% set is_confirmed = res and res.is_confirmed %}
+{% set matches_completed = res.matches_completed if res else False %}
+{% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/season_summary' if (stage and stage.status == 'completed') else None) %}
+{% include 'campaign/_stage_confirmation_bar.html' %}
+
 <!-- Simulation Control Bar -->
 <div class="card" style="margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
     <div>
-      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if res and res.status == 'completed' %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% else %}background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4);{% endif %}">
-        {% if res and res.status == 'completed' %}
-          ĐÃ HOÀN THÀNH (34 TRẬN)
+      <span class="badge" style="font-size: 0.8em; padding: 4px 10px; font-weight: bold; {% if is_confirmed %}background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4);{% elif matches_completed %}background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4);{% else %}background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);{% endif %}">
+        {% if is_confirmed %}
+          🔒 ĐÃ KHÓA KẾT QUẢ VALORANT CHAMPIONS PARIS
+        {% elif matches_completed %}
+          🔔 ĐÃ XONG CÁC TRẬN — CHỜ XÁC NHẬN KẾT QUẢ
         {% elif res and res.current_stage == 'playoffs' %}
           PLAYOFFS DOUBLE ELIMINATION (8 ĐỘI)
         {% else %}
@@ -50,6 +61,7 @@
       </span>
     </div>
 
+    {% if not is_confirmed %}
     <div style="display: flex; gap: 10px;">
       <button type="button" id="btn-sim-champion-round" class="btn-start" onclick="simChampionRound()" style="padding: 10px 18px; font-weight: bold; background: #10b981; color: #000; border: none; border-radius: 6px; cursor: pointer;">
         ⚡ Sim vòng hiện tại
@@ -58,6 +70,7 @@
         🔥 Sim toàn bộ Champions Paris
       </button>
     </div>
+    {% endif %}
   </div>
 </div>
 
@@ -70,8 +83,9 @@
         👑 NHÀ VÔ ĐỊCH THẾ GIỚI VALORANT CHAMPIONS PARIS {{ campaign.current_year }}
       </span>
       <h2 style="font-size: 2em; margin: 10px 0 4px; color: #fff; display: flex; align-items: center; gap: 12px;">
-        {% if res.champion.logo_url %}
-        <img src="{{ res.champion.logo_url }}" alt="" style="width: 38px; height: 38px; object-fit: contain;">
+        {% set champ_logo = (res.champion.logo_url if res.champion else '') or (clubs_by_id[res.champion.id].logo_url if res.champion and clubs_by_id and res.champion.id in clubs_by_id else '') %}
+        {% if champ_logo %}
+        <img src="{{ champ_logo }}" alt="" style="width: 38px; height: 38px; object-fit: contain;">
         {% endif %}
         {{ res.champion.name }} ({{ res.champion.short_code }})
         <span class="badge" style="font-size: 0.55em; background: rgba(234, 179, 8, 0.25); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.5);">
@@ -128,8 +142,9 @@
           </td>
           <td>
             <div style="display: flex; align-items: center; gap: 8px;">
-              {% if s.team.logo_url %}
-              <img src="{{ s.team.logo_url }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
+              {% set s_team_logo = (s.team.logo_url if s.team else '') or (clubs_by_id[s.team.id].logo_url if s.team and clubs_by_id and s.team.id in clubs_by_id else '') %}
+              {% if s_team_logo %}
+              <img src="{{ s_team_logo }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
               {% endif %}
               <strong style="color: #fff;">{{ s.team.name }}</strong>
               <span style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
@@ -184,8 +199,9 @@
     {% for t in roster %}
     <div style="background: var(--surface); border: 1px solid {% if t.pool == 1 %}rgba(234, 179, 8, 0.5){% elif t.pool == 2 %}rgba(96, 165, 250, 0.4){% elif t.pool == 3 %}rgba(74, 222, 128, 0.3){% else %}var(--border){% endif %}; border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        {% if t.logo_url %}
-        <img src="{{ t.logo_url }}" alt="" style="width: 28px; height: 28px; object-fit: contain;">
+        {% set r_team_logo = (t.logo_url if t else '') or (clubs_by_id[t.id].logo_url if t and clubs_by_id and t.id in clubs_by_id else '') %}
+        {% if r_team_logo %}
+        <img src="{{ r_team_logo }}" alt="" style="width: 28px; height: 28px; object-fit: contain;">
         {% endif %}
         <div>
           <div style="font-weight: bold; color: #fff;">{{ t.name }} <span style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span></div>
@@ -273,8 +289,9 @@
               <td style="color: var(--dim); font-weight: bold;">{{ loop.index }}</td>
               <td style="padding: 6px 0;">
                 <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="openTeamProfileModal({{ s.team.id }})" title="Xem hồ sơ đội tuyển {{ s.team.name }}">
-                  {% if s.team.logo_url %}
-                  <img src="{{ s.team.logo_url }}" alt="" style="width: 18px; height: 18px; object-fit: contain;">
+                  {% set g_team_logo = (s.team.logo_url if s.team else '') or (clubs_by_id[s.team.id].logo_url if s.team and clubs_by_id and s.team.id in clubs_by_id else '') %}
+                  {% if g_team_logo %}
+                  <img src="{{ g_team_logo }}" alt="" style="width: 18px; height: 18px; object-fit: contain;">
                   {% endif %}
                   <strong class="team-profile-trigger" style="color: #fff;">{{ s.team.short_code }}</strong>
                   <span style="font-size: 0.8em; color: var(--dim);">{{ s.team.name }}</span>
@@ -559,7 +576,9 @@ async function simChampionRound() {
     btn.textContent = '⏳ Đang mô phỏng...';
   }
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-round`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-round`, {
+      auto_confirm: false
+    });
     if (res.success) {
       window.location.reload();
     } else {
@@ -588,7 +607,9 @@ async function simChampionTournament() {
     btn.textContent = '⏳ Đang mô phỏng Champions Paris...';
   }
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-all`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-all`, {
+      auto_confirm: false
+    });
     if (res.success) {
       window.location.reload();
     } else {

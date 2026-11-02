@@ -508,6 +508,7 @@ def advance_master_state(master_data: Dict[str, Any]) -> bool:
                     'desc': 'Bị loại ở Vòng Thụy Sĩ',
                 })
 
+            master_data['matches_completed'] = True
             master_data['standings'] = final_standings
             master_data['status'] = 'completed'
             return True
@@ -528,6 +529,9 @@ def resolve_master_match(master_data: Dict[str, Any], match_id_or_round_name: st
 
     if not target:
         raise ValueError(f"Match {match_id_or_round_name} not found in Masters Toronto")
+
+    if master_data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu Masters Toronto đã được xác nhận và khóa chính thức!")
 
     if not target.get('team_a') or not target.get('team_b'):
         raise ValueError("Match participants are not fully determined yet.")

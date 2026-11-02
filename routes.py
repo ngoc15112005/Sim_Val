@@ -25,6 +25,13 @@ from config import Config
 
 def register_routes(app):
 
+    @app.context_processor
+    def inject_global_data():
+        try:
+            return {'clubs_by_id': {c.id: c for c in Club.query.all()}}
+        except Exception:
+            return {'clubs_by_id': {}}
+
     @app.route('/')
     def index():
         tournaments = Tournament.query.order_by(Tournament.created_at.desc()).all()
@@ -48,7 +55,7 @@ def register_routes(app):
 
     @app.route('/api/tournament/start', methods=['POST'])
     def api_start_tournament():
-        data = request.get_json()
+        data = request.get_json(silent=True)
         tour_type = data.get('type')
         name = data.get('name', tour_type.upper())
         club_ids = data.get('club_ids', [])
@@ -123,7 +130,7 @@ def register_routes(app):
         if not match.team_a_id or not match.team_b_id:
             return jsonify({'error': 'Chưa có đủ 2 đội'}), 400
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         maps_input = data.get('maps', [])
 
         if not maps_input:
@@ -141,7 +148,7 @@ def register_routes(app):
     @app.route('/api/tournament/<int:tour_id>/sim-round', methods=['POST'])
     def api_sim_round(tour_id):
         tour = Tournament.query.get_or_404(tour_id)
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         round_name = data.get('round_name')
         group_label = data.get('group')
         stage = data.get('stage')
@@ -188,7 +195,7 @@ def register_routes(app):
     @app.route('/api/parser/test', methods=['POST'])
     def api_parse_shorthand():
         from engine.parser import parse_match_block
-        data = request.get_json()
+        data = request.get_json(silent=True)
         text = data.get('text', '')
         result = parse_match_block(text)
         return jsonify({'result': result})
@@ -229,7 +236,7 @@ def register_routes(app):
                 content = file.read().decode('utf-8')
                 payload = json.loads(content)
             else:
-                payload = request.get_json()
+                payload = request.get_json(silent=True)
                 if not payload:
                     return jsonify({'error': 'Không có dữ liệu'}), 400
 
@@ -299,7 +306,7 @@ def register_routes(app):
     # ─────────────────────────────────────────────────────────────────────────
 
     from services.campaign_service import (
-        create_campaign, get_campaign, list_campaigns,
+        create_campaign, get_campaign, list_campaigns, get_stage_record,
         get_campaign_club_states, update_club_form, bulk_update_form,
         run_open_qualifier_stage, get_open_qualifier_data,
         resolve_oq_match, sim_oq_round, sim_oq_region,
@@ -330,6 +337,7 @@ def register_routes(app):
         run_champion_stage, get_season_summary_data, advance_campaign_to_next_year,
         get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
         get_team_profile_data,
+        confirm_stage_region, confirm_stage_tournament, confirm_stage_all,
     )
 
     @app.route('/campaigns')
@@ -436,6 +444,8 @@ def register_routes(app):
             campaign=campaign,
             oq_data=oq_data,
             selected_region=selected_region,
+            active_region=selected_region,
+            clubs_by_id={c.id: c for c in Club.query.all()},
             cfg=Config,
         )
 
@@ -445,13 +455,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if region_slug == '':
             region_slug = None
 
         try:
-            results = run_open_qualifier_stage(campaign_id, region_slug=region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            results = run_open_qualifier_stage(campaign_id, region_slug=region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -462,7 +473,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         match_id = data.get('match_id')
 
@@ -481,7 +492,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -502,13 +513,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if not region_slug:
             return jsonify({'error': 'region_slug is required'}), 400
 
         try:
-            res = sim_oq_round(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_round(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -519,20 +531,21 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if not region_slug:
             return jsonify({'error': 'region_slug is required'}), 400
 
         try:
-            res = sim_oq_region(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_region(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
     @app.route('/api/campaign/<int:campaign_id>/form/update', methods=['POST'])
     def api_campaign_form_update(campaign_id):
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         club_id = data.get('club_id')
         form_modifier = data.get('form_modifier', 0)
 
@@ -548,14 +561,19 @@ def register_routes(app):
         if not campaign:
             return "Campaign not found", 404
 
+        req_year = request.args.get('year', type=int) or campaign.current_year
         kickoff_data = get_kickoff_data(campaign_id)
         selected_region = request.args.get('region', 'pacific')
+        stage = get_stage_record(campaign_id, 'kickoff', year=req_year)
 
         return render_template(
             'campaign/kickoff.html',
             campaign=campaign,
+            stage=stage,
             kickoff_data=kickoff_data,
             selected_region=selected_region,
+            active_region=selected_region,
+            clubs_by_id={c.id: c for c in Club.query.all()},
             cfg=Config,
         )
 
@@ -565,7 +583,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         match_id = data.get('match_id')
 
@@ -584,7 +602,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -605,13 +623,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if not region_slug:
             return jsonify({'error': 'region_slug is required'}), 400
 
         try:
-            res = sim_ko_round(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ko_round(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -622,13 +641,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if not region_slug:
             return jsonify({'error': 'region_slug is required'}), 400
 
         try:
-            res = sim_ko_region(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ko_region(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -639,13 +659,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         if region_slug == '':
             region_slug = None
 
         try:
-            results = run_kickoff_stage(campaign_id, region_slug=region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            results = run_kickoff_stage(campaign_id, region_slug=region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -656,7 +677,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug')
         round_name = data.get('round_name')
         winner_id = data.get('winner_id')
@@ -697,7 +718,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         if not match_id:
             return jsonify({'error': 'match_id is required'}), 400
@@ -714,7 +735,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
         maps = data.get('maps')
@@ -734,8 +755,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_major_round_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_major_round_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -746,8 +769,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            results = run_major_stage(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            results = run_major_stage(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'results': results})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -758,7 +783,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         round_name = data.get('round_name')
         winner_id = data.get('winner_id')
         maps = data.get('maps')
@@ -803,7 +828,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region')
         match_id = data.get('match_id')
         if not region_slug or not match_id:
@@ -821,7 +846,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -845,13 +870,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_stage1_round_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage1_round_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -862,13 +888,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_stage1_region_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage1_region_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -879,8 +906,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_stage1_all_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage1_all_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -911,7 +940,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
 
@@ -930,7 +959,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -951,13 +980,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_oq_stage1_round(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage1_round(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -968,13 +998,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_oq_stage1_region(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage1_region(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -985,9 +1016,13 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_oq_stage1_all(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage1_all(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1028,7 +1063,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
 
@@ -1047,7 +1082,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -1070,13 +1105,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_ewc_qualifier_round_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ewc_qualifier_round_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1087,13 +1123,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_ewc_qualifier_region_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ewc_qualifier_region_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1104,9 +1141,13 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_ewc_qualifier_all_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ewc_qualifier_all_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1138,7 +1179,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         if not match_id:
             return jsonify({'error': 'match_id is required'}), 400
@@ -1155,7 +1196,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
         maps = data.get('maps')
@@ -1175,8 +1216,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_master_round_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_master_round_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1187,9 +1230,13 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_master_tournament_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_master_tournament_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1219,7 +1266,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         if not match_id:
             return jsonify({'error': 'match_id is required'}), 400
@@ -1236,7 +1283,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
         maps = data.get('maps')
@@ -1256,8 +1303,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_ewc_round_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ewc_round_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1268,8 +1317,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_ewc_tournament_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_ewc_tournament_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1304,7 +1355,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
 
@@ -1323,7 +1374,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -1344,13 +1395,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_oq_stage2_round(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage2_round(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1361,13 +1413,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_oq_stage2_region(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage2_region(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1378,9 +1431,13 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_oq_stage2_all(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_oq_stage2_all(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1418,7 +1475,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
 
@@ -1437,7 +1494,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
@@ -1460,13 +1517,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_stage2_round_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage2_round_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1477,13 +1535,14 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         region_slug = data.get('region_slug') or data.get('region')
         if not region_slug:
             return jsonify({'error': 'region is required'}), 400
 
         try:
-            res = sim_stage2_region_interactive(campaign_id, region_slug)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage2_region_interactive(campaign_id, region_slug, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1494,8 +1553,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_stage2_all_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_stage2_all_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1523,7 +1584,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         if not match_id:
             return jsonify({'error': 'match_id is required'}), 400
@@ -1540,7 +1601,7 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         match_id = data.get('match_id')
         winner_id = data.get('winner_id')
         maps = data.get('maps')
@@ -1560,8 +1621,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_champion_round_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_champion_round_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1572,8 +1635,10 @@ def register_routes(app):
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
+        data = request.get_json(silent=True) or {}
         try:
-            res = sim_champion_tournament_interactive(campaign_id)
+            auto_confirm = data.get('auto_confirm', True)
+            res = sim_champion_tournament_interactive(campaign_id, auto_confirm=auto_confirm)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
@@ -1675,6 +1740,66 @@ def register_routes(app):
 
         try:
             res = advance_campaign_to_next_year(campaign_id)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/confirm-region', methods=['POST'])
+    def api_campaign_confirm_stage_region(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json(silent=True) or {}
+        region_slug = data.get('region') or data.get('region_slug')
+        if not region_slug:
+            return jsonify({'error': 'region is required'}), 400
+
+        try:
+            res = confirm_stage_region(campaign_id, stage_key, region_slug)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/confirm-all', methods=['POST'])
+    def api_campaign_confirm_stage_all(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = confirm_stage_all(campaign_id, stage_key)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/confirm-tournament', methods=['POST'])
+    def api_campaign_confirm_stage_tournament(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            res = confirm_stage_tournament(campaign_id, stage_key)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/confirm', methods=['POST'])
+    def api_campaign_confirm_stage_unified(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json(silent=True) or {}
+        region_slug = data.get('region') or data.get('region_slug')
+        try:
+            if region_slug:
+                res = confirm_stage_region(campaign_id, stage_key, region_slug)
+            elif stage_key in ['major', 'master', 'ewc', 'champion']:
+                res = confirm_stage_tournament(campaign_id, stage_key)
+            else:
+                res = confirm_stage_all(campaign_id, stage_key)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400

@@ -513,6 +513,7 @@ def advance_champion_state(data: Dict[str, Any]) -> bool:
         # Check tournament completion
         gf = next((m for m in p_matches if m['id'] == 'grand_final'), None)
         if gf and gf['status'] == 'completed':
+            data['matches_completed'] = True
             data['status'] = 'completed'
             data['champion'] = gf['winner']
             data['runner_up'] = gf['loser']
@@ -602,6 +603,9 @@ def resolve_champion_match(data: Dict[str, Any], match_id: str,
 
     if not target_match:
         raise ValueError(f"Match {match_id} not found in VALORANT Champions")
+
+    if data.get('is_confirmed'):
+        raise ValueError("Không thể chỉnh sửa trận đấu vì giải đấu VALORANT Champions đã được xác nhận và khóa chính thức!")
 
     if not target_match.get('team_a') or not target_match.get('team_b'):
         raise ValueError(f"Trận {match_id} chưa xác định đủ 2 đội tuyển thi đấu.")

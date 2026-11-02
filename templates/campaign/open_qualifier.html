@@ -32,10 +32,14 @@
     <div class="region-tabs" style="display: flex; gap: 8px;">
       {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
       {% set reg = regions_data.get(r_slug) %}
-      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchOqRegion('{{ r_slug }}')">
+      {% set r_locked = (reg and reg.is_confirmed) %}
+      {% set r_review = (reg and reg.matches_completed and not reg.is_confirmed) %}
+      <button type="button" class="region-tab-btn {% if (active_region == r_slug) or (selected_region == r_slug) or (not active_region and not selected_region and loop.first) %}active{% endif %}" onclick="switchOqRegion('{{ r_slug }}')">
         {{ r_slug|upper }}
-        {% if reg and reg.status == 'completed' %}
-          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong ✓</span>
+        {% if r_locked %}
+          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">🔒 Khóa</span>
+        {% elif r_review %}
+          <span style="font-size: 0.75em; background: #f59e0b; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">🔔 Review</span>
         {% elif reg and reg.current_stage == 'playoffs' %}
           <span style="font-size: 0.75em; background: #8b5cf6; color: #fff; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Playoffs</span>
         {% elif reg %}
@@ -62,7 +66,20 @@
 <!-- Regional Views -->
 {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
 {% set reg = regions_data.get(r_slug) %}
-<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
+{% set is_reg_active = (active_region == r_slug) or (selected_region == r_slug) or (not active_region and not selected_region and loop.first) %}
+{% set is_reg_locked = (reg and reg.is_confirmed) %}
+{% set is_reg_review = (reg and reg.matches_completed and not reg.is_confirmed) %}
+
+<div id="oq-view-{{ r_slug }}" class="oq-region-view {% if is_reg_active %}active{% endif %}">
+
+  <!-- Shared Review & Confirmation Banner -->
+  {% set stage_key = 'open_qualifier' %}
+  {% set is_regional = True %}
+  {% set review_target_name = 'Open Qualifier ' ~ r_slug|upper %}
+  {% set is_confirmed = is_reg_locked %}
+  {% set matches_completed = reg.matches_completed if reg else False %}
+  {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/kickoff' if all_completed else None) %}
+  {% include 'campaign/_stage_confirmation_bar.html' %}
 
   {% if reg %}
 
@@ -353,7 +370,7 @@
 
 {% block scripts %}
 <script>
-let activeOqRegion = '{{ selected_region or "pacific" }}';
+let activeOqRegion = '{{ active_region or selected_region or "pacific" }}';
 let currentModalMatchId = null;
 let currentModalTeamAId = null;
 let currentModalTeamAName = '';
@@ -366,9 +383,22 @@ function switchOqRegion(rSlug) {
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.oq-region-view').forEach(v => v.classList.remove('active'));
 
-  event.target.closest('.region-tab-btn').classList.add('active');
+  const btns = document.querySelectorAll('.region-tab-btn');
+  btns.forEach(b => {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(rSlug)) {
+      b.classList.add('active');
+    }
+  });
   const view = document.getElementById(`oq-view-${rSlug}`);
   if (view) view.classList.add('active');
+
+  const url = new URL(window.location);
+  url.searchParams.set('region', rSlug);
+  window.history.replaceState(null, '', url);
+}
+
+function reloadOqCurrentRegion() {
+  window.location.href = window.location.pathname + '?region=' + activeOqRegion;
 }
 
 async function rollOqMatch(matchId) {
@@ -378,7 +408,7 @@ async function rollOqMatch(matchId) {
       match_id: matchId
     });
     if (res.success) {
-      window.location.reload();
+      reloadOqCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng trận đấu"));
     }
@@ -394,10 +424,11 @@ async function simCurrentRound() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim-round`, {
-      region_slug: activeOqRegion
+      region_slug: activeOqRegion,
+      auto_confirm: false
     });
     if (res.success) {
-      window.location.reload();
+      reloadOqCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng vòng"));
       btn.disabled = false;
@@ -419,10 +450,11 @@ async function simSelectedRegion() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim-region`, {
-      region_slug: activeOqRegion
+      region_slug: activeOqRegion,
+      auto_confirm: false
     });
     if (res.success) {
-      window.location.reload();
+      reloadOqCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;
@@ -443,9 +475,11 @@ async function simAllRegions() {
   btn.textContent = '⏳ Đang mô phỏng cả 4 khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/open_qualifier/sim`, {
+      auto_confirm: false
+    });
     if (res.success) {
-      window.location.reload();
+      reloadOqCurrentRegion();
     } else {
       alert("Lỗi: " + (res.error || "Không thể mô phỏng"));
       btn.disabled = false;

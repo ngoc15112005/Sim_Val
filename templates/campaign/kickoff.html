@@ -1,19 +1,23 @@
 {% extends "base.html" %}
-{% block title %}VCT Kickoff - {{ campaign.name }}{% endblock %}
+{% block title %}VCT Kickoff {{ stage.year if stage else campaign.current_year }} - {{ campaign.name }}{% endblock %}
 {% block content %}
+
+{% set cur_year = stage.year if stage else campaign.current_year %}
+{% set all_regions = ['pacific', 'americas', 'emea', 'china'] %}
+{% set all_ko_locked = (stage and stage.status == 'completed') or (kickoff_data and kickoff_data.regional_results and kickoff_data.regional_results.values() | selectattr('is_confirmed', 'defined') | selectattr('is_confirmed') | list | length == 4) %}
 
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
     <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold;">
-      {{ campaign.name }} • Vòng Khởi Động VCT {{ campaign.current_year }}
+      {{ campaign.name }} • Vòng Khởi Động VCT {{ cur_year }}
     </div>
-    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Kickoff (12 Đội / Khu Vực) • {{ campaign.current_year }}</h1>
+    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Kickoff (12 Đội / Khu Vực) • {{ cur_year }}</h1>
     <div style="font-size: 0.9em; color: var(--dim);">
       Thể thức: Nhánh thắng & Nhánh thua (Double Elimination 22 trận) • Chọn <strong>Top 2 đội</strong> tham dự VCT Major (Masters Bangkok).
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
-    <button type="button" class="btn-sm" onclick="openTournamentHistoryModal('kickoff', '{{ selected_region or 'pacific' }}')" style="padding: 8px 14px; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+    <button type="button" class="btn-sm" onclick="openTournamentHistoryModal('kickoff', '{{ active_region or selected_region or 'pacific' }}')" style="padding: 8px 14px; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: bold;">
       <span>📜</span> Lịch sử giải đấu
     </button>
     <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
@@ -26,13 +30,16 @@
 <div class="card" style="margin-bottom: 20px;">
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div class="region-tabs" style="display: flex; gap: 8px;">
-      {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+      {% for r_slug in all_regions %}
       {% set reg_data = (kickoff_data.regional_results.get(r_slug) if kickoff_data and kickoff_data.regional_results else None) %}
-      {% set r_done = (reg_data and reg_data.status == 'completed') %}
-      <button type="button" class="region-tab-btn {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}" onclick="switchKickoffRegion('{{ r_slug }}')">
+      {% set r_locked = (reg_data and reg_data.is_confirmed) %}
+      {% set r_review = (reg_data and reg_data.matches_completed and not reg_data.is_confirmed) %}
+      <button type="button" class="region-tab-btn {% if (active_region == r_slug) or (selected_region == r_slug) or (not active_region and not selected_region and loop.first) %}active{% endif %}" onclick="switchKickoffRegion('{{ r_slug }}')">
         {{ r_slug|upper }}
-        {% if r_done %}
-          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong</span>
+        {% if r_locked %}
+          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: bold; margin-left: 4px;">🔒 Khóa</span>
+        {% elif r_review %}
+          <span style="font-size: 0.75em; background: #f59e0b; color: #000; padding: 1px 5px; border-radius: 4px; font-weight: bold; margin-left: 4px;">🔔 Review</span>
         {% else %}
           <span style="font-size: 0.75em; background: #3b82f6; color: #fff; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">Đang đấu</span>
         {% endif %}
@@ -55,26 +62,43 @@
 </div>
 
 <!-- Regional Kickoff Views -->
-{% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
+{% for r_slug in all_regions %}
 {% set reg_res = (kickoff_data.regional_results.get(r_slug) if kickoff_data and kickoff_data.regional_results else None) %}
-<div id="kickoff-view-{{ r_slug }}" class="kickoff-region-view {% if (selected_region == r_slug) or (not selected_region and loop.first) %}active{% endif %}">
+{% set is_reg_active = (active_region == r_slug) or (selected_region == r_slug) or (not active_region and not selected_region and loop.first) %}
+{% set is_reg_locked = (reg_res and reg_res.is_confirmed) %}
+{% set is_reg_review = (reg_res and reg_res.matches_completed and not reg_res.is_confirmed) %}
+
+<div id="kickoff-view-{{ r_slug }}" class="kickoff-region-view {% if is_reg_active %}active{% endif %}">
+
+  <!-- Shared Review & Confirmation Banner -->
+  {% set stage_key = 'kickoff' %}
+  {% set is_regional = True %}
+  {% set review_target_name = 'VCT Kickoff ' ~ r_slug|upper %}
+  {% set is_confirmed = is_reg_locked %}
+  {% set matches_completed = reg_res.matches_completed if reg_res else False %}
+  {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/major' if (stage and stage.status == 'completed') else None) %}
+  {% include 'campaign/_stage_confirmation_bar.html' %}
 
   {% if reg_res %}
-  <!-- Major Qualifiers & Prize Pool Summary (Chuẩn Liquipedia VCT 2025) -->
-  <div class="card" style="border: 2px solid {% if reg_res.status == 'completed' %}#22c55e{% else %}var(--border){% endif %}; background: rgba(34, 197, 94, 0.03); margin-bottom: 24px;">
+  <!-- Major Qualifiers & Prize Pool Summary -->
+  <div class="card" style="border: 2px solid {% if is_reg_locked %}#22c55e{% elif is_reg_review %}#f59e0b{% else %}var(--border){% endif %}; background: rgba(34, 197, 94, 0.03); margin-bottom: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
       <div>
         <h2 style="color: #4ade80; margin: 0; font-size: 1.3em;">
-          🏆 KẾT QUẢ VCT KICKOFF {{ r_slug|upper }} {{ campaign.current_year }}
+          🏆 KẾT QUẢ VCT KICKOFF {{ r_slug|upper }} {{ cur_year }}
         </h2>
         <p style="color: var(--dim); font-size: 0.9em; margin-top: 2px;">
           Top 2 đội giành vé đại diện khu vực tham dự <strong>VCT Major (Masters Bangkok)</strong> và cộng điểm Championship Points (CP).
         </p>
       </div>
       <div>
-        {% if reg_res.status == 'completed' %}
-        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 0.9em;">
-          ✓ Giải đấu đã kết thúc
+        {% if is_reg_locked %}
+        <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); font-size: 0.9em; font-weight: bold;">
+          🔒 ĐÃ KHÓA KẾT QUẢ
+        </span>
+        {% elif is_reg_review %}
+        <span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 0.9em; font-weight: bold;">
+          🔔 CHỜ XÁC NHẬN
         </span>
         {% else %}
         <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-size: 0.9em;">
@@ -114,8 +138,9 @@
             </td>
             <td>
               <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
-                {% if s.team.logo_url %}
-                <img class="team-logo-sm" src="{{ s.team.logo_url }}" alt="" onerror="this.style.display='none'">
+                {% set s_logo = (s.team.logo_url if s.team else '') or (clubs_by_id[s.club_id].logo_url if clubs_by_id and s.club_id in clubs_by_id else '') %}
+                {% if s_logo %}
+                <img class="team-logo-sm" src="{{ s_logo }}" alt="" onerror="this.style.display='none'">
                 {% endif %}
                 <strong style="color: #fff;">{{ s.team.name }}</strong>
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ s.team.short_code }})</span>
@@ -358,7 +383,7 @@
 
 {% block scripts %}
 <script>
-let activeKickoffRegion = '{{ selected_region or "pacific" }}';
+let activeKickoffRegion = '{{ active_region or selected_region or "pacific" }}';
 let currentModalMatchId = null;
 let currentModalTeamAId = null;
 let currentModalTeamAName = '';
@@ -412,7 +437,8 @@ async function simCurrentKoRound() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim-round`, {
-      region_slug: activeKickoffRegion
+      region_slug: activeKickoffRegion,
+      auto_confirm: false
     });
     if (res.success) {
       reloadKickoffCurrentRegion();
@@ -437,7 +463,8 @@ async function simSelectedKoRegion() {
 
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim-region`, {
-      region_slug: activeKickoffRegion
+      region_slug: activeKickoffRegion,
+      auto_confirm: false
     });
     if (res.success) {
       reloadKickoffCurrentRegion();
@@ -461,7 +488,9 @@ async function simAllKoRegions() {
   btn.textContent = '⏳ Đang mô phỏng 4 khu vực...';
 
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {});
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/kickoff/sim`, {
+      auto_confirm: false
+    });
     if (res.success) {
       reloadKickoffCurrentRegion();
     } else {
