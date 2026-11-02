@@ -68,7 +68,7 @@ def _swiss_r1_seed_pairing(teams):
             available.remove(found)
             pairs.append((s1, found))
 
-        if ok:
+        if ok and len(pairs) == 4:
             return pairs
 
     # Fallback: just shuffle and pair
