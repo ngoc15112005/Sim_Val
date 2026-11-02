@@ -456,19 +456,32 @@ li a:hover { text-decoration: underline; }
 .match-actions {
     position: absolute;
     top: 2px;
-    right: 32px;
+    right: 28px;
     display: flex;
-    gap: 3px;
-    opacity: 0;
-    transition: opacity 0.15s;
+    gap: 4px;
+    opacity: 0.65;
+    transition: opacity 0.15s, transform 0.15s;
     z-index: 3;
 }
 
 .match-box:hover .match-actions {
     opacity: 1;
+    transform: scale(1.05);
 }
 
-.match-edit-btn, .match-roll-btn {
+.match-box-clickable {
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.match-box-clickable:hover {
+    border-color: var(--accent) !important;
+    box-shadow: 0 3px 10px rgba(255, 70, 85, 0.22);
+}
+
+.match-actions .match-edit-btn,
+.match-actions .match-roll-btn {
+    position: static;
     width: 22px;
     height: 22px;
     background: rgba(18, 22, 32, 0.9);
@@ -483,16 +496,25 @@ li a:hover { text-decoration: underline; }
     transition: all 0.15s;
 }
 
+.match-actions .match-roll-btn {
+    background: rgba(255, 70, 85, 0.22);
+    border-color: rgba(255, 70, 85, 0.5);
+    color: #ff4655;
+    opacity: 0.9;
+}
+
 .match-edit-btn:hover {
     color: var(--blue);
     border-color: var(--blue);
     background: #1c2333;
 }
 
-.match-roll-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: #2a1b22;
+.match-actions .match-roll-btn:hover {
+    color: #fff;
+    border-color: #ff4655;
+    background: #ff4655;
+    box-shadow: 0 0 8px rgba(255, 70, 85, 0.6);
+    transform: scale(1.1);
 }
 
 @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }

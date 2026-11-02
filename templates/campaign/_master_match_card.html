@@ -1,4 +1,9 @@
-<div class="match-box status-{{ m.status }} round-{{ m.round_name or '' }}" data-match-id="{{ m.id }}" data-round-name="{{ m.round_name or '' }}">
+{% set is_locked = is_stage_locked or (res and res.is_confirmed) or (is_confirmed) %}
+{% set can_interact = not is_locked and m.team_a and m.team_b %}
+<div class="match-box status-{{ m.status }} round-{{ m.round_name or '' }} {% if can_interact %}match-box-clickable{% endif %}"
+     data-match-id="{{ m.id }}"
+     data-round-name="{{ m.round_name or '' }}"
+     {% if can_interact %}onclick="openMasterManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" title="Nhấn để mở trận đấu hoặc roll kết quả"{% endif %}>
   <!-- Team A -->
   <div class="match-team-row team-a {% if m.status == 'completed' and m.winner_id == m.team_a_id %}winner{% endif %}">
     <div class="team-meta">
@@ -55,16 +60,13 @@
   {% endif %}
 
   <!-- Match Actions -->
-  <div class="match-actions">
-    {% set is_locked = is_stage_locked or (res and res.is_confirmed) or (is_confirmed) %}
-    {% if not is_locked and m.team_a and m.team_b %}
-    <button class="match-edit-btn" type="button" onclick="openMasterManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" title="{% if m.status == 'completed' %}Sửa kết quả{% else %}Nhập tay{% endif %}">
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-    </button>
-    {% endif %}
-    {% if not is_locked and m.status == 'pending' and m.team_a and m.team_b %}
-    <button class="match-roll-btn" type="button" onclick="rollMasterMatch('{{ m.id }}')" title="Roll ngẫu nhiên">
+  <div class="match-actions" onclick="event.stopPropagation();">
+    {% if can_interact %}
+    <button class="match-roll-btn" type="button" onclick="event.stopPropagation(); rollMasterMatch('{{ m.id }}')" title="{% if m.status == 'completed' %}Roll lại kết quả (Re-roll){% else %}Roll ngẫu nhiên kết quả{% endif %}">
       <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.12-.36.18-.57.18-.21 0-.41-.06-.57-.18l-7.9-4.44A.99.99 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.12.36-.18.57-.18.21 0 .41.06.57.18l7.9 4.44c.32.17.53.5.53.88v9zM12 4.15L6.04 7.4 12 10.65l5.96-3.25L12 4.15zM5 8.79v6.86l5 2.81V11.6L5 8.79zm7 9.67l5-2.81V8.79l-5 2.81v6.86z"/></svg>
+    </button>
+    <button class="match-edit-btn" type="button" onclick="event.stopPropagation(); openMasterManualModal('{{ m.id }}', '{{ m.label|replace('\'', '\\\'') }}', {{ m.team_a.id }}, '{{ m.team_a.short_code }}', '{{ m.team_a.name|replace('\'', '\\\'') }}', {{ m.team_b.id }}, '{{ m.team_b.short_code }}', '{{ m.team_b.name|replace('\'', '\\\'') }}', {{ m.bo }})" title="{% if m.status == 'completed' %}Sửa kết quả{% else %}Nhập tay{% endif %}">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
     </button>
     {% endif %}
   </div>
