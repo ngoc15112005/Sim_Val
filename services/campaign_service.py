@@ -12,8 +12,21 @@ Manages:
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any
-from models import db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason
+from models import (
+    db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
+)
 from config import Config
+from engine.power_rating import (
+    update_team_elo,
+    update_regional_league_elo,
+    calculate_composite_power_score,
+    power_score_to_ovr,
+    get_tier_info,
+    format_rank_delta,
+    apply_offseason_regression,
+    DEFAULT_LEAGUE_ELO,
+    DEFAULT_TEAM_ELO,
+)
 from engine.format.open_qualifier import (
     init_open_qualifier_region_state,
     resolve_open_qualifier_match,
@@ -112,13 +125,20 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
         partner_codes = partner_map.get(reg_slug, [])
         is_partner = club.short_code in partner_codes
 
+        base_r = club.current_rating or club.base_rating or 80
+        t_elo = round(base_r * 18.75, 1)
+
         state = CampaignClubState(
             campaign_id=campaign.id,
             club_id=club.id,
-            story_rating=club.current_rating or club.base_rating or 80,
+            story_rating=base_r,
             form_modifier=0,
             championship_points=0,
             is_partner=is_partner,
+            team_elo=t_elo,
+            power_score=t_elo,
+            power_rating=float(base_r),
+            win_streak=0,
         )
         db.session.add(state)
 
@@ -503,6 +523,7 @@ def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage
     if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'kickoff', year=stage.year)
         campaign.current_stage = 'major'
         _prepare_major_stage(campaign, data['regional_results'])
 
@@ -658,6 +679,7 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
     if all(r in data['regional_results'] and data['regional_results'][r].get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'kickoff', year=stage.year)
         campaign.current_stage = 'major'
         _prepare_major_stage(campaign, data['regional_results'])
 
@@ -790,6 +812,7 @@ def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Di
 
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'major', year=stage.year)
         campaign.current_stage = 'oq_stage1'
         _prepare_oq_stage1_stage(campaign)
 
@@ -919,6 +942,7 @@ def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]]
     stage.status = 'completed'
     stage.completed_at = datetime.now(timezone.utc)
     stage.stage_data = json.dumps(data)
+    record_stage_placements(campaign_id, 'major', year=stage.year)
 
     # Advance campaign circuit to Open Qualifier Stage 1
     campaign.current_stage = 'oq_stage1'
@@ -1464,6 +1488,7 @@ def _check_and_finalize_stage1(campaign: Campaign, stage: CampaignStage, data: D
     if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'stage1', year=stage.year)
         campaign.current_stage = 'ewc_qualifier'
         _prepare_ewc_qualifier_stage(campaign, data['regional_results'])
         _prepare_master_stage(campaign, data['regional_results'])
@@ -1923,6 +1948,7 @@ def _check_and_finalize_master(campaign: Campaign, stage: CampaignStage, data: D
 
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'master', year=stage.year)
         campaign.current_stage = 'ewc'
 
     stage.stage_data = json.dumps(data)
@@ -2054,6 +2080,7 @@ def _check_and_finalize_ewc(campaign: Campaign, stage: CampaignStage, data: Dict
 
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'ewc', year=stage.year)
         campaign.current_stage = 'oq_stage2'
         _prepare_oq_stage2_stage(campaign)
 
@@ -2733,6 +2760,7 @@ def _check_and_finalize_stage2(campaign: Campaign, stage: CampaignStage, data: D
     if all(data.get('regional_results', {}).get(r, {}).get('status') == 'completed' for r in all_regions):
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'stage2', year=stage.year)
         campaign.current_stage = 'champion'
 
         # Gather all 16 Champions qualifiers
@@ -2907,6 +2935,7 @@ def _check_and_finalize_champion(campaign: Campaign, stage: CampaignStage, data:
 
         stage.status = 'completed'
         stage.completed_at = datetime.now(timezone.utc)
+        record_stage_placements(campaign.id, 'champion', year=stage.year)
         campaign.current_stage = 'season_summary'
         _prepare_season_summary_stage(campaign)
 
@@ -3004,13 +3033,45 @@ def _prepare_season_summary_stage(campaign: Campaign):
         summary_stage.stage_data = json.dumps(summary_data)
 
 
-def get_season_summary_data(campaign_id: int) -> Dict[str, Any]:
-    """Gather all title winners, season awards, leaderboards, and Hall of Fame records."""
+def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dict[str, Any]:
+    """Gather all title winners, season awards, leaderboards, placements, and Hall of Fame records for any year."""
     campaign = get_campaign(campaign_id)
     if not campaign:
         return {}
 
-    year = campaign.current_year
+    backfill_stage_placements_if_needed(campaign_id)
+
+    # Determine available years across the campaign
+    query_years = db.session.query(CampaignStage.year).filter_by(
+        campaign_id=campaign_id
+    ).distinct().order_by(CampaignStage.year.asc()).all()
+    available_years = sorted(list(set([y[0] for y in query_years] + [campaign.current_year])))
+
+    target_year = year if (year and year in available_years) else campaign.current_year
+
+    # Check if this is an archived past year
+    if target_year < campaign.current_year:
+        hof_stage = CampaignStage.query.filter_by(
+            campaign_id=campaign_id, year=target_year, stage_key=f'hof_year_{target_year}'
+        ).first()
+        if hof_stage and hof_stage.stage_data:
+            try:
+                archived = json.loads(hof_stage.stage_data)
+                archived['available_years'] = available_years
+                archived['year'] = target_year
+                archived['all_time_trophies'] = get_all_time_trophy_table(campaign_id)
+                archived['global_power_rankings'] = get_global_power_rankings(campaign_id)
+
+                # Load stage placements for this year
+                stage_placements = {}
+                for sk in ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'):
+                    stage_placements[sk] = get_stage_placements_history(campaign_id, sk, year=target_year)
+                archived['stage_placements'] = stage_placements
+                return archived
+            except Exception:
+                pass
+
+    year = target_year
     titles = {}
 
     # 1. Kickoff Regional Winners
@@ -3124,8 +3185,14 @@ def get_season_summary_data(campaign_id: int) -> Dict[str, Any]:
         except Exception:
             pass
 
+    # Stage placements for this year
+    stage_placements = {}
+    for sk in ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'):
+        stage_placements[sk] = get_stage_placements_history(campaign_id, sk, year=year)
+
     return {
         'year': year,
+        'available_years': available_years,
         'titles': titles,
         'world_champion': world_champion,
         'club_of_the_year': {
@@ -3143,6 +3210,9 @@ def get_season_summary_data(campaign_id: int) -> Dict[str, Any]:
         } if most_improved_state else None,
         'leaderboards': leaderboards,
         'past_records': past_records,
+        'all_time_trophies': get_all_time_trophy_table(campaign_id),
+        'global_power_rankings': get_global_power_rankings(campaign_id),
+        'stage_placements': stage_placements,
     }
 
 
@@ -3163,6 +3233,7 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
         raise ValueError(f"Campaign {campaign_id} not found")
 
     old_year = campaign.current_year
+    backfill_stage_placements_if_needed(campaign.id)
     summary_data = get_season_summary_data(campaign_id)
 
     # 1. Archive to permanent Hall of Fame stage record
@@ -3215,8 +3286,14 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
     campaign.current_year = old_year + 1
     campaign.current_stage = 'open_qualifier'
 
-    # 3. Off-season rating aging & CP reset
+    # 3. Off-season rating aging & CP reset & Power Rating Carryover
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign.id).all()
+
+    # Assign previous_rank based on season-end power scores
+    sorted_cs = sorted(club_states, key=lambda x: (x.power_score if x.power_score is not None else 1500.0, x.championship_points or 0), reverse=True)
+    for idx, cstate in enumerate(sorted_cs, start=1):
+        cstate.previous_rank = idx
+
     for cs in club_states:
         # 15% regression toward base 80
         curr_r = cs.story_rating or 80
@@ -3227,6 +3304,13 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
         cs.map_differential = 0
         cs.round_differential = 0
         cs.stage_ranks = '{}'
+
+        # Power Rating Off-season Regression (20% decay towards mean 1500 Elo)
+        cur_elo = cs.team_elo if cs.team_elo is not None else 1500.0
+        cs.team_elo = apply_offseason_regression(cur_elo)
+        cs.win_streak = 0
+        cs.power_score = calculate_composite_power_score(cs.team_elo, 1500.0, 0)
+        cs.power_rating = power_score_to_ovr(cs.power_score)
 
     # 4. Initialize new year Open Qualifier
     new_oq_stage = CampaignStage(
@@ -3249,3 +3333,432 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
         'new_year': campaign.current_year,
         'new_stage': campaign.current_stage,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tournament Historical Placements & Riot Global Power Rankings (GPR x AWS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_rank_display(rank: int) -> str:
+    """Format human-readable rank display string."""
+    if rank == 1:
+        return '1st (Vô địch)'
+    elif rank == 2:
+        return '2nd (Á quân)'
+    elif rank == 3:
+        return '3rd (Hạng 3)'
+    elif rank == 4:
+        return '4th (Hạng 4)'
+    elif rank in (5, 6):
+        return '5th - 6th'
+    elif rank in (7, 8):
+        return '7th - 8th'
+    elif 9 <= rank <= 12:
+        return '9th - 12th'
+    elif 13 <= rank <= 16:
+        return '13th - 16th'
+    return f'#{rank}'
+
+
+def apply_match_power_rating(
+    campaign_id: int,
+    winner_id: int,
+    loser_id: int,
+    tournament_tier: str = 'default',
+    map_diff: int = 1,
+    round_diff: int = 4,
+    is_intl: bool = False,
+    region_winner: Optional[str] = None,
+    region_loser: Optional[str] = None
+) -> Dict[str, Any]:
+    """Update team Elo and regional league Elo after any match in campaign mode."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return {}
+
+    w_state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=winner_id).first()
+    l_state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=loser_id).first()
+    if not w_state or not l_state:
+        return {}
+
+    w_elo = w_state.team_elo if w_state.team_elo is not None else 1500.0
+    l_elo = l_state.team_elo if l_state.team_elo is not None else 1500.0
+
+    new_w_elo, new_l_elo, delta = update_team_elo(
+        rating_winner=w_elo,
+        rating_loser=l_elo,
+        tournament_tier=tournament_tier,
+        map_diff=map_diff,
+        round_diff=round_diff,
+    )
+    w_state.team_elo = new_w_elo
+    l_state.team_elo = new_l_elo
+
+    # Update win streak
+    w_state.win_streak = (w_state.win_streak or 0) + 1 if (w_state.win_streak or 0) >= 0 else 1
+    l_state.win_streak = (l_state.win_streak or 0) - 1 if (l_state.win_streak or 0) <= 0 else -1
+
+    # League Elo for international tournaments
+    league_ratings = {"pacific": 1500.0, "americas": 1500.0, "emea": 1500.0, "china": 1500.0}
+    try:
+        if campaign.league_ratings:
+            league_ratings = json.loads(campaign.league_ratings)
+    except Exception:
+        pass
+
+    if is_intl and region_winner and region_loser and region_winner != region_loser:
+        league_ratings, _ = update_regional_league_elo(
+            league_ratings, region_winner, region_loser, tournament_tier=tournament_tier
+        )
+        campaign.league_ratings = json.dumps(league_ratings)
+
+    reg_w = region_winner or (w_state.club.region.slug if w_state.club and w_state.club.region else 'pacific')
+    reg_l = region_loser or (l_state.club.region.slug if l_state.club and l_state.club.region else 'pacific')
+
+    l_elo_w = league_ratings.get(reg_w, 1500.0)
+    l_elo_l = league_ratings.get(reg_l, 1500.0)
+
+    w_state.power_score = calculate_composite_power_score(w_state.team_elo, l_elo_w, w_state.win_streak)
+    w_state.power_rating = power_score_to_ovr(w_state.power_score)
+
+    l_state.power_score = calculate_composite_power_score(l_state.team_elo, l_elo_l, l_state.win_streak)
+    l_state.power_rating = power_score_to_ovr(l_state.power_score)
+
+    return {
+        'winner_id': winner_id,
+        'loser_id': loser_id,
+        'delta_elo': delta,
+        'winner_power_score': w_state.power_score,
+        'loser_power_score': l_state.power_score,
+    }
+
+
+def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Extract and persist official final placements for all participating teams in a stage."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return []
+
+    target_year = year or campaign.current_year
+    stage = get_stage_record(campaign_id, stage_key, year=target_year)
+    if not stage or not stage.stage_data:
+        return []
+
+    try:
+        data = json.loads(stage.stage_data)
+    except Exception:
+        return []
+
+    club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign_id).all()}
+    records = []
+
+    def _save_placement(cid, rank, r_slug, tour_name, elim_stage, cp, m_won, m_lost):
+        if not cid:
+            return
+        cs = club_states.get(cid)
+        p_score = cs.power_score if cs and cs.power_score is not None else 1500.0
+        p_rating = cs.power_rating if cs and cs.power_rating is not None else 80.0
+
+        existing = CampaignStagePlacement.query.filter_by(
+            campaign_id=campaign_id,
+            year=target_year,
+            stage_key=stage_key,
+            club_id=cid,
+        ).first()
+
+        rank_d = _get_rank_display(rank)
+        if not existing:
+            rec = CampaignStagePlacement(
+                campaign_id=campaign_id,
+                year=target_year,
+                stage_key=stage_key,
+                tournament_name=tour_name,
+                region_slug=r_slug,
+                club_id=cid,
+                rank=rank,
+                rank_display=rank_d,
+                elimination_stage=elim_stage,
+                stage_points_earned=cp,
+                matches_won=m_won,
+                matches_lost=m_lost,
+                power_score_snapshot=p_score,
+                power_rating_snapshot=p_rating,
+            )
+            db.session.add(rec)
+            records.append(rec)
+        else:
+            existing.rank = rank
+            existing.rank_display = rank_d
+            existing.elimination_stage = elim_stage
+            existing.stage_points_earned = cp
+            existing.matches_won = m_won
+            existing.matches_lost = m_lost
+            existing.power_score_snapshot = p_score
+            existing.power_rating_snapshot = p_rating
+            existing.tournament_name = tour_name
+            existing.region_slug = r_slug
+            records.append(existing)
+
+    # 1. KICKOFF
+    if stage_key == 'kickoff':
+        for r_slug, reg_data in data.get('regional_results', {}).items():
+            tour_name = f"VCT Kickoff {r_slug.upper()} {target_year}"
+            for s in reg_data.get('standings', []):
+                cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+                rk = s.get('rank', 1)
+                cp = get_stage_points('kickoff', rank=rk)
+                w = s.get('matches_won', s.get('wins', 0))
+                l = s.get('matches_lost', s.get('losses', 0))
+                _save_placement(cid, rk, r_slug, tour_name, s.get('elimination_stage', ''), cp, w, l)
+
+    # 2. MAJOR (Masters Bangkok)
+    elif stage_key == 'major':
+        tour_name = f"VCT Masters Bangkok {target_year}"
+        res = data.get('result', {})
+        for s in res.get('standings', []):
+            cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+            rk = s.get('rank', 1)
+            cp = get_stage_points('major', rank=rk)
+            w = s.get('matches_won', s.get('wins', 0))
+            l = s.get('matches_lost', s.get('losses', 0))
+            reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
+            _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), cp, w, l)
+
+    # 3. STAGE 1 & STAGE 2
+    elif stage_key in ('stage1', 'stage2'):
+        prefix = "Stage 1" if stage_key == 'stage1' else "Stage 2"
+        for r_slug, reg_data in data.get('regional_results', {}).items():
+            tour_name = f"VCT {prefix} {r_slug.upper()} {target_year}"
+            playoff_standings = reg_data.get('standings', [])
+            playoff_cids = set()
+
+            # Record playoff teams (rank 1..6)
+            for s in playoff_standings:
+                cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+                if not cid:
+                    continue
+                playoff_cids.add(cid)
+                rk = s.get('rank', 1)
+                reg_wins = s.get('regular_wins', s.get('wins', 0))
+                playoff_cp = get_stage_points(f'{stage_key}_playoffs', rank=rk)
+                cp_total = playoff_cp + reg_wins
+                w = s.get('matches_won', s.get('wins', 0))
+                l = s.get('matches_lost', s.get('losses', 0))
+                _save_placement(cid, rk, r_slug, tour_name, s.get('elimination_stage', 'Playoffs'), cp_total, w, l)
+
+            # Record non-playoff regular season teams (rank 7..12)
+            alpha = reg_data.get('alpha_standings', [])
+            omega = reg_data.get('omega_standings', [])
+            non_playoffs = [team for team in (alpha + omega) if team.get('club_id') not in playoff_cids]
+            non_playoffs.sort(key=lambda t: (t.get('wins', 0), t.get('map_diff', 0), t.get('round_diff', 0)), reverse=True)
+
+            curr_rank = 7
+            for team in non_playoffs:
+                cid = team.get('club_id')
+                w = team.get('wins', 0)
+                l = team.get('losses', 0)
+                cp = w  # 1 CP per regular win
+                _save_placement(cid, curr_rank, r_slug, tour_name, 'Group Stage', cp, w, l)
+                curr_rank += 1
+
+    # 4. MASTER (Masters Toronto)
+    elif stage_key == 'master':
+        tour_name = f"VCT Masters Toronto {target_year}"
+        res = data.get('result', {})
+        for s in res.get('standings', []):
+            cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+            rk = s.get('rank', 1)
+            cp = get_stage_points('master', rank=rk)
+            w = s.get('matches_won', s.get('wins', 0))
+            l = s.get('matches_lost', s.get('losses', 0))
+            reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
+            _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), cp, w, l)
+
+    # 5. EWC (Esports World Cup Riyadh)
+    elif stage_key == 'ewc':
+        tour_name = f"Esports World Cup Riyadh {target_year}"
+        res = data.get('result', {})
+        for s in res.get('standings', []):
+            cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+            rk = s.get('rank', 1)
+            w = s.get('matches_won', s.get('wins', 0))
+            l = s.get('matches_lost', s.get('losses', 0))
+            reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
+            _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), 0, w, l)
+
+    # 6. CHAMPION (VALORANT Champions Paris)
+    elif stage_key == 'champion':
+        tour_name = f"VALORANT Champions Paris {target_year}"
+        res = data.get('result', {})
+        for s in res.get('standings', []):
+            cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
+            rk = s.get('rank', 1)
+            w = s.get('matches_won', s.get('wins', 0))
+            l = s.get('matches_lost', s.get('losses', 0))
+            reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
+            _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), 0, w, l)
+
+    db.session.flush()
+    return [r.to_dict() for r in records]
+
+
+def backfill_stage_placements_if_needed(campaign_id: int):
+    """Scan all existing completed stages in database and backfill historical placements if missing."""
+    stages = CampaignStage.query.filter_by(campaign_id=campaign_id, status='completed').all()
+    valid_keys = ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion')
+
+    for st in stages:
+        if st.stage_key in valid_keys:
+            existing_count = CampaignStagePlacement.query.filter_by(
+                campaign_id=campaign_id, year=st.year, stage_key=st.stage_key
+            ).count()
+            if existing_count == 0:
+                record_stage_placements(campaign_id, st.stage_key, year=st.year)
+
+    db.session.commit()
+
+
+def get_stage_placements_history(
+    campaign_id: int,
+    stage_key: str,
+    year: Optional[int] = None,
+    region_slug: Optional[str] = None
+) -> Dict[str, Any]:
+    """Retrieve historical placements and podium for a tournament across years."""
+    backfill_stage_placements_if_needed(campaign_id)
+
+    # Find all available years that have records for this stage_key
+    query_years = db.session.query(CampaignStagePlacement.year).filter_by(
+        campaign_id=campaign_id, stage_key=stage_key
+    ).distinct().order_by(CampaignStagePlacement.year.desc()).all()
+    available_years = [y[0] for y in query_years]
+
+    campaign = get_campaign(campaign_id)
+    cur_year = campaign.current_year if campaign else 2026
+    if not available_years and cur_year not in available_years:
+        available_years = [cur_year]
+
+    selected_year = year if (year and year in available_years) else (available_years[0] if available_years else cur_year)
+
+    # Query placements for selected year
+    q = CampaignStagePlacement.query.filter_by(
+        campaign_id=campaign_id, stage_key=stage_key, year=selected_year
+    )
+    if region_slug and region_slug != 'all':
+        q = q.filter_by(region_slug=region_slug)
+
+    placements = q.order_by(CampaignStagePlacement.rank.asc(), CampaignStagePlacement.matches_won.desc()).all()
+    plist = [p.to_dict() for p in placements]
+
+    # Construct Podium (Top 1, Top 2, Top 3)
+    podium = {
+        'champion': plist[0] if len(plist) >= 1 and plist[0]['rank'] == 1 else None,
+        'runner_up': plist[1] if len(plist) >= 2 and plist[1]['rank'] == 2 else None,
+        'third_place': plist[2] if len(plist) >= 3 and plist[2]['rank'] == 3 else None,
+    }
+
+    return {
+        'stage_key': stage_key,
+        'available_years': available_years,
+        'selected_year': selected_year,
+        'region_slug': region_slug,
+        'podium': podium,
+        'placements': plist,
+        'total_teams': len(plist),
+    }
+
+
+def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
+    """Generate all-time medal/trophy room table for all clubs across campaign history."""
+    backfill_stage_placements_if_needed(campaign_id)
+
+    clubs = Club.query.all()
+
+    # Query all 1st and 2nd placements
+    title_placements = CampaignStagePlacement.query.filter(
+        CampaignStagePlacement.campaign_id == campaign_id,
+        CampaignStagePlacement.rank.in_([1, 2])
+    ).all()
+
+    stats = {c.id: {
+        'club': c.to_dict(),
+        'champions_titles': 0,
+        'masters_titles': 0,
+        'ewc_titles': 0,
+        'regional_titles': 0,
+        'total_titles': 0,
+        'runner_up_count': 0,
+        'total_finals': 0,
+    } for c in clubs}
+
+    for p in title_placements:
+        cid = p.club_id
+        if cid not in stats:
+            continue
+
+        if p.rank == 1:
+            if p.stage_key == 'champion':
+                stats[cid]['champions_titles'] += 1
+            elif p.stage_key in ('master', 'major'):
+                stats[cid]['masters_titles'] += 1
+            elif p.stage_key == 'ewc':
+                stats[cid]['ewc_titles'] += 1
+            elif p.stage_key in ('kickoff', 'stage1', 'stage2'):
+                stats[cid]['regional_titles'] += 1
+            stats[cid]['total_titles'] += 1
+            stats[cid]['total_finals'] += 1
+        elif p.rank == 2:
+            stats[cid]['runner_up_count'] += 1
+            stats[cid]['total_finals'] += 1
+
+    # Filter clubs that have at least 1 final appearance
+    table = [s for s in stats.values() if s['total_finals'] > 0]
+    table.sort(key=lambda s: (
+        s['champions_titles'],
+        s['masters_titles'],
+        s['ewc_titles'],
+        s['regional_titles'],
+        s['total_titles'],
+        s['runner_up_count'],
+    ), reverse=True)
+
+    return table
+
+
+def get_global_power_rankings(campaign_id: int, region_slug: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieve full 48-team Riot Global Power Rankings (GPR x AWS) leaderboard with Tier Badges & Delta Rank."""
+    q = CampaignClubState.query.filter_by(campaign_id=campaign_id)
+    club_states = q.all()
+
+    items = []
+    for cs in club_states:
+        c = cs.club
+        if not c:
+            continue
+        c_reg = c.region.slug if c.region else ''
+        if region_slug and region_slug != 'all' and c_reg != region_slug:
+            continue
+
+        ps = cs.power_score if cs.power_score is not None else 1500.0
+        ovr = cs.power_rating if cs.power_rating is not None else power_score_to_ovr(ps)
+
+        items.append({
+            'club': c.to_dict(),
+            'power_score': round(ps, 1),
+            'power_rating': round(ovr, 1),
+            'team_elo': round(cs.team_elo if cs.team_elo is not None else 1500.0, 1),
+            'win_streak': cs.win_streak or 0,
+            'championship_points': cs.championship_points or 0,
+            'tier': get_tier_info(ps),
+            'previous_rank': cs.previous_rank,
+        })
+
+    # Sort descending by power_score
+    items.sort(key=lambda x: (x['power_score'], x['championship_points']), reverse=True)
+
+    for idx, item in enumerate(items, start=1):
+        item['rank'] = idx
+        item['rank_delta'] = format_rank_delta(idx, item['previous_rank'])
+
+    return items
+

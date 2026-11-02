@@ -17,6 +17,9 @@
     </div>
 
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button type="button" class="btn-sm" onclick="openTournamentHistoryModal('stage1', '{{ active_region }}')" style="padding: 8px 14px; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+        <span>📜</span> Lịch sử giải đấu
+      </button>
       <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 8px 12px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px;">
         Xem lại VCT Major
       </a>
@@ -743,4 +746,5 @@ async function submitStage1CustomMaps() {
   }
 }
 </script>
+{% include "campaign/_tournament_history_modal.html" %}
 {% endblock %}

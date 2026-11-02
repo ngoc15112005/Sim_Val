@@ -13,6 +13,9 @@
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
+    <button type="button" class="btn-sm" onclick="openTournamentHistoryModal('kickoff', '{{ selected_region or 'pacific' }}')" style="padding: 8px 14px; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+      <span>📜</span> Lịch sử giải đấu
+    </button>
     <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
       ⬅️ Về Mùa giải
     </a>
@@ -654,4 +657,5 @@ async function sendKoManualRequest(winnerId, maps) {
 .kickoff-region-view { display: none; }
 .kickoff-region-view.active { display: block; }
 </style>
+{% include "campaign/_tournament_history_modal.html" %}
 {% endblock %}

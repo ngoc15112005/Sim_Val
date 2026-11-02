@@ -328,6 +328,7 @@ def register_routes(app):
         get_champion_data, resolve_champion_match_interactive,
         sim_champion_round_interactive, sim_champion_tournament_interactive,
         run_champion_stage, get_season_summary_data, advance_campaign_to_next_year,
+        get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
     )
 
     @app.route('/campaigns')
@@ -1581,18 +1582,60 @@ def register_routes(app):
     # ─────────────────────────────────────────────────────────────────────────
 
     @app.route('/campaign/<int:campaign_id>/stage/season_summary')
+    @app.route('/campaign/<int:campaign_id>/hall-of-fame')
     def campaign_season_summary_view(campaign_id):
         campaign = get_campaign(campaign_id)
         if not campaign:
             return "Campaign not found", 404
 
-        summary_data = get_season_summary_data(campaign_id)
+        req_year = request.args.get('year', type=int)
+        summary_data = get_season_summary_data(campaign_id, year=req_year)
         return render_template(
             'campaign/season_summary.html',
             campaign=campaign,
             summary_data=summary_data,
             cfg=Config,
         )
+
+    @app.route('/api/campaign/<int:campaign_id>/stage-history/<stage_key>')
+    def api_campaign_stage_history(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        year = request.args.get('year', type=int)
+        region = request.args.get('region')
+        history_data = get_stage_placements_history(campaign_id, stage_key, year=year, region_slug=region)
+        return jsonify({'success': True, 'data': history_data})
+
+    @app.route('/api/campaign/<int:campaign_id>/hall-of-fame-data')
+    def api_campaign_hall_of_fame_data(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        year = request.args.get('year', type=int)
+        summary_data = get_season_summary_data(campaign_id, year=year)
+        return jsonify({'success': True, 'data': summary_data})
+
+    @app.route('/api/campaign/<int:campaign_id>/power-rankings')
+    def api_campaign_power_rankings(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        region = request.args.get('region')
+        rankings = get_global_power_rankings(campaign_id, region_slug=region)
+        return jsonify({'success': True, 'rankings': rankings})
+
+    @app.route('/api/campaign/<int:campaign_id>/all-time-trophies')
+    def api_campaign_all_time_trophies(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        trophies = get_all_time_trophy_table(campaign_id)
+        return jsonify({'success': True, 'trophies': trophies})
 
     @app.route('/api/campaign/<int:campaign_id>/advance-year', methods=['POST'])
     def api_campaign_advance_year(campaign_id):

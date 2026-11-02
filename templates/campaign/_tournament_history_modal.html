@@ -1,0 +1,373 @@
+<!-- Modal Lịch Sử Giải Đấu Toàn Diện Qua Các Năm (Multi-Year Tournament History Modal) -->
+<div id="tournament-history-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 15, 29, 0.88); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
+  <div class="card" style="width: 860px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); overflow: hidden; padding: 0;">
+    
+    <!-- Modal Header -->
+    <div style="padding: 16px 20px; background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.4em;">📜</span>
+        <div>
+          <h2 id="history-modal-title" style="margin: 0; font-size: 1.25em; color: #fbbf24; font-weight: 800; letter-spacing: 0.5px;">
+            LỊCH SỬ GIẢI ĐẤU
+          </h2>
+          <div style="font-size: 0.8em; color: var(--dim);">
+            Hồ sơ bảng vàng thứ hạng & vinh danh các nhà vô địch qua các mùa giải
+          </div>
+        </div>
+      </div>
+      <button type="button" onclick="closeTournamentHistoryModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.5em; cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 4px;">
+        &times;
+      </button>
+    </div>
+
+    <!-- Controls Toolbar (Year & Region Selectors) -->
+    <div style="padding: 12px 20px; background: #131d35; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <!-- Year Selector -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 0.82em; color: var(--dim); font-weight: bold; text-transform: uppercase;">Mùa giải:</span>
+        <div id="history-year-selector" style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Region Selector (Only for regional stages) -->
+      <div id="history-region-container" style="display: none; align-items: center; gap: 8px;">
+        <span style="font-size: 0.82em; color: var(--dim); font-weight: bold; text-transform: uppercase;">Khu vực:</span>
+        <div style="display: flex; gap: 6px;">
+          <button type="button" class="hist-reg-btn active" onclick="switchHistoryRegion('pacific')">Pacific</button>
+          <button type="button" class="hist-reg-btn" onclick="switchHistoryRegion('americas')">Americas</button>
+          <button type="button" class="hist-reg-btn" onclick="switchHistoryRegion('emea')">EMEA</button>
+          <button type="button" class="hist-reg-btn" onclick="switchHistoryRegion('china')">China</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Body (Scrollable) -->
+    <div id="history-modal-body" style="padding: 20px; overflow-y: auto; flex: 1;">
+      <!-- Loading State -->
+      <div id="history-loading" style="text-align: center; padding: 40px; color: var(--dim);">
+        <div style="font-size: 2em; margin-bottom: 10px;">⏳</div>
+        <div>Đang tải dữ liệu lịch sử giải đấu...</div>
+      </div>
+
+      <!-- Content Container -->
+      <div id="history-content" style="display: none;">
+        <!-- Podium Spotlight -->
+        <div style="margin-bottom: 24px;">
+          <div style="font-size: 0.82em; color: var(--dim); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+            <span>🏆</span> BỤC VINH DANH PODIUM
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+            <!-- Champion 1st -->
+            <div id="podium-1st" class="card" style="border: 2px solid #eab308; background: linear-gradient(135deg, rgba(234, 179, 8, 0.16) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 14px; position: relative;">
+              <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+                🥇 NHÀ VÔ ĐỊCH (1ST)
+              </div>
+              <div id="podium-1st-content" style="margin-top: 8px;">-</div>
+            </div>
+
+            <!-- Runner-Up 2nd -->
+            <div id="podium-2nd" class="card" style="border: 1px solid rgba(148, 163, 184, 0.4); background: linear-gradient(135deg, rgba(148, 163, 184, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 14px;">
+              <div style="font-size: 0.75em; color: #cbd5e1; font-weight: 800; text-transform: uppercase;">
+                🥈 Á QUÂN (2ND)
+              </div>
+              <div id="podium-2nd-content" style="margin-top: 8px;">-</div>
+            </div>
+
+            <!-- 3rd Place -->
+            <div id="podium-3rd" class="card" style="border: 1px solid rgba(217, 119, 6, 0.4); background: linear-gradient(135deg, rgba(217, 119, 6, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 14px;">
+              <div style="font-size: 0.75em; color: #f59e0b; font-weight: 800; text-transform: uppercase;">
+                🥉 HẠNG BA (3RD)
+              </div>
+              <div id="podium-3rd-content" style="margin-top: 8px;">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full Placements Table -->
+        <div>
+          <div style="font-size: 0.82em; color: var(--dim); font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>📊</span> BẢNG XẾP HẠNG CHUNG CUỘC (FINAL PLACEMENTS)
+            </div>
+            <div id="history-total-count" style="color: var(--dim); font-weight: normal; font-size: 0.9em;"></div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="swiss-standings-table" style="font-size: 0.9em;">
+              <thead>
+                <tr>
+                  <th style="width: 80px; text-align: center;">Thứ hạng</th>
+                  <th class="team-col">Đội tuyển</th>
+                  <th style="text-align: center;">Vòng dừng bước</th>
+                  <th style="text-align: center;">Thành tích W-L</th>
+                  <th style="text-align: center; color: var(--yellow);">Điểm CP</th>
+                  <th style="text-align: center;">Power Rating</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="history-empty" style="display: none; text-align: center; padding: 40px; color: var(--dim);">
+        <div style="font-size: 2.2em; margin-bottom: 10px;">📂</div>
+        <div style="font-weight: bold; color: #fff;">Chưa có dữ liệu lịch sử</div>
+        <div style="font-size: 0.85em; margin-top: 4px;">Giải đấu này chưa hoàn tất trong mùa giải được chọn.</div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 12px 20px; background: #0f172a; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <a href="/campaign/{{ campaign.id }}/hall-of-fame" style="text-decoration: none; color: #fbbf24; font-size: 0.85em; display: flex; align-items: center; gap: 6px;">
+        <span>🏛️</span> Xem toàn bộ Bảng Vàng Hall of Fame ➔
+      </a>
+      <button type="button" class="btn-sm btn-manual" onclick="closeTournamentHistoryModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer;">
+        Đóng
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+.hist-year-btn, .hist-reg-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.hist-year-btn:hover, .hist-reg-btn:hover {
+  border-color: #fbbf24;
+  color: #fff;
+}
+.hist-year-btn.active, .hist-reg-btn.active {
+  background: #fbbf24;
+  color: #000;
+  border-color: #fbbf24;
+}
+</style>
+
+<script>
+let currentHistoryStageKey = '';
+let currentHistoryYear = null;
+let currentHistoryRegion = 'pacific';
+const REGIONAL_STAGES = ['kickoff', 'stage1', 'stage2'];
+
+async function openTournamentHistoryModal(stageKey, defaultRegion = null) {
+  currentHistoryStageKey = stageKey;
+  if (defaultRegion) {
+    currentHistoryRegion = defaultRegion;
+  }
+  
+  const modal = document.getElementById('tournament-history-modal');
+  if (modal) modal.style.display = 'flex';
+
+  // Toggle region tabs container
+  const regContainer = document.getElementById('history-region-container');
+  if (regContainer) {
+    regContainer.style.display = REGIONAL_STAGES.includes(stageKey) ? 'flex' : 'none';
+  }
+
+  // Set Modal Title based on stageKey
+  const titleMap = {
+    'kickoff': 'VCT KICKOFF',
+    'major': 'VCT MASTERS BANGKOK',
+    'stage1': 'VCT STAGE 1',
+    'master': 'VCT MASTERS TORONTO',
+    'ewc': 'ESPORTS WORLD CUP RIYADH',
+    'stage2': 'VCT STAGE 2',
+    'champion': 'VALORANT CHAMPIONS PARIS'
+  };
+  const titleEl = document.getElementById('history-modal-title');
+  if (titleEl) {
+    titleEl.textContent = '📜 LỊCH SỬ GIẢI ĐẤU: ' + (titleMap[stageKey] || stageKey.toUpperCase());
+  }
+
+  await loadTournamentHistoryData();
+}
+
+function closeTournamentHistoryModal() {
+  const modal = document.getElementById('tournament-history-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function switchHistoryYear(year) {
+  currentHistoryYear = year;
+  await loadTournamentHistoryData();
+}
+
+async function switchHistoryRegion(region) {
+  currentHistoryRegion = region;
+  document.querySelectorAll('.hist-reg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase() === region.toLowerCase());
+  });
+  await loadTournamentHistoryData();
+}
+
+async function loadTournamentHistoryData() {
+  const loading = document.getElementById('history-loading');
+  const content = document.getElementById('history-content');
+  const empty = document.getElementById('history-empty');
+
+  if (loading) loading.style.display = 'block';
+  if (content) content.style.display = 'none';
+  if (empty) empty.style.display = 'none';
+
+  try {
+    let url = `/api/campaign/{{ campaign.id }}/stage-history/${currentHistoryStageKey}`;
+    const params = [];
+    if (currentHistoryYear) params.push(`year=${currentHistoryYear}`);
+    if (REGIONAL_STAGES.includes(currentHistoryStageKey)) {
+      params.push(`region=${currentHistoryRegion}`);
+    }
+    if (params.length) url += '?' + params.join('&');
+
+    const res = await API.get(url);
+    if (!res || !res.success || !res.data) {
+      if (loading) loading.style.display = 'none';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+
+    const data = res.data;
+    renderYearSelector(data.available_years, data.selected_year);
+    currentHistoryYear = data.selected_year;
+
+    if (!data.placements || data.placements.length === 0) {
+      if (loading) loading.style.display = 'none';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+
+    renderPodium(data.podium);
+    renderPlacementsTable(data.placements);
+
+    const totalEl = document.getElementById('history-total-count');
+    if (totalEl) totalEl.textContent = `Tổng cộng: ${data.placements.length} đội`;
+
+    if (loading) loading.style.display = 'none';
+    if (content) content.style.display = 'block';
+
+  } catch (err) {
+    console.error("Lỗi khi tải lịch sử giải:", err);
+    if (loading) loading.style.display = 'none';
+    if (empty) {
+      empty.style.display = 'block';
+      empty.innerHTML = `<div style="color: #ef4444;">Lỗi khi tải dữ liệu: ${err.message}</div>`;
+    }
+  }
+}
+
+function renderYearSelector(availableYears, selectedYear) {
+  const container = document.getElementById('history-year-selector');
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (!availableYears || availableYears.length === 0) return;
+
+  availableYears.forEach(yr => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `hist-year-btn ${yr === selectedYear ? 'active' : ''}`;
+    btn.textContent = `Năm ${yr}`;
+    btn.onclick = () => switchHistoryYear(yr);
+    container.appendChild(btn);
+  });
+}
+
+function renderPodium(podium) {
+  const renderTeamCard = (item, isChamp = false) => {
+    if (!item || !item.club) {
+      return `<div style="color: var(--dim); font-size: 0.85em; padding: 6px 0;">Chưa xác định</div>`;
+    }
+    const c = item.club;
+    const tier = item.tier || {};
+    return `
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+        ${c.logo_url ? `<img src="${c.logo_url}" alt="" style="width: 32px; height: 32px; object-fit: contain;">` : ''}
+        <div style="overflow: hidden;">
+          <strong style="color: #fff; font-size: 1.05em; display: block; white-space: nowrap; text-overflow: ellipsis;">${c.name}</strong>
+          <div style="font-size: 0.8em; color: var(--dim);">
+            Code: <strong style="color: #fff;">${c.short_code}</strong> &bull;
+            W-L: <strong style="color: #4ade80;">${item.matches_won}W - ${item.matches_lost}L</strong>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8em;">
+        <span style="color: ${tier.color || '#fbbf24'}; font-weight: bold;">
+          ${tier.badge || 'Power'} ${item.power_rating_snapshot || 80.0}
+        </span>
+        <span style="color: #fbbf24; font-weight: bold;">
+          +${item.stage_points_earned || 0} CP
+        </span>
+      </div>
+    `;
+  };
+
+  const p1 = document.getElementById('podium-1st-content');
+  const p2 = document.getElementById('podium-2nd-content');
+  const p3 = document.getElementById('podium-3rd-content');
+
+  if (p1) p1.innerHTML = renderTeamCard(podium ? podium.champion : null, true);
+  if (p2) p2.innerHTML = renderTeamCard(podium ? podium.runner_up : null);
+  if (p3) p3.innerHTML = renderTeamCard(podium ? podium.third_place : null);
+}
+
+function renderPlacementsTable(placements) {
+  const tbody = document.getElementById('history-table-body');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  placements.forEach((p, idx) => {
+    const c = p.club || {};
+    const tr = document.createElement('tr');
+    
+    // Highlight top ranks
+    if (p.rank === 1) {
+      tr.style.background = 'rgba(234, 179, 8, 0.12)';
+    } else if (p.rank === 2) {
+      tr.style.background = 'rgba(148, 163, 184, 0.08)';
+    } else if (p.rank === 3) {
+      tr.style.background = 'rgba(217, 119, 6, 0.08)';
+    }
+
+    const tier = p.tier || {};
+    tr.innerHTML = `
+      <td style="text-align: center; font-weight: bold;">
+        ${p.rank === 1 ? '🥇 1' : p.rank === 2 ? '🥈 2' : p.rank === 3 ? '🥉 3' : '#' + p.rank}
+      </td>
+      <td>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${c.logo_url ? `<img src="${c.logo_url}" alt="" style="width: 20px; height: 20px; object-fit: contain;">` : ''}
+          <strong style="color: #fff;">${c.name || 'N/A'}</strong>
+          <span style="color: var(--dim); font-size: 0.85em;">(${c.short_code || ''})</span>
+        </div>
+      </td>
+      <td style="text-align: center; color: var(--dim); font-size: 0.9em;">
+        ${p.elimination_stage || p.rank_display || '-'}
+      </td>
+      <td style="text-align: center; font-weight: bold; color: ${p.matches_won > p.matches_lost ? '#4ade80' : 'var(--text)'};">
+        ${p.matches_won}W - ${p.matches_lost}L
+      </td>
+      <td style="text-align: center; font-weight: bold; color: #fbbf24;">
+        ${p.stage_points_earned > 0 ? '+' + p.stage_points_earned + ' CP' : '0 CP'}
+      </td>
+      <td style="text-align: center;">
+        <span class="badge" style="background: ${tier.bg || 'rgba(255,255,255,0.1)'}; color: ${tier.color || '#fff'}; border: 1px solid ${tier.border || 'transparent'}; font-weight: bold; font-size: 0.85em;">
+          ${tier.badge || ''} ${p.power_rating_snapshot || 80.0}
+        </span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+</script>

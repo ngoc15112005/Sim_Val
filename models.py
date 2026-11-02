@@ -200,6 +200,7 @@ class Campaign(db.Model):
     current_year = db.Column(db.Integer, default=2027)
     current_stage = db.Column(db.String(30), default='open_qualifier')
     status = db.Column(db.String(20), default='active')  # 'active', 'completed'
+    league_ratings = db.Column(db.Text, default='{"pacific": 1500.0, "americas": 1500.0, "emea": 1500.0, "china": 1500.0}')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
@@ -210,14 +211,24 @@ class Campaign(db.Model):
                              cascade='all, delete-orphan')
     seasons = db.relationship('CampaignSeason', backref='campaign', lazy=True,
                               cascade='all, delete-orphan')
+    placements = db.relationship('CampaignStagePlacement', backref='campaign', lazy=True,
+                                 cascade='all, delete-orphan')
 
     def to_dict(self):
+        import json
+        lr = {"pacific": 1500.0, "americas": 1500.0, "emea": 1500.0, "china": 1500.0}
+        try:
+            if self.league_ratings:
+                lr = json.loads(self.league_ratings)
+        except Exception:
+            pass
         return {
             'id': self.id,
             'name': self.name,
             'current_year': self.current_year,
             'current_stage': self.current_stage,
             'status': self.status,
+            'league_ratings': lr,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -236,6 +247,13 @@ class CampaignClubState(db.Model):
     regular_season_wins = db.Column(db.Integer, default=0)
     map_differential = db.Column(db.Integer, default=0)
     round_differential = db.Column(db.Integer, default=0)
+
+    # Riot Global Power Rankings (GPR x AWS) Fields
+    team_elo = db.Column(db.Float, default=1500.0)
+    power_score = db.Column(db.Float, default=1500.0)
+    power_rating = db.Column(db.Float, default=80.0)
+    previous_rank = db.Column(db.Integer, nullable=True)
+    win_streak = db.Column(db.Integer, default=0)
 
     club = db.relationship('Club', backref='campaign_states')
 
@@ -262,11 +280,14 @@ class CampaignClubState(db.Model):
 
     def to_dict(self):
         import json
+        from engine.power_rating import get_tier_info
         ranks = {}
         try:
             ranks = json.loads(self.stage_ranks or '{}')
         except Exception:
             pass
+        ps = self.power_score if self.power_score is not None else 1500.0
+        tier_data = get_tier_info(ps)
         return {
             'id': self.id,
             'campaign_id': self.campaign_id,
@@ -280,6 +301,12 @@ class CampaignClubState(db.Model):
             'regular_season_wins': self.regular_season_wins,
             'map_differential': self.map_differential,
             'round_differential': self.round_differential,
+            'team_elo': round(self.team_elo if self.team_elo is not None else 1500.0, 1),
+            'power_score': round(ps, 1),
+            'power_rating': round(self.power_rating if self.power_rating is not None else 80.0, 1),
+            'previous_rank': self.previous_rank,
+            'win_streak': self.win_streak or 0,
+            'tier': tier_data,
             'club': self.club.to_dict() if self.club else None,
         }
 
@@ -341,4 +368,55 @@ class CampaignSeason(db.Model):
             'mvp_club': self.mvp_club.to_dict() if self.mvp_club else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }
+
+
+class CampaignStagePlacement(db.Model):
+    """Stores persistent historical final placements for each tournament/stage across all campaign years."""
+    __tablename__ = 'campaign_stage_placements'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    stage_key = db.Column(db.String(30), nullable=False)
+    tournament_name = db.Column(db.String(100), nullable=False)
+    region_slug = db.Column(db.String(20), nullable=True)  # 'pacific', 'americas', 'emea', 'china', or None for intl
+    club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
+
+    rank = db.Column(db.Integer, nullable=False)
+    rank_display = db.Column(db.String(30), nullable=False)  # '1st (Vô địch)', '2nd (Á quân)', '3rd', 'Top 4', etc.
+    elimination_stage = db.Column(db.String(50), nullable=True)
+    stage_points_earned = db.Column(db.Integer, default=0)
+    matches_won = db.Column(db.Integer, default=0)
+    matches_lost = db.Column(db.Integer, default=0)
+
+    # Snapshot Power Ratings at the moment of stage completion
+    power_score_snapshot = db.Column(db.Float, default=1500.0)
+    power_rating_snapshot = db.Column(db.Float, default=80.0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    club = db.relationship('Club', backref='placements')
+
+    def to_dict(self):
+        from engine.power_rating import get_tier_info
+        ps = self.power_score_snapshot if self.power_score_snapshot is not None else 1500.0
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'year': self.year,
+            'stage_key': self.stage_key,
+            'tournament_name': self.tournament_name,
+            'region_slug': self.region_slug,
+            'club_id': self.club_id,
+            'rank': self.rank,
+            'rank_display': self.rank_display,
+            'elimination_stage': self.elimination_stage,
+            'stage_points_earned': self.stage_points_earned or 0,
+            'matches_won': self.matches_won or 0,
+            'matches_lost': self.matches_lost or 0,
+            'power_score_snapshot': round(ps, 1),
+            'power_rating_snapshot': round(self.power_rating_snapshot if self.power_rating_snapshot is not None else 80.0, 1),
+            'tier': get_tier_info(ps),
+            'club': self.club.to_dict() if self.club else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
 
