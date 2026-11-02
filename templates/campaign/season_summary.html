@@ -57,12 +57,12 @@
       👑 NHÀ VÔ ĐỊCH THẾ GIỚI CỦA NĂM
     </div>
     {% if summary_data.world_champion %}
-    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px; cursor: pointer;" onclick="openTeamProfileModal({{ summary_data.world_champion.id }})" title="Xem hồ sơ đội tuyển {{ summary_data.world_champion.name }}">
       {% if summary_data.world_champion.logo_url %}
       <img src="{{ summary_data.world_champion.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
       {% endif %}
       <div>
-        <h3 style="font-size: 1.4em; margin: 0; color: #fff;">{{ summary_data.world_champion.name }}</h3>
+        <h3 class="team-profile-trigger" style="font-size: 1.4em; margin: 0; color: #fff;">{{ summary_data.world_champion.name }}</h3>
         <div style="font-size: 0.85em; color: var(--dim);">
           Mã đội: <strong style="color: #fff;">{{ summary_data.world_champion.short_code }}</strong> &bull;
           Khu vực: <span class="badge" style="text-transform: uppercase;">{{ summary_data.world_champion.region_slug or summary_data.world_champion.region }}</span>
@@ -84,12 +84,12 @@
     </div>
     {% if summary_data.club_of_the_year and summary_data.club_of_the_year.club %}
     {% set coty = summary_data.club_of_the_year %}
-    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px; cursor: pointer;" onclick="openTeamProfileModal({{ coty.club.id }})" title="Xem hồ sơ đội tuyển {{ coty.club.name }}">
       {% if coty.club.logo_url %}
       <img src="{{ coty.club.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
       {% endif %}
       <div>
-        <h3 style="font-size: 1.3em; margin: 0; color: #fff;">{{ coty.club.name }}</h3>
+        <h3 class="team-profile-trigger" style="font-size: 1.3em; margin: 0; color: #fff;">{{ coty.club.name }}</h3>
         <div style="font-size: 0.85em; color: var(--dim);">
           Điểm CP mùa giải: <strong style="color: #fbbf24;">{{ coty.cp }} CP</strong> &bull; Sức mạnh: <strong style="color: #4ade80;">{{ coty.rating }}</strong>
         </div>
@@ -137,12 +137,12 @@
     </div>
     {% if summary_data.most_improved and summary_data.most_improved.club %}
     {% set mic = summary_data.most_improved %}
-    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-top: 10px; cursor: pointer;" onclick="openTeamProfileModal({{ mic.club.id }})" title="Xem hồ sơ đội tuyển {{ mic.club.name }}">
       {% if mic.club.logo_url %}
       <img src="{{ mic.club.logo_url }}" alt="" style="width: 44px; height: 44px; object-fit: contain;">
       {% endif %}
       <div>
-        <h3 style="font-size: 1.3em; margin: 0; color: #fff;">{{ mic.club.name }}</h3>
+        <h3 class="team-profile-trigger" style="font-size: 1.3em; margin: 0; color: #fff;">{{ mic.club.name }}</h3>
         <div style="font-size: 0.85em; color: var(--dim);">
           Chỉ số sức mạnh: <strong style="color: #c084fc;">{{ mic.rating }} Story Rating</strong>
         </div>
@@ -181,9 +181,9 @@
         <img src="{{ ch_title.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
         {% endif %}
         <div>
-          <div style="font-weight: bold; color: #fff; font-size: 1.05em;">{{ ch_title.champion.name }} ({{ ch_title.champion.short_code }})</div>
+          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; font-size: 1.05em; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.champion.id }})">{{ ch_title.champion.name }} ({{ ch_title.champion.short_code }})</div>
           <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: <strong style="color: #fff;">{{ ch_title.runner_up.name if ch_title.runner_up else 'N/A' }}</strong>
+            Á quân: {% if ch_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.runner_up.id }})">{{ ch_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
           </div>
         </div>
       </div>
@@ -204,9 +204,9 @@
         <img src="{{ master_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
         {% endif %}
         <div>
-          <div style="font-weight: bold; color: #fff;">{{ master_title.champion.name }} ({{ master_title.champion.short_code }})</div>
+          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.champion.id }})">{{ master_title.champion.name }} ({{ master_title.champion.short_code }})</div>
           <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: <strong style="color: #fff;">{{ master_title.runner_up.name if master_title.runner_up else 'N/A' }}</strong>
+            Á quân: {% if master_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.runner_up.id }})">{{ master_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
           </div>
         </div>
       </div>
@@ -227,9 +227,9 @@
         <img src="{{ major_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
         {% endif %}
         <div>
-          <div style="font-weight: bold; color: #fff;">{{ major_title.champion.name }} ({{ major_title.champion.short_code }})</div>
+          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.champion.id }})">{{ major_title.champion.name }} ({{ major_title.champion.short_code }})</div>
           <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: <strong style="color: #fff;">{{ major_title.runner_up.name if major_title.runner_up else 'N/A' }}</strong>
+            Á quân: {% if major_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.runner_up.id }})">{{ major_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
           </div>
         </div>
       </div>
@@ -250,9 +250,9 @@
         <img src="{{ ewc_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
         {% endif %}
         <div>
-          <div style="font-weight: bold; color: #fff;">{{ ewc_title.champion.name }} ({{ ewc_title.champion.short_code }})</div>
+          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.champion.id }})">{{ ewc_title.champion.name }} ({{ ewc_title.champion.short_code }})</div>
           <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: <strong style="color: #fff;">{{ ewc_title.runner_up.name if ewc_title.runner_up else 'N/A' }}</strong>
+            Á quân: {% if ewc_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.runner_up.id }})">{{ ewc_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
           </div>
         </div>
       </div>
@@ -286,21 +286,21 @@
             </td>
             <td>
               {% if ko_t %}
-                <span style="color: #fbbf24; font-weight: bold;">{{ ko_t.name }} ({{ ko_t.short_code }})</span>
+                <span class="team-profile-trigger" style="color: #fbbf24; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ ko_t.id }})">{{ ko_t.name }} ({{ ko_t.short_code }})</span>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
             </td>
             <td>
               {% if s1_t %}
-                <span style="color: #60a5fa; font-weight: bold;">{{ s1_t.name }} ({{ s1_t.short_code }})</span>
+                <span class="team-profile-trigger" style="color: #60a5fa; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ s1_t.id }})">{{ s1_t.name }} ({{ s1_t.short_code }})</span>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
             </td>
             <td>
               {% if s2_t %}
-                <span style="color: #4ade80; font-weight: bold;">{{ s2_t.name }} ({{ s2_t.short_code }})</span>
+                <span class="team-profile-trigger" style="color: #4ade80; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ s2_t.id }})">{{ s2_t.name }} ({{ s2_t.short_code }})</span>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
@@ -385,11 +385,11 @@
                 {% if p.rank == 1 %}🥇 1{% elif p.rank == 2 %}🥈 2{% elif p.rank == 3 %}🥉 3{% else %}#{{ p.rank }}{% endif %}
               </td>
               <td>
-                <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" {% if p.club %}onclick="openTeamProfileModal({{ p.club.id }})" title="Xem hồ sơ đội tuyển {{ p.club.name }}"{% endif %}>
                   {% if p.club and p.club.logo_url %}
                   <img src="{{ p.club.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;">
                   {% endif %}
-                  <strong style="color: #fff;">{{ p.club.name if p.club else 'N/A' }}</strong>
+                  <strong class="team-profile-trigger" style="color: #fff;">{{ p.club.name if p.club else 'N/A' }}</strong>
                   <span style="color: var(--dim); font-size: 0.85em;">({{ p.club.short_code if p.club else '' }})</span>
                 </div>
               </td>
@@ -477,11 +477,11 @@
               {{ delta.symbol }}
             </td>
             <td>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ c.id }})" title="Xem hồ sơ đội tuyển {{ c.name }}">
                 {% if c.logo_url %}
                 <img src="{{ c.logo_url }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
                 {% endif %}
-                <strong style="color: #fff;">{{ c.name }}</strong>
+                <strong class="team-profile-trigger" style="color: #fff;">{{ c.name }}</strong>
                 <span style="color: var(--dim); font-size: 0.85em;">({{ c.short_code }})</span>
               </div>
             </td>
@@ -561,11 +561,11 @@
               {% if loop.index == 1 %}🥇 1{% elif loop.index == 2 %}🥈 2{% elif loop.index == 3 %}🥉 3{% else %}#{{ loop.index }}{% endif %}
             </td>
             <td>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ c.id }})" title="Xem hồ sơ đội tuyển {{ c.name }}">
                 {% if c.logo_url %}
                 <img src="{{ c.logo_url }}" alt="" style="width: 22px; height: 22px; object-fit: contain;">
                 {% endif %}
-                <strong style="color: #fff;">{{ c.name }}</strong>
+                <strong class="team-profile-trigger" style="color: #fff;">{{ c.name }}</strong>
                 <span style="color: var(--dim); font-size: 0.85em;">({{ c.short_code }})</span>
               </div>
             </td>
@@ -651,11 +651,11 @@
                 {% if loop.index == 1 %}🥇 1{% elif loop.index == 2 %}🥈 2{% elif loop.index == 3 %}🥉 3{% else %}#{{ loop.index }}{% endif %}
               </td>
               <td>
-                <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ t.club_id or t.id }})" title="Xem hồ sơ đội tuyển {{ t.name }}">
                   {% if t.logo_url %}
                   <img src="{{ t.logo_url }}" alt="" style="width: 20px; height: 20px; object-fit: contain;">
                   {% endif %}
-                  <strong style="color: #fff;">{{ t.name }}</strong>
+                  <strong class="team-profile-trigger" style="color: #fff;">{{ t.name }}</strong>
                   <span style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span>
                 </div>
               </td>

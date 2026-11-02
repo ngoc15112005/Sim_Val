@@ -33,6 +33,9 @@
             },
         };
     </script>
+    {% if campaign %}
+        {% include "campaign/_team_profile_modal.html" %}
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 </html>

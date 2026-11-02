@@ -329,6 +329,7 @@ def register_routes(app):
         sim_champion_round_interactive, sim_champion_tournament_interactive,
         run_champion_stage, get_season_summary_data, advance_campaign_to_next_year,
         get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
+        get_team_profile_data,
     )
 
     @app.route('/campaigns')
@@ -1636,6 +1637,35 @@ def register_routes(app):
 
         trophies = get_all_time_trophy_table(campaign_id)
         return jsonify({'success': True, 'trophies': trophies})
+
+    @app.route('/campaign/<int:campaign_id>/team/<int:club_id>')
+    def campaign_team_profile_view(campaign_id, club_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return "Campaign not found", 404
+
+        profile_data = get_team_profile_data(campaign_id, club_id)
+        if not profile_data:
+            return "Club profile not found", 404
+
+        return render_template(
+            'campaign/team_profile.html',
+            campaign=campaign,
+            profile=profile_data,
+            cfg=Config,
+        )
+
+    @app.route('/api/campaign/<int:campaign_id>/team/<int:club_id>')
+    def api_campaign_team_profile(campaign_id, club_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        profile_data = get_team_profile_data(campaign_id, club_id)
+        if not profile_data:
+            return jsonify({'error': 'Club not found'}), 404
+
+        return jsonify({'success': True, 'profile': profile_data})
 
     @app.route('/api/campaign/<int:campaign_id>/advance-year', methods=['POST'])
     def api_campaign_advance_year(campaign_id):

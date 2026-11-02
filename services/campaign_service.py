@@ -3762,3 +3762,310 @@ def get_global_power_rankings(campaign_id: int, region_slug: Optional[str] = Non
 
     return items
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Liquipedia-Style Team Dossier & Career Evaluation
+# ─────────────────────────────────────────────────────────────────────────────
+
+TEAM_DNA_MAP = {
+    'PRX': {'dna': 'W-Gaming Chaos & Relentless Aggression', 'style': 'Ultra-Aggressive Chaos', 'tempo': 'High-Octane'},
+    'GEN': {'dna': 'Disciplined Macro & Methodical Retakes', 'style': 'Strategic Protocol', 'tempo': 'Controlled'},
+    'SEN': {'dna': 'Clutch Composure & Star Power Duels', 'style': 'Playmaker Heavy', 'tempo': 'Flexible'},
+    'FNC': {'dna': 'Tactical Precision & Utility Synergy', 'style': 'Set-Piece Master', 'tempo': 'Methodical'},
+    'EDG': {'dna': 'High-Octane Gunplay & Dynamic Space Creation', 'style': 'Explosive Aim', 'tempo': 'High-Tempo'},
+    'DRX': {'dna': 'Calculated Protocol & Fundamental Mastery', 'style': 'Fundamental Setups', 'tempo': 'Controlled'},
+    'LEV': {'dna': 'Heavy Firepower & Overwhelming Site Takes', 'style': 'Brawling Dominance', 'tempo': 'Fast'},
+    'TH':  {'dna': 'Youthful Fearlessness & Adaptable Execution', 'style': 'Dynamic Flex', 'tempo': 'Adaptive'},
+    'LOUD': {'dna': 'Championship Resilience & Defensive Wall', 'style': 'Stifling Defense', 'tempo': 'Methodical'},
+    'NRG': {'dna': 'Veterans Composure & Mid-Round Calling', 'style': 'Tactical Mid-Round', 'tempo': 'Measured'},
+}
+
+DEFAULT_REGIONAL_DNA = {
+    'pacific': {'dna': 'Agile Aggression & Creative Playmaking', 'style': 'Fast & Creative', 'tempo': 'High'},
+    'americas': {'dna': 'Raw Firepower & Tenacious Defense', 'style': 'Direct Duelists', 'tempo': 'Balanced'},
+    'emea': {'dna': 'Structured Execution & Utility Depth', 'style': 'Tactical Protocol', 'tempo': 'Controlled'},
+    'china': {'dna': 'Fast-Paced Tempo & Sharp Mechanical Aim', 'style': 'Explosive Skirmish', 'tempo': 'Blitz'},
+}
+
+
+def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+    """Extract recent head-to-head match records for a club across campaign stages."""
+    stages = CampaignStage.query.filter_by(campaign_id=campaign_id).order_by(
+        CampaignStage.year.desc(), CampaignStage.id.desc()
+    ).all()
+
+    found_matches = []
+    clubs_cache = {c.id: c for c in Club.query.all()}
+
+    for st in stages:
+        if not st.stage_data:
+            continue
+        try:
+            d = json.loads(st.stage_data)
+        except Exception:
+            continue
+
+        raw_matches = []
+        # Search in direct result
+        if 'result' in d and isinstance(d['result'], dict):
+            res = d['result']
+            raw_matches.extend(res.get('matches', []))
+            raw_matches.extend(res.get('playoff_matches', []))
+            raw_matches.extend(res.get('swiss_matches', []))
+
+        # Search in regional results
+        if 'regional_results' in d and isinstance(d['regional_results'], dict):
+            for reg_data in d['regional_results'].values():
+                if isinstance(reg_data, dict):
+                    raw_matches.extend(reg_data.get('matches', []))
+                    raw_matches.extend(reg_data.get('playoff_matches', []))
+                    raw_matches.extend(reg_data.get('alpha_matches', []))
+                    raw_matches.extend(reg_data.get('omega_matches', []))
+
+        for m in reversed(raw_matches):
+            if not isinstance(m, dict):
+                continue
+            ta_id = m.get('team_a_id') or (m.get('team_a', {}).get('id') if isinstance(m.get('team_a'), dict) else None)
+            tb_id = m.get('team_b_id') or (m.get('team_b', {}).get('id') if isinstance(m.get('team_b'), dict) else None)
+            w_id = m.get('winner_id')
+
+            if club_id in (ta_id, tb_id) and w_id:
+                is_win = (w_id == club_id)
+                opp_id = tb_id if ta_id == club_id else ta_id
+                opp_club = clubs_cache.get(opp_id)
+
+                sa = m.get('team_a_score', 0)
+                sb = m.get('team_b_score', 0)
+                score_for = sa if ta_id == club_id else sb
+                score_against = sb if ta_id == club_id else sa
+
+                found_matches.append({
+                    'match_code': m.get('match_code') or m.get('id', ''),
+                    'tournament_name': st.stage_name,
+                    'stage_key': st.stage_key,
+                    'round_name': m.get('round_name') or m.get('round_type') or 'Trận đấu',
+                    'is_winner': is_win,
+                    'score_display': f"{score_for} - {score_against}",
+                    'result_badge': 'W' if is_win else 'L',
+                    'opponent': opp_club.to_dict() if opp_club else {'name': 'Đối thủ', 'short_code': 'OPP'},
+                })
+
+                if len(found_matches) >= limit:
+                    return found_matches
+
+    return found_matches
+
+
+def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, Any]]:
+    """Assemble complete Liquipedia-style dossier, tournament history, and current form evaluation for a club."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return None
+
+    club = db.session.get(Club, club_id)
+    if not club:
+        return None
+
+    backfill_stage_placements_if_needed(campaign_id)
+
+    c_state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=club_id).first()
+
+    # 1. Global & Regional Ranking Calculation
+    all_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    all_states.sort(key=lambda x: (x.power_score if x.power_score is not None else 1500.0, x.championship_points or 0), reverse=True)
+
+    global_rank = 1
+    for idx, s in enumerate(all_states, start=1):
+        if s.club_id == club_id:
+            global_rank = idx
+            break
+
+    c_reg = club.region.slug if club.region else 'pacific'
+    reg_states = [s for s in all_states if s.club and s.club.region and s.club.region.slug == c_reg]
+    regional_rank = 1
+    for idx, s in enumerate(reg_states, start=1):
+        if s.club_id == club_id:
+            regional_rank = idx
+            break
+
+    ps = c_state.power_score if (c_state and c_state.power_score is not None) else 1500.0
+    ovr = c_state.power_rating if (c_state and c_state.power_rating is not None) else power_score_to_ovr(ps)
+    tier_info = get_tier_info(ps)
+    prev_rk = c_state.previous_rank if c_state else None
+    rank_delta = format_rank_delta(global_rank, prev_rk)
+
+    # 2. Tournament Placements History (Liquipedia Style)
+    placements = CampaignStagePlacement.query.filter_by(
+        campaign_id=campaign_id, club_id=club_id
+    ).order_by(CampaignStagePlacement.year.desc(), CampaignStagePlacement.id.desc()).all()
+
+    tournament_results = []
+    champions_titles = 0
+    masters_titles = 0
+    ewc_titles = 0
+    regional_titles = 0
+    runners_up = 0
+    total_matches_won = 0
+    total_matches_lost = 0
+    lifetime_cp = 0
+
+    tier_cat_map = {
+        'champion': ('👑 World Championship', 'tier-world'),
+        'master': ('🏆 International Masters', 'tier-master'),
+        'major': ('🏆 International Masters', 'tier-master'),
+        'ewc': ('🌍 Esports World Cup', 'tier-ewc'),
+        'stage1': ('⚡ Regional VCT', 'tier-regional'),
+        'stage2': ('⚡ Regional VCT', 'tier-regional'),
+        'kickoff': ('⚡ Regional VCT', 'tier-regional'),
+    }
+
+    for p in placements:
+        # Category
+        cat_name, cat_cls = tier_cat_map.get(p.stage_key, ('Giải đấu', 'tier-default'))
+
+        # Placements count
+        if p.rank == 1:
+            if p.stage_key == 'champion':
+                champions_titles += 1
+            elif p.stage_key in ('master', 'major'):
+                masters_titles += 1
+            elif p.stage_key == 'ewc':
+                ewc_titles += 1
+            elif p.stage_key in ('kickoff', 'stage1', 'stage2'):
+                regional_titles += 1
+        elif p.rank == 2:
+            runners_up += 1
+
+        w = p.matches_won or 0
+        l = p.matches_lost or 0
+        total_matches_won += w
+        total_matches_lost += l
+        cp_pts = p.stage_points_earned or 0
+        lifetime_cp += cp_pts
+
+        winrate = round((w / (w + l) * 100), 1) if (w + l) > 0 else 0.0
+
+        p_tier = get_tier_info(p.power_score_snapshot or 1500.0)
+
+        tournament_results.append({
+            'year': p.year,
+            'stage_key': p.stage_key,
+            'tournament_name': p.tournament_name,
+            'category_name': cat_name,
+            'category_class': cat_cls,
+            'rank': p.rank,
+            'rank_display': p.rank_display,
+            'elimination_stage': p.elimination_stage or '-',
+            'matches_won': w,
+            'matches_lost': l,
+            'win_rate': winrate,
+            'stage_points_earned': cp_pts,
+            'power_score_snapshot': round(p.power_score_snapshot or 1500.0, 1),
+            'power_rating_snapshot': round(p.power_rating_snapshot or 80.0, 1),
+            'tier': p_tier,
+        })
+
+    total_titles = champions_titles + masters_titles + ewc_titles + regional_titles
+    total_finals = total_titles + runners_up
+    total_matches = total_matches_won + total_matches_lost
+    overall_win_rate = round((total_matches_won / total_matches * 100), 1) if total_matches > 0 else 0.0
+
+    intl_count = sum(1 for p in placements if p.stage_key in ('champion', 'master', 'major', 'ewc'))
+
+    # 3. Attributes Radar & Team DNA Evaluation
+    base_r = c_state.story_rating if c_state else (club.base_rating or 80)
+    form_mod = c_state.form_modifier if c_state else 0
+    eff_r = (c_state.effective_rating if c_state else base_r)
+
+    firepower = min(99, max(60, int(eff_r + 2)))
+    strategy = min(99, max(60, int(ovr * 0.98)))
+    clutch = min(99, max(60, int(75 + ((c_state.win_streak if c_state else 0) * 2.5) + (champions_titles * 5) + (masters_titles * 2.5))))
+    consistency = min(99, max(60, int(84 - abs(form_mod) * 2 + (overall_win_rate - 50.0) * 0.2)))
+
+    # Team DNA & Playstyle
+    dna_info = TEAM_DNA_MAP.get(club.short_code, DEFAULT_REGIONAL_DNA.get(c_reg, {
+        'dna': 'Dynamic Versatility & Team Coordination',
+        'style': 'Balanced Combat',
+        'tempo': 'Adaptive',
+    }))
+
+    # Automated Scouting Assessment
+    streak_val = c_state.win_streak if c_state else 0
+    if tier_info['tier'] == 'S+':
+        scouting_base = "Thế lực đỉnh cao thế giới. Sở hữu khả năng bóp nghẹt đối thủ bằng cả hỏa lực vượt trội lẫn bản lĩnh trận mạc đanh thép, là ứng cử viên số 1 cho mọi giải đấu."
+    elif tier_info['tier'] == 'S':
+        scouting_base = "Đội tuyển đẳng cấp quốc tế. Có khả năng đánh bại bất kỳ đối thủ nào vào một ngày thăng hoa, luôn là mối đe dọa trực tiếp cho ngôi vương."
+    elif tier_info['tier'] == 'A':
+        scouting_base = "Sức mạnh khu vực đáng gờm. Thi đấu ổn định ở giải quốc nội, sở hữu tiềm năng tạo địa chấn lớn nếu duy trì được sự tập trung ở những thời khắc then chốt."
+    elif tier_info['tier'] == 'B':
+        scouting_base = "Đội tuyển nhóm giữa bảng đang tìm kiếm sự đột phá. Cần cải thiện khả năng giao tiếp và bản lĩnh ở các round đấu quyết định 11-12."
+    else:
+        scouting_base = "Đang trong chu kỳ tái thiết lực lượng. Cần bổ sung thêm kinh nghiệm thi đấu cọ xát và củng cố hệ thống chiến thuật bài bản."
+
+    if streak_val >= 3:
+        form_note = f"Phong độ đang cực kỳ thăng hoa với chuỗi {streak_val} trận toàn thắng liên tiếp."
+    elif streak_val <= -3:
+        form_note = f"Đang gặp áp lực phong độ sau {abs(streak_val)} trận thất bại gần đây, cần sớm xốc lại tinh thần."
+    elif form_mod > 0:
+        form_note = f"Phong độ thi đấu đang chiều hướng tích cực (+{form_mod} Form Boost)."
+    elif form_mod < 0:
+        form_note = f"Đang có dấu hiệu chững lại nhẹ ({form_mod} Form Penalty)."
+    else:
+        form_note = "Phong độ ổn định, sẵn sàng bùng nổ ở giai đoạn then chốt tiếp theo."
+
+    scouting_report = f"{scouting_base} {form_note}"
+
+    # 4. Recent Matches
+    recent_matches = _extract_recent_matches_for_club(campaign_id, club_id, limit=5)
+
+    return {
+        'club': club.to_dict(),
+        'campaign_id': campaign_id,
+        'year': campaign.current_year,
+        'state': c_state.to_dict() if c_state else None,
+        'rankings': {
+            'global_rank': global_rank,
+            'regional_rank': regional_rank,
+            'region_slug': c_reg,
+            'power_score': round(ps, 1),
+            'power_rating': round(ovr, 1),
+            'tier': tier_info,
+            'rank_delta': rank_delta,
+        },
+        'trophy_cabinet': {
+            'champions_titles': champions_titles,
+            'masters_titles': masters_titles,
+            'ewc_titles': ewc_titles,
+            'regional_titles': regional_titles,
+            'total_titles': total_titles,
+            'runners_up': runners_up,
+            'total_finals': total_finals,
+        },
+        'career_stats': {
+            'total_tournaments': len(placements),
+            'total_matches': total_matches,
+            'matches_won': total_matches_won,
+            'matches_lost': total_matches_lost,
+            'win_rate': overall_win_rate,
+            'lifetime_cp': lifetime_cp,
+            'current_season_cp': c_state.championship_points if c_state else 0,
+            'international_appearances': intl_count,
+        },
+        'evaluation': {
+            'firepower': firepower,
+            'strategy': strategy,
+            'clutch': clutch,
+            'consistency': consistency,
+            'overall_grade': tier_info['badge'],
+            'team_dna': dna_info['dna'],
+            'playstyle': dna_info['style'],
+            'tempo': dna_info['tempo'],
+            'win_streak': streak_val,
+            'form_modifier': form_mod,
+            'scouting_report': scouting_report,
+        },
+        'recent_matches': recent_matches,
+        'tournament_results': tournament_results,
+    }
+
+

@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Hồ Sơ Đội Tuyển: {{ profile.club.name }} ({{ profile.club.short_code }}) - VCT Dossier{% endblock %}
+{% block content %}
+
+<!-- Breadcrumb Top Bar -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <a href="/campaign/{{ campaign.id }}" class="btn-sm btn-manual" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      ⬅️ Về Mùa giải
+    </a>
+    <a href="/campaign/{{ campaign.id }}/hall-of-fame" class="btn-sm btn-manual" style="text-decoration: none; padding: 8px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px;">
+      🏛️ Bảng Vàng Hall of Fame
+    </a>
+    <span style="color: var(--dim);">/</span>
+    <span style="color: #fff; font-weight: bold;">Hồ Sơ Đội Tuyển: {{ profile.club.name }}</span>
+  </div>
+
+  <div>
+    <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); padding: 6px 12px; font-weight: bold;">
+      VCT Circuit {{ campaign.name }} • Năm {{ campaign.current_year }}
+    </span>
+  </div>
+</div>
+
+<!-- Main 2-Column Liquipedia Layout -->
+<div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start;">
+  
+  <!-- ========================================================================= -->
+  <!-- LEFT COLUMN: SIDEBAR INFOBOX & EVALUATION                                -->
+  <!-- ========================================================================= -->
+  <div style="display: flex; flex-direction: column; gap: 20px;">
+    
+    <!-- Team Identity Card -->
+    <div class="card" style="border: 2px solid {{ profile.rankings.tier.border or 'var(--border)' }}; background: linear-gradient(180deg, {{ profile.rankings.tier.bg or 'rgba(15,23,42,0.8)' }} 0%, rgba(15, 23, 42, 0.95) 100%); padding: 24px 20px; text-align: center; position: relative;">
+      <!-- Logo Large -->
+      <div style="width: 100px; height: 100px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); padding: 10px;">
+        {% if profile.club.logo_url %}
+        <img src="{{ profile.club.logo_url }}" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+        {% else %}
+        <span style="font-size: 2.5em;">🛡️</span>
+        {% endif %}
+      </div>
+
+      <!-- Club Names -->
+      <h1 style="margin: 0; font-size: 1.6em; color: #fff; line-height: 1.2;">{{ profile.club.name }}</h1>
+      <div style="font-size: 0.9em; color: var(--dim); margin-top: 4px;">
+        Mã đội: <strong style="color: #fff;">{{ profile.club.short_code }}</strong> &bull;
+        Khu vực: <span class="badge" style="text-transform: uppercase;">{{ profile.club.region_slug or profile.rankings.region_slug }}</span>
+      </div>
+
+      <!-- Tier Badge Large -->
+      <div style="margin-top: 14px;">
+        <span class="badge" style="background: {{ profile.rankings.tier.bg }}; color: {{ profile.rankings.tier.color }}; border: 1px solid {{ profile.rankings.tier.border }}; font-weight: 900; font-size: 1.05em; padding: 6px 16px; letter-spacing: 0.5px;">
+          {{ profile.rankings.tier.badge }} {{ profile.rankings.tier.name }}
+        </span>
+      </div>
+
+      <!-- Rankings & Power Score Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; text-align: center;">
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px;">
+          <div style="font-size: 0.72em; color: var(--dim); font-weight: bold; text-transform: uppercase;">Hạng Thế Giới</div>
+          <div style="font-size: 1.35em; font-weight: 900; color: #fff; margin-top: 2px;">
+            #{{ profile.rankings.global_rank }}
+          </div>
+          <div style="font-size: 0.75em; font-weight: bold; color: {{ profile.rankings.rank_delta.color }}; margin-top: 2px;">
+            {{ profile.rankings.rank_delta.symbol }}
+          </div>
+        </div>
+
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px;">
+          <div style="font-size: 0.72em; color: var(--dim); font-weight: bold; text-transform: uppercase;">Hạng Khu Vực</div>
+          <div style="font-size: 1.35em; font-weight: 900; color: #38bdf8; margin-top: 2px;">
+            #{{ profile.rankings.regional_rank }}
+          </div>
+          <div style="font-size: 0.75em; color: var(--dim); margin-top: 2px; text-transform: uppercase;">
+            {{ profile.rankings.region_slug }}
+          </div>
+        </div>
+
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px;">
+          <div style="font-size: 0.72em; color: var(--dim); font-weight: bold; text-transform: uppercase;">GPR Power Score</div>
+          <div style="font-size: 1.3em; font-weight: 900; color: #fbbf24; margin-top: 2px;">
+            {{ profile.rankings.power_score }}
+          </div>
+          <div style="font-size: 0.75em; color: var(--dim); margin-top: 2px;">
+            Team Elo: {{ profile.state.team_elo if profile.state else 1500.0 }}
+          </div>
+        </div>
+
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px;">
+          <div style="font-size: 0.72em; color: var(--dim); font-weight: bold; text-transform: uppercase;">OVR Rating</div>
+          <div style="font-size: 1.3em; font-weight: 900; color: #4ade80; margin-top: 2px;">
+            {{ profile.rankings.power_rating }}
+          </div>
+          <div style="font-size: 0.75em; color: var(--dim); margin-top: 2px;">
+            Form: {{ ('+' ~ profile.evaluation.form_modifier) if profile.evaluation.form_modifier > 0 else profile.evaluation.form_modifier }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trophy Cabinet Card (Tủ Cúp) -->
+    <div class="card" style="border: 1px solid rgba(234, 179, 8, 0.4); background: linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(15, 23, 42, 0.7) 100%); padding: 18px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 1.1em; color: #fbbf24; display: flex; align-items: center; gap: 8px;">
+          <span>👑</span> Tủ Cúp Vinh Quang (Trophies)
+        </h3>
+        <span class="badge" style="background: #fbbf24; color: #000; font-weight: 900; font-size: 0.85em;">
+          {{ profile.trophy_cabinet.total_titles }} 🏆
+        </span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.3em;">👑</span>
+          <div>
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Champions</div>
+            <div style="font-size: 1.1em; font-weight: 900; color: #fbbf24;">{{ profile.trophy_cabinet.champions_titles }}</div>
+          </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.3em;">🏆</span>
+          <div>
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Masters</div>
+            <div style="font-size: 1.1em; font-weight: 900; color: #38bdf8;">{{ profile.trophy_cabinet.masters_titles }}</div>
+          </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.3em;">🌍</span>
+          <div>
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">EWC Riyadh</div>
+            <div style="font-size: 1.1em; font-weight: 900; color: #4ade80;">{{ profile.trophy_cabinet.ewc_titles }}</div>
+          </div>
+        </div>
+
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.3em;">⚡</span>
+          <div>
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">VCT Quốc Nội</div>
+            <div style="font-size: 1.1em; font-weight: 900; color: #c084fc;">{{ profile.trophy_cabinet.regional_titles }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 0.85em; color: var(--dim);">
+        <span>🥈 Á Quân (Chung kết): <strong style="color: #fff;">{{ profile.trophy_cabinet.runners_up }}</strong></span>
+        <span>🎯 Tổng số trận Chung kết: <strong style="color: #fbbf24;">{{ profile.trophy_cabinet.total_finals }}</strong></span>
+      </div>
+    </div>
+
+    <!-- Power & Attributes Radar Card -->
+    <div class="card" style="padding: 18px;">
+      <h3 style="margin: 0 0 14px; font-size: 1.1em; color: #fff; display: flex; align-items: center; gap: 8px;">
+        <span>📊</span> Đánh Giá Thuộc Tính Sức Mạnh (Attributes)
+      </h3>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Firepower -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82em; margin-bottom: 4px;">
+            <span style="color: var(--dim); font-weight: bold;">🎯 Hỏa Lực Giao Tranh (Firepower)</span>
+            <strong style="color: #ef4444;">{{ profile.evaluation.firepower }} / 99</strong>
+          </div>
+          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div style="width: {{ (profile.evaluation.firepower / 99 * 100)|round }}%; height: 100%; background: linear-gradient(90deg, #f87171, #ef4444); border-radius: 3px;"></div>
+          </div>
+        </div>
+
+        <!-- Strategy -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82em; margin-bottom: 4px;">
+            <span style="color: var(--dim); font-weight: bold;">🧠 Chiếm Lĩnh Chiến Thuật (Strategy)</span>
+            <strong style="color: #38bdf8;">{{ profile.evaluation.strategy }} / 99</strong>
+          </div>
+          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div style="width: {{ (profile.evaluation.strategy / 99 * 100)|round }}%; height: 100%; background: linear-gradient(90deg, #38bdf8, #0284c7); border-radius: 3px;"></div>
+          </div>
+        </div>
+
+        <!-- Clutch -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82em; margin-bottom: 4px;">
+            <span style="color: var(--dim); font-weight: bold;">🔥 Bản Lĩnh Đấu Tranh (Clutch)</span>
+            <strong style="color: #fbbf24;">{{ profile.evaluation.clutch }} / 99</strong>
+          </div>
+          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div style="width: {{ (profile.evaluation.clutch / 99 * 100)|round }}%; height: 100%; background: linear-gradient(90deg, #fde047, #eab308); border-radius: 3px;"></div>
+          </div>
+        </div>
+
+        <!-- Consistency -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.82em; margin-bottom: 4px;">
+            <span style="color: var(--dim); font-weight: bold;">🛡️ Độ Ổn Định Phong Độ (Consistency)</span>
+            <strong style="color: #4ade80;">{{ profile.evaluation.consistency }} / 99</strong>
+          </div>
+          <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div style="width: {{ (profile.evaluation.consistency / 99 * 100)|round }}%; height: 100%; background: linear-gradient(90deg, #4ade80, #16a34a); border-radius: 3px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team DNA Info -->
+      <div style="margin-top: 16px; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Bản Sắc Lối Chơi (Team DNA):</div>
+        <div style="font-weight: bold; color: #fff; font-size: 0.9em; margin-top: 2px;">
+          "{{ profile.evaluation.team_dna }}"
+        </div>
+        <div style="font-size: 0.78em; color: #38bdf8; margin-top: 4px;">
+          Phong cách: <strong>{{ profile.evaluation.playstyle }}</strong> &bull; Nhịp độ: <strong>{{ profile.evaluation.tempo }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analyst Scouting Report -->
+    <div class="card" style="padding: 18px; border-left: 4px solid #38bdf8;">
+      <h3 style="margin: 0 0 8px; font-size: 1.05em; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+        <span>📝</span> Nhận Định Chuyên Gia (Scouting Report)
+      </h3>
+      <p style="margin: 0; font-size: 0.88em; line-height: 1.6; color: var(--text);">
+        {{ profile.evaluation.scouting_report }}
+      </p>
+    </div>
+
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- RIGHT COLUMN: CAREER STATS & TOURNAMENT PLACEMENTS (LIQUIPEDIA STYLE)  -->
+  <!-- ========================================================================= -->
+  <div style="display: flex; flex-direction: column; gap: 20px;">
+    
+    <!-- Quick Career Stats 4-Box Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
+      <div class="card" style="padding: 14px 16px;">
+        <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tổng Số Trận Đã Đấu</div>
+        <div style="font-size: 1.6em; font-weight: 900; color: #fff; margin-top: 2px;">
+          {{ profile.career_stats.total_matches }}
+        </div>
+        <div style="font-size: 0.8em; color: #4ade80;">
+          {{ profile.career_stats.matches_won }}W - {{ profile.career_stats.matches_lost }}L
+        </div>
+      </div>
+
+      <div class="card" style="padding: 14px 16px;">
+        <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tỷ Lệ Thắng Trận (Win Rate)</div>
+        <div style="font-size: 1.6em; font-weight: 900; color: #38bdf8; margin-top: 2px;">
+          {{ profile.career_stats.win_rate }}%
+        </div>
+        <div style="font-size: 0.8em; color: var(--dim);">
+          Tất cả các giải đấu
+        </div>
+      </div>
+
+      <div class="card" style="padding: 14px 16px;">
+        <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tổng Điểm CP Tích Lũy</div>
+        <div style="font-size: 1.6em; font-weight: 900; color: #fbbf24; margin-top: 2px;">
+          {{ profile.career_stats.lifetime_cp }} CP
+        </div>
+        <div style="font-size: 0.8em; color: var(--yellow);">
+          Mùa {{ campaign.current_year }}: {{ profile.career_stats.current_season_cp }} CP
+        </div>
+      </div>
+
+      <div class="card" style="padding: 14px 16px;">
+        <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tham Dự Giải Quốc Tế</div>
+        <div style="font-size: 1.6em; font-weight: 900; color: #a855f7; margin-top: 2px;">
+          {{ profile.career_stats.international_appearances }} lần
+        </div>
+        <div style="font-size: 0.8em; color: var(--dim);">
+          Champions / Masters / EWC
+        </div>
+      </div>
+    </div>
+
+    <!-- Tournament Results Table (Liquipedia Style) -->
+    <div class="card" style="padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.3em; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <span>📜</span> Lịch Sử Giải Đấu Đã Tham Gia (Tournament Results)
+          </h2>
+          <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+            Hồ sơ thành tích và thứ hạng chi tiết của {{ profile.club.name }} qua tất cả các mùa giải.
+          </p>
+        </div>
+
+        <!-- Filter Buttons -->
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="tour-filter-btn active" onclick="filterTournamentResults('all')">Tất cả ({{ profile.tournament_results|length }})</button>
+          <button type="button" class="tour-filter-btn" onclick="filterTournamentResults('intl')">👑 Quốc Tế</button>
+          <button type="button" class="tour-filter-btn" onclick="filterTournamentResults('regional')">⚡ Quốc Nội</button>
+        </div>
+      </div>
+
+      {% if profile.tournament_results %}
+      <div class="table-scroll">
+        <table class="swiss-standings-table">
+          <thead>
+            <tr>
+              <th style="width: 70px; text-align: center;">Mùa giải</th>
+              <th style="width: 140px;">Cấp độ</th>
+              <th class="team-col">Giải đấu</th>
+              <th style="text-align: center;">Thứ hạng</th>
+              <th style="text-align: center;">Vòng dừng bước</th>
+              <th style="text-align: center;">Thành tích W-L</th>
+              <th style="text-align: center; color: var(--yellow);">Điểm CP</th>
+              <th style="text-align: center;">Power Rating</th>
+            </tr>
+          </thead>
+          <tbody id="tour-results-tbody">
+            {% for res in profile.tournament_results %}
+            {% set is_intl = res.stage_key in ['champion', 'master', 'major', 'ewc'] %}
+            <tr class="tour-result-row" data-type="{{ 'intl' if is_intl else 'regional' }}"
+                style="{% if res.rank == 1 %}background: rgba(234, 179, 8, 0.12);{% elif res.rank == 2 %}background: rgba(148, 163, 184, 0.08);{% elif res.rank == 3 %}background: rgba(217, 119, 6, 0.08);{% endif %}">
+              <td style="text-align: center; font-weight: bold; color: var(--dim);">
+                {{ res.year }}
+              </td>
+              <td>
+                <span class="badge" style="font-size: 0.78em; {% if is_intl %}background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3);{% else %}background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);{% endif %}">
+                  {{ res.category_name }}
+                </span>
+              </td>
+              <td>
+                <strong style="color: #fff;">{{ res.tournament_name }}</strong>
+              </td>
+              <td style="text-align: center; font-weight: 800;">
+                {% if res.rank == 1 %}
+                  <span style="color: #fbbf24; font-size: 1.05em;">🥇 1st (Vô địch)</span>
+                {% elif res.rank == 2 %}
+                  <span style="color: #cbd5e1; font-size: 1.05em;">🥈 2nd (Á quân)</span>
+                {% elif res.rank == 3 %}
+                  <span style="color: #f59e0b; font-size: 1.05em;">🥉 3rd (Hạng 3)</span>
+                {% else %}
+                  <span style="color: var(--text);">{{ res.rank_display }}</span>
+                {% endif %}
+              </td>
+              <td style="text-align: center; color: var(--dim); font-size: 0.9em;">
+                {{ res.elimination_stage }}
+              </td>
+              <td style="text-align: center; font-weight: bold; color: {{ '#4ade80' if res.matches_won > res.matches_lost else 'var(--text)' }};">
+                {{ res.matches_won }}W - {{ res.matches_lost }}L
+                <span style="font-size: 0.75em; color: var(--dim); display: block;">({{ res.win_rate }}%)</span>
+              </td>
+              <td style="text-align: center; font-weight: bold; color: #fbbf24;">
+                {{ ('+' ~ res.stage_points_earned ~ ' CP') if res.stage_points_earned > 0 else '0 CP' }}
+              </td>
+              <td style="text-align: center;">
+                <span class="badge" style="background: {{ res.tier.bg }}; color: {{ res.tier.color }}; border: 1px solid {{ res.tier.border }}; font-weight: bold; font-size: 0.85em;">
+                  {{ res.tier.badge }} {{ res.power_rating_snapshot }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="text-align: center; padding: 40px; color: var(--dim);">
+        <div style="font-size: 2.2em; margin-bottom: 8px;">📂</div>
+        <div style="font-weight: bold; color: #fff;">Chưa có dữ liệu giải đấu</div>
+        <div style="font-size: 0.85em; margin-top: 4px;">Đội tuyển chưa hoàn thành giải đấu chính thức nào trong mùa giải này.</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Recent Matches Log Card -->
+    {% if profile.recent_matches %}
+    <div class="card" style="padding: 20px;">
+      <h3 style="margin: 0 0 14px; font-size: 1.15em; color: #fff; display: flex; align-items: center; gap: 8px;">
+        <span>⚔️</span> Các Trận Đấu Gần Đây (Recent Matches)
+      </h3>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for m in profile.recent_matches %}
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span class="badge" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1em; border-radius: 6px; {% if m.is_winner %}background: #22c55e; color: #000;{% else %}background: #ef4444; color: #fff;{% endif %}">
+              {{ m.result_badge }}
+            </span>
+            <div>
+              <div style="font-weight: bold; color: #fff;">{{ m.tournament_name }} &bull; <span style="color: var(--dim); font-size: 0.9em;">{{ m.round_name }}</span></div>
+              <div style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
+                Đối đầu: <a href="/campaign/{{ campaign.id }}/team/{{ m.opponent.id }}" class="team-profile-trigger" style="color: #38bdf8; text-decoration: none; font-weight: bold;">{{ m.opponent.name }} ({{ m.opponent.short_code }})</a>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align: right;">
+            <div style="font-size: 1.3em; font-weight: 900; color: {{ '#4ade80' if m.is_winner else '#f87171' }};">
+              {{ m.score_display }}
+            </div>
+            <div style="font-size: 0.75em; color: var(--dim);">Tỷ số Maps</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<style>
+.tour-filter-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.tour-filter-btn:hover {
+  border-color: #38bdf8;
+  color: #fff;
+}
+.tour-filter-btn.active {
+  background: #38bdf8;
+  color: #000;
+  border-color: #38bdf8;
+}
+</style>
+
+<script>
+function filterTournamentResults(filterType) {
+  document.querySelectorAll('.tour-filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const rows = document.querySelectorAll('.tour-result-row');
+  rows.forEach(r => {
+    if (filterType === 'all' || r.getAttribute('data-type') === filterType) {
+      r.style.display = '';
+    } else {
+      r.style.display = 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

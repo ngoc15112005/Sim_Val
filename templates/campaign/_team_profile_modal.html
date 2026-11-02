@@ -1,0 +1,438 @@
+<!-- Component Quick Profile Modal Drawer (Xem nhanh hồ sơ đội tuyển kiểu Liquipedia) -->
+<div id="team-profile-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 15, 29, 0.88); backdrop-filter: blur(8px); z-index: 999999; justify-content: center; align-items: center; padding: 16px;">
+  <div class="card" style="width: 680px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.8); overflow: hidden; padding: 0;">
+    
+    <!-- Modal Header with dynamic tier border -->
+    <div id="tpm-header-bar" style="padding: 16px 20px; background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.4em;">🛡️</span>
+        <div>
+          <h2 id="tpm-modal-title" style="margin: 0; font-size: 1.15em; color: #fff; font-weight: 800; letter-spacing: 0.5px;">
+            HỒ SƠ ĐỘI TUYỂN
+          </h2>
+          <div style="font-size: 0.78em; color: var(--dim);">
+            Scouting Dossier & Career Profile (Liquipedia Edition)
+          </div>
+        </div>
+      </div>
+      <button type="button" onclick="closeTeamProfileModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.5em; cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 4px;">
+        &times;
+      </button>
+    </div>
+
+    <!-- Modal Body (Scrollable) -->
+    <div id="tpm-modal-body" style="padding: 20px; overflow-y: auto; flex: 1;">
+      <!-- Loading State -->
+      <div id="tpm-loading" style="text-align: center; padding: 40px; color: var(--dim);">
+        <div style="font-size: 2em; margin-bottom: 10px;">⏳</div>
+        <div>Đang tải hồ sơ trinh sát đội tuyển...</div>
+      </div>
+
+      <!-- Content Container -->
+      <div id="tpm-content" style="display: none; flex-direction: column; gap: 16px;">
+        
+        <!-- Team Identity Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div id="tpm-logo-box" style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); padding: 6px; flex-shrink: 0;">
+              <span style="font-size: 1.8em;">🛡️</span>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 id="tpm-team-name" style="margin: 0; font-size: 1.35em; color: #fff; font-weight: 800;">-</h2>
+                <span id="tpm-team-code" class="badge" style="background: rgba(255,255,255,0.1); color: #fff; font-weight: bold;">-</span>
+                <span id="tpm-team-region" class="badge" style="text-transform: uppercase;">-</span>
+              </div>
+              <div style="margin-top: 4px; display: flex; align-items: center; gap: 10px; font-size: 0.85em; color: var(--dim);">
+                <span>Hạng TG: <strong id="tpm-global-rank" style="color: #fff;">#--</strong> <span id="tpm-rank-delta"></span></span>
+                &bull;
+                <span>Hạng Vùng: <strong id="tpm-regional-rank" style="color: #38bdf8;">#--</strong></span>
+                &bull;
+                <span>GPR: <strong id="tpm-power-score" style="color: #fbbf24;">--</strong></span>
+                &bull;
+                <span>OVR: <strong id="tpm-ovr-rating" style="color: #4ade80;">--</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div id="tpm-tier-badge-container">
+            <!-- Tier Badge -->
+          </div>
+        </div>
+
+        <!-- Career & Season Stats 4-Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Thành Tích Đấu</div>
+            <div id="tpm-stat-wl" style="font-size: 1.15em; font-weight: 900; color: #fff; margin-top: 2px;">0W - 0L</div>
+            <div id="tpm-stat-winrate" style="font-size: 0.75em; color: #4ade80; margin-top: 2px;">0% Winrate</div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Điểm CP Trọn Đời</div>
+            <div id="tpm-stat-cp" style="font-size: 1.15em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 CP</div>
+            <div id="tpm-stat-season-cp" style="font-size: 0.75em; color: var(--dim); margin-top: 2px;">Mùa này: 0 CP</div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tủ Cúp (Trophies)</div>
+            <div id="tpm-stat-trophies" style="font-size: 1.15em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 🏆</div>
+            <div id="tpm-stat-trophies-detail" style="font-size: 0.72em; color: var(--dim); margin-top: 2px;">0 Ch. / 0 M.</div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Chuỗi Phong Độ</div>
+            <div id="tpm-stat-streak" style="font-size: 1.15em; font-weight: 900; color: #38bdf8; margin-top: 2px;">Hòa</div>
+            <div id="tpm-stat-form" style="font-size: 0.72em; color: var(--dim); margin-top: 2px;">Form: 0</div>
+          </div>
+        </div>
+
+        <!-- Radar Attributes Bars -->
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+          <div style="font-size: 0.82em; color: var(--dim); font-weight: bold; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span>📊</span> ĐÁNH GIÁ THUỘC TÍNH (POWER ATTRIBUTES)
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px;">
+            <!-- Firepower -->
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.78em; margin-bottom: 3px;">
+                <span style="color: var(--dim);">🎯 Hỏa Lực (Firepower)</span>
+                <strong id="tpm-attr-firepower" style="color: #ef4444;">--</strong>
+              </div>
+              <div style="height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="tpm-bar-firepower" style="width: 0%; height: 100%; background: #ef4444;"></div>
+              </div>
+            </div>
+
+            <!-- Strategy -->
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.78em; margin-bottom: 3px;">
+                <span style="color: var(--dim);">🧠 Chiến Thuật (Strategy)</span>
+                <strong id="tpm-attr-strategy" style="color: #38bdf8;">--</strong>
+              </div>
+              <div style="height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="tpm-bar-strategy" style="width: 0%; height: 100%; background: #38bdf8;"></div>
+              </div>
+            </div>
+
+            <!-- Clutch -->
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.78em; margin-bottom: 3px;">
+                <span style="color: var(--dim);">🔥 Bản Lĩnh (Clutch)</span>
+                <strong id="tpm-attr-clutch" style="color: #fbbf24;">--</strong>
+              </div>
+              <div style="height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="tpm-bar-clutch" style="width: 0%; height: 100%; background: #fbbf24;"></div>
+              </div>
+            </div>
+
+            <!-- Consistency -->
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.78em; margin-bottom: 3px;">
+                <span style="color: var(--dim);">🛡️ Ổn Định (Consistency)</span>
+                <strong id="tpm-attr-consistency" style="color: #4ade80;">--</strong>
+              </div>
+              <div style="height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="tpm-bar-consistency" style="width: 0%; height: 100%; background: #4ade80;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DNA & Scouting Note -->
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.82em;">
+            <div style="color: #fff; font-weight: bold;">
+              Bản Sắc DNA: <span id="tpm-team-dna" style="color: #fbbf24; font-weight: normal;">-</span>
+            </div>
+            <div id="tpm-scouting-report" style="color: var(--dim); margin-top: 4px; line-height: 1.4;">
+              -
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Tournament Placements (Top 3) -->
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px;">
+          <div style="font-size: 0.82em; color: var(--dim); font-weight: bold; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>📜</span> THÀNH TÍCH GIẢI ĐẤU GẦN NHẤT
+            </div>
+            <span id="tpm-tour-total-badge" style="font-size: 0.85em; color: var(--dim); font-weight: normal;"></span>
+          </div>
+
+          <div id="tpm-recent-tournaments-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 14px 20px; background: #131d35; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <a id="tpm-full-profile-link" href="#" class="btn-sm" style="text-decoration: none; padding: 8px 18px; background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); color: #fff; font-weight: bold; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+        <span>🔍</span> Xem Toàn Bộ Hồ Sơ Chi Tiết (Liquipedia Dossier) ➔
+      </a>
+      <button type="button" onclick="closeTeamProfileModal()" class="btn-sm" style="padding: 8px 16px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+        Đóng
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+/* Clickable team profile link styling across the app */
+.team-profile-trigger {
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.team-profile-trigger:hover {
+  color: #38bdf8 !important;
+  text-decoration: underline;
+}
+</style>
+
+<script>
+window.__CAMPAIGN_ID__ = window.__CAMPAIGN_ID__ || {{ (campaign.id if campaign is defined and campaign else 'null') }};
+
+let currentTpmClubId = null;
+
+function openTeamProfileModal(clubId, optCampaignId) {
+  const modal = document.getElementById('team-profile-modal');
+  if (!modal) return;
+
+  const campId = optCampaignId || window.__CAMPAIGN_ID__ || (function() {
+    const m = window.location.pathname.match(/\/campaign\/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  })();
+
+  if (!campId) {
+    console.error("Campaign ID not found for team profile modal.");
+    return;
+  }
+
+  currentTpmClubId = clubId;
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  const loading = document.getElementById('tpm-loading');
+  const content = document.getElementById('tpm-content');
+  if (loading) {
+    loading.style.display = 'block';
+    loading.innerHTML = `
+      <div style="font-size: 2em; margin-bottom: 10px;">⏳</div>
+      <div>Đang tải hồ sơ trinh sát đội tuyển...</div>
+    `;
+  }
+  if (content) content.style.display = 'none';
+
+  // Set link to full profile page
+  const fullLink = document.getElementById('tpm-full-profile-link');
+  if (fullLink) {
+    fullLink.href = `/campaign/${campId}/team/${clubId}`;
+  }
+
+  fetch(`/api/campaign/${campId}/team/${clubId}`)
+    .then(r => r.json())
+    .then(res => {
+      if (!res.success || !res.profile) {
+        throw new Error(res.error || 'Failed to load club profile');
+      }
+      renderTeamProfileModal(res.profile, campId);
+      if (loading) loading.style.display = 'none';
+      if (content) content.style.display = 'flex';
+    })
+    .catch(err => {
+      console.error("Error fetching team profile:", err);
+      if (loading) {
+        loading.innerHTML = `
+          <div style="color: #ef4444; font-size: 1.5em; margin-bottom: 8px;">⚠️</div>
+          <div style="color: #ef4444; font-weight: bold;">Không thể tải dữ liệu hồ sơ đội tuyển.</div>
+          <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">${err.message || ''}</div>
+        `;
+      }
+    });
+}
+
+function closeTeamProfileModal() {
+  const modal = document.getElementById('team-profile-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
+function renderTeamProfileModal(profile, campId) {
+  const c = profile.club || {};
+  const rankings = profile.rankings || {};
+  const tier = rankings.tier || {};
+  const stats = profile.career_stats || {};
+  const trophies = profile.trophy_cabinet || {};
+  const evalData = profile.evaluation || {};
+  const delta = rankings.rank_delta || {};
+
+  // Team Identity
+  const nameEl = document.getElementById('tpm-team-name');
+  if (nameEl) nameEl.textContent = c.name || 'N/A';
+
+  const codeEl = document.getElementById('tpm-team-code');
+  if (codeEl) codeEl.textContent = c.short_code || '';
+
+  const regEl = document.getElementById('tpm-team-region');
+  if (regEl) regEl.textContent = c.region_slug || rankings.region_slug || '';
+
+  const logoBox = document.getElementById('tpm-logo-box');
+  if (logoBox) {
+    if (c.logo_url) {
+      logoBox.innerHTML = `<img src="${c.logo_url}" alt="" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
+    } else {
+      logoBox.innerHTML = `<span style="font-size: 1.8em;">🛡️</span>`;
+    }
+  }
+
+  // Tier Badge
+  const tierBox = document.getElementById('tpm-tier-badge-container');
+  if (tierBox) {
+    tierBox.innerHTML = `
+      <span class="badge" style="background: ${tier.bg || 'rgba(255,255,255,0.1)'}; color: ${tier.color || '#fff'}; border: 1px solid ${tier.border || 'transparent'}; font-weight: 900; font-size: 1em; padding: 6px 14px;">
+        ${tier.badge || ''} ${tier.name || 'UNRANKED'}
+      </span>
+    `;
+  }
+
+  // Rankings
+  const gRank = document.getElementById('tpm-global-rank');
+  if (gRank) gRank.textContent = '#' + (rankings.global_rank || '-');
+
+  const rDelta = document.getElementById('tpm-rank-delta');
+  if (rDelta) {
+    rDelta.textContent = delta.symbol || '•';
+    rDelta.style.color = delta.color || 'var(--dim)';
+    rDelta.style.fontWeight = 'bold';
+    rDelta.style.fontSize = '0.9em';
+  }
+
+  const rRank = document.getElementById('tpm-regional-rank');
+  if (rRank) rRank.textContent = '#' + (rankings.regional_rank || '-');
+
+  const pScore = document.getElementById('tpm-power-score');
+  if (pScore) pScore.textContent = rankings.power_score || '--';
+
+  const oRating = document.getElementById('tpm-ovr-rating');
+  if (oRating) oRating.textContent = rankings.power_rating || '--';
+
+  // Career 4-Grid
+  const wlEl = document.getElementById('tpm-stat-wl');
+  if (wlEl) wlEl.textContent = `${stats.matches_won || 0}W - ${stats.matches_lost || 0}L`;
+
+  const winrateEl = document.getElementById('tpm-stat-winrate');
+  if (winrateEl) winrateEl.textContent = `${stats.win_rate || 0}% Winrate (${stats.total_matches || 0} trận)`;
+
+  const cpEl = document.getElementById('tpm-stat-cp');
+  if (cpEl) cpEl.textContent = `${stats.lifetime_cp || 0} CP`;
+
+  const sCpEl = document.getElementById('tpm-stat-season-cp');
+  if (sCpEl) sCpEl.textContent = `Mùa này: ${stats.current_season_cp || 0} CP`;
+
+  const troEl = document.getElementById('tpm-stat-trophies');
+  if (troEl) troEl.textContent = `${trophies.total_titles || 0} 🏆`;
+
+  const troDetEl = document.getElementById('tpm-stat-trophies-detail');
+  if (troDetEl) troDetEl.textContent = `${trophies.champions_titles || 0} Ch. / ${trophies.masters_titles || 0} M. / ${trophies.regional_titles || 0} Reg.`;
+
+  const streakEl = document.getElementById('tpm-stat-streak');
+  if (streakEl) {
+    const ws = evalData.win_streak || 0;
+    if (ws > 0) {
+      streakEl.textContent = `🔥 Thắng ${ws}`;
+      streakEl.style.color = '#4ade80';
+    } else if (ws < 0) {
+      streakEl.textContent = `❄️ Thua ${Math.abs(ws)}`;
+      streakEl.style.color = '#ef4444';
+    } else {
+      streakEl.textContent = 'Hòa';
+      streakEl.style.color = '#38bdf8';
+    }
+  }
+
+  const formEl = document.getElementById('tpm-stat-form');
+  if (formEl) {
+    const fm = evalData.form_modifier || 0;
+    formEl.textContent = `Form: ${fm > 0 ? '+' + fm : fm}`;
+  }
+
+  // Attributes
+  const setAttr = (idText, idBar, val) => {
+    const t = document.getElementById(idText);
+    const b = document.getElementById(idBar);
+    if (t) t.textContent = `${val} / 99`;
+    if (b) b.style.width = `${Math.min(100, Math.round(val / 99 * 100))}%`;
+  };
+  setAttr('tpm-attr-firepower', 'tpm-bar-firepower', evalData.firepower || 75);
+  setAttr('tpm-attr-strategy', 'tpm-bar-strategy', evalData.strategy || 75);
+  setAttr('tpm-attr-clutch', 'tpm-bar-clutch', evalData.clutch || 75);
+  setAttr('tpm-attr-consistency', 'tpm-bar-consistency', evalData.consistency || 75);
+
+  // DNA & Scouting
+  const dnaEl = document.getElementById('tpm-team-dna');
+  if (dnaEl) dnaEl.textContent = evalData.team_dna || 'N/A';
+
+  const scoutEl = document.getElementById('tpm-scouting-report');
+  if (scoutEl) scoutEl.textContent = evalData.scouting_report || '-';
+
+  // Recent Tournaments (Up to 3)
+  const tourList = document.getElementById('tpm-recent-tournaments-list');
+  const tourBadge = document.getElementById('tpm-tour-total-badge');
+  const results = profile.tournament_results || [];
+
+  if (tourBadge) tourBadge.textContent = `Tổng ${results.length} giải đấu`;
+
+  if (tourList) {
+    if (results.length === 0) {
+      tourList.innerHTML = `<div style="color: var(--dim); font-size: 0.85em; font-style: italic;">Chưa có dữ liệu giải đấu nào được ghi nhận.</div>`;
+    } else {
+      const top3 = results.slice(0, 3);
+      tourList.innerHTML = top3.map(r => {
+        const isCh = r.rank === 1;
+        const isRu = r.rank === 2;
+        const bgCol = isCh ? 'rgba(234, 179, 8, 0.12)' : (isRu ? 'rgba(148, 163, 184, 0.08)' : 'var(--bg)');
+        const rankColor = isCh ? '#fbbf24' : (isRu ? '#cbd5e1' : '#fff');
+        return `
+          <div style="background: ${bgCol}; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.78em; padding: 2px 6px;">Năm ${r.year}</span>
+              <strong style="color: #fff;">${r.stage_name}</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="color: var(--dim); font-size: 0.82em;">${r.matches_won}W - ${r.matches_lost}L</span>
+              <span style="font-weight: 900; color: ${rankColor};">
+                ${r.rank === 1 ? '🥇 1st' : (r.rank === 2 ? '🥈 2nd' : (r.rank === 3 ? '🥉 3rd' : '#' + r.rank))}
+              </span>
+              <span style="color: #fbbf24; font-weight: bold; font-size: 0.82em;">+${r.stage_points_earned} CP</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeTeamProfileModal();
+  }
+});
+
+// Close modal on backdrop click
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('team-profile-modal');
+  if (modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        closeTeamProfileModal();
+      }
+    });
+  }
+});
+</script>

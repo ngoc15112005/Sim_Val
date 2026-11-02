@@ -292,10 +292,10 @@ function renderPodium(podium) {
     const c = item.club;
     const tier = item.tier || {};
     return `
-      <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px; cursor: pointer;" onclick="openTeamProfileModal(${c.id})" title="Nhấp để xem hồ sơ đội tuyển">
         ${c.logo_url ? `<img src="${c.logo_url}" alt="" style="width: 32px; height: 32px; object-fit: contain;">` : ''}
         <div style="overflow: hidden;">
-          <strong style="color: #fff; font-size: 1.05em; display: block; white-space: nowrap; text-overflow: ellipsis;">${c.name}</strong>
+          <strong class="team-profile-trigger" style="color: #fff; font-size: 1.05em; display: block; white-space: nowrap; text-overflow: ellipsis;">${c.name}</strong>
           <div style="font-size: 0.8em; color: var(--dim);">
             Code: <strong style="color: #fff;">${c.short_code}</strong> &bull;
             W-L: <strong style="color: #4ade80;">${item.matches_won}W - ${item.matches_lost}L</strong>
@@ -346,9 +346,9 @@ function renderPlacementsTable(placements) {
         ${p.rank === 1 ? '🥇 1' : p.rank === 2 ? '🥈 2' : p.rank === 3 ? '🥉 3' : '#' + p.rank}
       </td>
       <td>
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal(${c.id})" title="Nhấp để xem hồ sơ đội tuyển">
           ${c.logo_url ? `<img src="${c.logo_url}" alt="" style="width: 20px; height: 20px; object-fit: contain;">` : ''}
-          <strong style="color: #fff;">${c.name || 'N/A'}</strong>
+          <strong class="team-profile-trigger" style="color: #fff;">${c.name || 'N/A'}</strong>
           <span style="color: var(--dim); font-size: 0.85em;">(${c.short_code || ''})</span>
         </div>
       </td>

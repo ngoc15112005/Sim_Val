@@ -497,11 +497,11 @@
           <tr style="{% if loop.index <= 2 and t.championship_points > 0 %}background: rgba(34, 197, 94, 0.08);{% endif %}">
             <td style="text-align: center; font-weight: bold;">#{{ t.cp_rank }}</td>
             <td>
-              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ t.club_id or t.id }})" title="Xem hồ sơ đội tuyển {{ t.name }}">
                 {% if t.logo_url %}
                 <img class="team-logo-sm" src="{{ t.logo_url }}" alt="" onerror="this.style.display='none'">
                 {% endif %}
-                <strong style="color: #fff;">{{ t.name }}</strong>
+                <strong class="team-profile-trigger" style="color: #fff;">{{ t.name }}</strong>
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ t.short_code }})</span>
               </div>
             </td>
@@ -604,11 +604,11 @@
               {% endif %}
             </td>
             <td>
-              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px;">
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ cs.club_id }})" title="Xem hồ sơ đội tuyển {{ cs.club.name }}">
                 {% if cs.club.logo_url %}
                 <img class="team-logo-sm" src="{{ cs.club.logo_url }}" alt="" onerror="this.style.display='none'">
                 {% endif %}
-                <strong style="color: #fff;">{{ cs.club.name }}</strong>
+                <strong class="team-profile-trigger" style="color: #fff;">{{ cs.club.name }}</strong>
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ cs.club.short_code }})</span>
               </div>
             </td>
