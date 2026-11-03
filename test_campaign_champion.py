@@ -91,7 +91,7 @@ class TestCampaignChampionIntegration(unittest.TestCase):
         # 4. Test Web Route GET /campaign/<cid>/stage/champion
         resp = self.client.get(f'/campaign/{cid}/stage/champion')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'VALORANT Champions Paris', resp.data)
+        self.assertIn(b'VALORANT Champions', resp.data)
 
         # 5. Test manual match override on Group A Opening 1
         grp_a = res['groups']['A']

@@ -78,7 +78,7 @@ class TestCampaignMasterIntegration(unittest.TestCase):
         # 4. Verify Web Route GET /campaign/<cid>/stage/master
         resp = self.client.get(f'/campaign/{cid}/stage/master')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn('Masters Toronto'.encode('utf-8'), resp.data)
+        self.assertIn('VCT Masters'.encode('utf-8'), resp.data)
 
         # 5. Test API: Manual match override on first Swiss match
         first_match = res['swiss_matches'][0]

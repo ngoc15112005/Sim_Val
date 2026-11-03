@@ -3,6 +3,8 @@
 {% block content %}
 
 {% set cur_year = stage.year if stage else campaign.current_year %}
+{% set major_host = season_hosts.major if season_hosts else None %}
+{% set major_city = major_host.city_name if major_host else 'Tokyo' %}
 {% set all_regions = ['pacific', 'americas', 'emea', 'china'] %}
 {% set all_ko_locked = (stage and stage.status == 'completed') or (kickoff_data and kickoff_data.regional_results and kickoff_data.regional_results.values() | selectattr('is_confirmed', 'defined') | selectattr('is_confirmed') | list | length == 4) %}
 
@@ -13,7 +15,7 @@
     </div>
     <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Kickoff (12 Đội / Khu Vực) • {{ cur_year }}</h1>
     <div style="font-size: 0.9em; color: var(--dim);">
-      Thể thức: Nhánh thắng & Nhánh thua (Double Elimination 22 trận) • Chọn <strong>Top 2 đội</strong> tham dự VCT Major (Masters Bangkok).
+      Thể thức: Nhánh thắng & Nhánh thua (Double Elimination 22 trận) • Chọn <strong>Top 2 đội</strong> tham dự VCT Major {{ major_city }}.
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
@@ -88,7 +90,7 @@
           🏆 KẾT QUẢ VCT KICKOFF {{ r_slug|upper }} {{ cur_year }}
         </h2>
         <p style="color: var(--dim); font-size: 0.9em; margin-top: 2px;">
-          Top 2 đội giành vé đại diện khu vực tham dự <strong>VCT Major (Masters Bangkok)</strong> và cộng điểm Championship Points (CP).
+          Top 2 đội giành vé đại diện khu vực tham dự <strong>VCT Major {{ major_city }}</strong> và cộng điểm Championship Points (CP).
         </p>
       </div>
       <div>
@@ -182,7 +184,7 @@
       <div>
         <h2 style="color: var(--accent); margin: 0; font-size: 1.25em;">Cây Nhánh Đấu Double Elimination (22 trận)</h2>
         <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-          Định dạng chuẩn VCT {{ campaign.current_year }} • Top 2 đội (Nhà Vô Địch & Á Quân) giành vé tham dự VCT Major Bangkok.
+          Định dạng chuẩn VCT {{ campaign.current_year }} • Top 2 đội (Nhà Vô Địch & Á Quân) giành vé tham dự VCT Major {{ major_city }}.
         </p>
       </div>
       <div>

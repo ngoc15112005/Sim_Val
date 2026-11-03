@@ -1,5 +1,11 @@
 {% extends "base.html" %}
-{% block title %}VALORANT Champions Paris - {{ campaign.name }} ({{ campaign.current_year }}){% endblock %}
+{% set host = (champion_data.host_city if champion_data and champion_data.host_city else None) or (season_hosts.champion if season_hosts else None) %}
+{% set city_name = host.city_name if host else 'Seoul' %}
+{% set country = host.country if host else 'South Korea' %}
+{% set flag = host.flag if host else '🇰🇷' %}
+{% set venue = host.venue if host else 'KSPO Dome' %}
+
+{% block title %}VALORANT Champions {{ city_name }} - {{ campaign.name }} ({{ campaign.current_year }}){% endblock %}
 {% block content %}
 
 {% set res = champion_data.result if champion_data and champion_data.result else None %}
@@ -10,8 +16,12 @@
     <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
       {{ campaign.name }} • Năm {{ campaign.current_year }} • Đỉnh Cao Thế Giới
     </div>
-    <h1 style="font-size: 1.8em; margin: 4px 0; display: flex; align-items: center; gap: 10px;">
-      <span>🏆</span> VALORANT Champions Paris
+    <h1 style="font-size: 1.8em; margin: 4px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <span>🏆 VALORANT Champions {{ city_name }}</span>
+      <span class="badge" style="font-size: 0.5em; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); padding: 4px 10px; border-radius: 6px; font-weight: normal; display: inline-flex; align-items: center; gap: 6px;">
+        <span>{{ flag }}</span>
+        <span>{{ venue }}, {{ city_name }} ({{ country }})</span>
+      </span>
     </h1>
     <div style="font-size: 0.9em; color: var(--dim);">
       16 Đội Tuyển Tinh Hoa Toàn Cầu (4 Đội / Khu Vực) • Vòng Bảng GSL (4 Bảng - 20 Trận BO3) • Playoffs Double Elimination 8 Đội (14 Trận)
@@ -35,7 +45,7 @@
 <!-- Shared Stage Review & Confirmation Component -->
 {% set stage_key = 'champion' %}
 {% set is_regional = False %}
-{% set review_target_name = 'VALORANT Champions Paris ' ~ campaign.current_year %}
+{% set review_target_name = 'VALORANT Champions ' ~ city_name ~ ' ' ~ campaign.current_year %}
 {% set is_confirmed = res and res.is_confirmed %}
 {% set matches_completed = res.matches_completed if res else False %}
 {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/season_summary' if (stage and stage.status == 'completed') else None) %}
@@ -67,7 +77,7 @@
         ⚡ Sim vòng hiện tại
       </button>
       <button type="button" id="btn-sim-champion" class="btn-start" onclick="simChampionTournament()" style="padding: 10px 22px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-        🔥 Sim toàn bộ Champions Paris
+        🔥 Sim toàn bộ Champions {{ city_name }}
       </button>
     </div>
     {% endif %}
@@ -184,7 +194,7 @@
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
     <div>
       <h3 style="color: #fbbf24; margin: 0; font-size: 1.15em; display: flex; align-items: center; gap: 8px;">
-        🌍 16 Đội Tuyển Tinh Hoa Tham Dự VALORANT Champions Paris
+        🌍 16 Đội Tuyển Tinh Hoa Tham Dự VALORANT Champions {{ city_name }}
       </h3>
       <p style="font-size: 0.85em; color: var(--dim); margin: 3px 0 0;">
         Mỗi khu vực đóng góp 4 đại diện: Quán quân Stage 2 (Pool 1), Á quân Stage 2 (Pool 2), Hạng 1 Championship Points (Pool 3), Hạng 2 Championship Points (Pool 4).
@@ -500,7 +510,7 @@
 </section>
 {% endif %}
 
-<!-- Modal Nhập tay kết quả trận đấu Champions Paris -->
+<!-- Modal Nhập tay kết quả trận đấu VALORANT Champions -->
 <div id="champion-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
   <div class="card" style="width: 500px; max-width: 95vw; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -623,13 +633,13 @@ async function simChampionRound() {
 }
 
 async function simChampionTournament() {
-  if (!confirm("Bạn có chắc chắn muốn mô phỏng toàn bộ các trận còn lại của VALORANT Champions Paris không?")) {
+  if (!confirm("Bạn có chắc chắn muốn mô phỏng toàn bộ các trận còn lại của VALORANT Champions {{ city_name }} không?")) {
     return;
   }
   const btn = document.getElementById('btn-sim-champion');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = '⏳ Đang mô phỏng Champions Paris...';
+    btn.textContent = '⏳ Đang mô phỏng Champions {{ city_name }}...';
   }
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/champion/sim-all`, {
@@ -638,10 +648,10 @@ async function simChampionTournament() {
     if (res.success) {
       window.location.reload();
     } else {
-      alert("Lỗi: " + (res.error || "Không thể mô phỏng Champions Paris"));
+      alert("Lỗi: " + (res.error || "Không thể mô phỏng Champions"));
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '🔥 Sim toàn bộ Champions Paris';
+        btn.textContent = '🔥 Sim toàn bộ Champions {{ city_name }}';
       }
     }
   } catch (err) {

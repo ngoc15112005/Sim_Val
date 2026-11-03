@@ -1,5 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Esports World Cup (EWC) - {{ campaign.name }}{% endblock %}
+{% set host = (ewc_data.host_city if ewc_data and ewc_data.host_city else None) or (season_hosts.ewc if season_hosts else None) %}
+{% set city_name = host.city_name if host else 'Riyadh' %}
+{% set country = host.country if host else 'Saudi Arabia' %}
+{% set flag = host.flag if host else '🇸🇦' %}
+{% set venue = host.venue if host else 'SEF Arena' %}
+
+{% block title %}Esports World Cup {{ city_name }} - {{ campaign.name }}{% endblock %}
 {% block content %}
 
 {% set res = ewc_data.result if ewc_data and ewc_data.result else None %}
@@ -8,16 +14,22 @@
 <nav class="breadcrumb">
   <a href="/campaign/{{ campaign.id }}">Hub Mùa giải</a>
   <span class="bc-sep">/</span>
-  <span class="bc-current">Esports World Cup (Riyadh)</span>
+  <span class="bc-current">Esports World Cup ({{ city_name }})</span>
 </nav>
 
 <div class="tour-header card" style="margin-bottom: 20px;">
   <div class="tour-header-main" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
     <div>
       <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
-        {{ campaign.name }} • Riyadh Masters
+        {{ campaign.name }} • Esports World Cup {{ city_name }}
       </div>
-      <h1 style="font-size: 1.8em; margin: 4px 0; color: #fff;">Esports World Cup (EWC)</h1>
+      <h1 style="font-size: 1.8em; margin: 4px 0; color: #fff; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span>Esports World Cup {{ city_name }}</span>
+        <span class="badge" style="font-size: 0.5em; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); padding: 4px 10px; border-radius: 6px; font-weight: normal; display: inline-flex; align-items: center; gap: 6px;">
+          <span>{{ flag }}</span>
+          <span>{{ venue }}, {{ city_name }} ({{ country }})</span>
+        </span>
+      </h1>
       <div style="font-size: 0.9em; color: var(--dim);">
         16 Đội tuyển tinh hoa toàn cầu • 4 Bảng GSL (20 trận BO3) & Playoffs Single Elimination (8 trận)
       </div>
@@ -41,7 +53,7 @@
 <!-- Shared Stage Review & Confirmation Component -->
 {% set stage_key = 'ewc' %}
 {% set is_regional = False %}
-{% set review_target_name = 'Esports World Cup (EWC)' %}
+{% set review_target_name = 'Esports World Cup ' ~ city_name %}
 {% set is_confirmed = res and res.is_confirmed %}
 {% set matches_completed = res.matches_completed if res else False %}
 {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/oq_stage2' if (res and res.is_confirmed) else None) %}

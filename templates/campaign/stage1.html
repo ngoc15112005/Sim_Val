@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set master_host = season_hosts.master if season_hosts else None %}
+{% set ewc_host = season_hosts.ewc if season_hosts else None %}
+{% set master_city = master_host.city_name if master_host else 'Madrid' %}
+{% set ewc_city = ewc_host.city_name if ewc_host else 'Riyadh' %}
+
 <div class="campaign-container">
   <!-- Breadcrumb & Top Bar -->
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
@@ -12,7 +17,7 @@
         VCT Stage 1 {{ campaign.current_year }}
       </h1>
       <div style="font-size: 0.85em; color: var(--dim);">
-        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (30 trận BO3 - 5 trận/đội) + Vòng Playoffs (8 trận BO3/BO5) • Top 3 đi Masters Toronto, Top 4 đi EWC
+        12 đội tuyển / khu vực • Vòng Bảng Alpha & Omega (30 trận BO3 - 5 trận/đội) + Vòng Playoffs (8 trận BO3/BO5) • Top 3 đi VCT Masters {{ master_city }}, Top 4 đi EWC {{ ewc_city }}
       </div>
     </div>
 
@@ -124,7 +129,7 @@
       <!-- Masters Qualifiers -->
       <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; padding: 12px;">
         <div style="font-size: 0.8em; color: #fbbf24; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">
-          🇨🇦 3 Vé Tham Dự VCT Masters Toronto:
+          {{ master_host.flag if master_host else '🏆' }} 3 Vé Tham Dự VCT Masters {{ master_city }}:
         </div>
         {% for q in cur_reg.masters_qualifiers %}
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">
@@ -143,7 +148,7 @@
       <!-- EWC Qualifiers -->
       <div style="background: var(--surface); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; padding: 12px;">
         <div style="font-size: 0.8em; color: #60a5fa; font-weight: bold; text-transform: uppercase; margin-bottom: 8px;">
-          🌍 4 Vé Tham Dự Esports World Cup (EWC):
+          {{ ewc_host.flag if ewc_host else '🌍' }} 4 Vé Tham Dự Esports World Cup ({{ ewc_city }}):
         </div>
         {% for q in cur_reg.ewc_qualifiers %}
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border);">

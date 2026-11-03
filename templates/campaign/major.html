@@ -1,5 +1,11 @@
 {% extends "base.html" %}
-{% block title %}VCT Major (Masters Bangkok) - {{ campaign.name }}{% endblock %}
+{% set host = (major_data.host_city if major_data and major_data.host_city else None) or (season_hosts.major if season_hosts else None) %}
+{% set city_name = host.city_name if host else 'Tokyo' %}
+{% set country = host.country if host else 'Japan' %}
+{% set flag = host.flag if host else '🇯🇵' %}
+{% set venue = host.venue if host else 'Ariake Arena' %}
+
+{% block title %}VCT Major {{ city_name }} - {{ campaign.name }}{% endblock %}
 {% block content %}
 
 {% set res = major_data.result if major_data and major_data.result else None %}
@@ -8,9 +14,15 @@
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
     <div style="font-size: 0.85em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;">
-      {{ campaign.name }} • VCT Masters Bangkok
+      {{ campaign.name }} • VCT Major {{ city_name }}
     </div>
-    <h1 style="font-size: 1.8em; margin: 4px 0;">VCT Major (Masters Bangkok)</h1>
+    <h1 style="font-size: 1.8em; margin: 4px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <span>VCT Major {{ city_name }}</span>
+      <span class="badge" style="font-size: 0.5em; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); padding: 4px 10px; border-radius: 6px; font-weight: normal; display: inline-flex; align-items: center; gap: 6px;">
+        <span>{{ flag }}</span>
+        <span>{{ venue }}, {{ city_name }} ({{ country }})</span>
+      </span>
+    </h1>
     <div style="font-size: 0.9em; color: var(--dim);">
       8 Đội tuyển tinh hoa toàn cầu (Top 2 từ Kickoff 4 khu vực) • Vòng Thụy Sĩ (Swiss 10 trận) & Double Elimination Playoffs (6 trận)
     </div>
@@ -33,7 +45,7 @@
 <!-- Shared Stage Review & Confirmation Component -->
 {% set stage_key = 'major' %}
 {% set is_regional = False %}
-{% set review_target_name = 'VCT Masters Bangkok' %}
+{% set review_target_name = 'VCT Major ' ~ city_name %}
 {% set is_confirmed = res and res.is_confirmed %}
 {% set matches_completed = res.matches_completed if res else False %}
 {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/oq_stage1' if (res and res.is_confirmed) else None) %}
@@ -68,7 +80,7 @@
   <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
     <div>
       <span style="background: #eab308; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 0.8em; text-transform: uppercase;">
-        🏆 Nhà Vô Địch Thế Giới Masters Bangkok
+        🏆 Nhà Vô Địch VCT Major {{ city_name }}
       </span>
       <h2 style="font-size: 1.8em; margin: 8px 0 2px; color: #fff; display: flex; align-items: center; gap: 10px;">
         {% if res.champion.logo_url %}
@@ -148,7 +160,7 @@
 <!-- 8 Participating Teams Roster -->
 <div class="card" style="margin-bottom: 24px;">
   <div style="margin-bottom: 14px;">
-    <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">8 Đội tuyển góp mặt tại VCT Major (Masters Bangkok)</h2>
+    <h2 style="color: var(--accent); margin: 0; font-size: 1.3em;">8 Đội tuyển góp mặt tại VCT Major {{ city_name }}</h2>
     <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
       Gồm Quán quân (Hạt giống 1) và Á quân (Hạt giống 2) của 4 khu vực VCT Kickoff {{ campaign.current_year }}.
     </p>

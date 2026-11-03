@@ -2,6 +2,15 @@
 {% block title %}{{ campaign.name }} ({{ campaign.current_year }}) - Hub{% endblock %}
 {% block content %}
 
+{% set major_host = (major_data.host_city if major_data and major_data.host_city else None) or (season_hosts.major if season_hosts else None) %}
+{% set master_host = (master_data.host_city if master_data and master_data.host_city else None) or (season_hosts.master if season_hosts else None) %}
+{% set ewc_host = (ewc_data.host_city if ewc_data and ewc_data.host_city else None) or (season_hosts.ewc if season_hosts else None) %}
+{% set champ_host = (champion_data.host_city if champion_data and champion_data.host_city else None) or (season_hosts.champion if season_hosts else None) %}
+{% set major_city = major_host.city_name if major_host else 'Tokyo' %}
+{% set master_city = master_host.city_name if master_host else 'Madrid' %}
+{% set ewc_city = ewc_host.city_name if ewc_host else 'Riyadh' %}
+{% set champ_city = champ_host.city_name if champ_host else 'Seoul' %}
+
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
     <div style="font-size: 0.9em; color: var(--yellow); text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">
@@ -58,21 +67,21 @@
         {% elif campaign.current_stage == 'kickoff' %}
           VCT Kickoff (12 đội: 8 Partner + 4 Open Qualifiers)
         {% elif campaign.current_stage == 'major' %}
-          VCT Major (Masters Bangkok - 8 Đội Tuyển Toàn Cầu)
+          VCT Major {{ major_city }} (8 Đội Tuyển Toàn Cầu)
         {% elif campaign.current_stage == 'stage1' %}
           VCT Regional Stage 1 (12 Đội / Khu Vực)
         {% elif campaign.current_stage == 'ewc_qualifier' %}
           EWC Regional Qualifier (Cơ Hội Đến Esports World Cup)
         {% elif campaign.current_stage == 'master' %}
-          VCT Masters (Masters Toronto — 12 Đội Tuyển Tinh Hoa Toàn Cầu)
+          VCT Masters {{ master_city }} (12 Đội Tuyển Tinh Hoa Toàn Cầu)
         {% elif campaign.current_stage == 'ewc' %}
-          Esports World Cup — Riyadh (16 Đội Tuyển Toàn Cầu)
+          Esports World Cup — {{ ewc_city }} (16 Đội Tuyển Toàn Cầu)
         {% elif campaign.current_stage == 'oq_stage2' %}
           Open Qualifier Stage 2 (16 Đội / Khu Vực)
         {% elif campaign.current_stage == 'stage2' %}
           VCT Regional Stage 2 (12 Đội / Khu Vực — Chung Kết Năm)
         {% elif campaign.current_stage == 'champion' %}
-          VALORANT Champions Paris (16 Đội Tuyển Toàn Cầu)
+          VALORANT Champions {{ champ_city }} (16 Đội Tuyển Toàn Cầu)
         {% elif campaign.current_stage == 'season_summary' %}
           Bảng Vàng & Tổng Kết Mùa Giải (Hall of Fame)
         {% else %}
@@ -83,23 +92,23 @@
         {% if campaign.current_stage == 'open_qualifier' %}
           16 đội Non-Partner mỗi khu vực tranh tài qua thể thức Thụy Sĩ (Swiss 33 trận) và Double Elimination Playoffs (10 trận) để giành 4 tấm vé đi Kickoff.
         {% elif campaign.current_stage == 'kickoff' %}
-          8 đội Partner đối đầu cùng 4 đội Non-partner vượt qua vòng loại. 2 đội xuất sắc nhất mỗi khu vực sẽ giành vé tới giải VCT Major quốc tế!
+          8 đội Partner đối đầu cùng 4 đội Non-partner vượt qua vòng loại. 2 đội xuất sắc nhất mỗi khu vực sẽ giành vé tới giải VCT Major {{ major_city }} quốc tế!
         {% elif campaign.current_stage == 'major' %}
-          8 đội tuyển xuất sắc nhất thế giới tranh tài qua Vòng Thụy Sĩ (10 trận) và Double Elimination (6 trận) để giành ngôi Vương Masters Bangkok và 5 Championship Points.
+          8 đội tuyển xuất sắc nhất thế giới tranh tài qua Vòng Thụy Sĩ (10 trận) và Double Elimination (6 trận) để giành ngôi Vương VCT Major {{ major_city }} và 5 Championship Points.
         {% elif campaign.current_stage == 'stage1' %}
-          12 đội tuyển mỗi khu vực bước vào giai đoạn Vòng Bảng & Playoffs Stage 1 để tích lũy điểm số và giành vé tới Masters Toronto & EWC!
+          12 đội tuyển mỗi khu vực bước vào giai đoạn Vòng Bảng & Playoffs Stage 1 để tích lũy điểm số và giành vé tới VCT Masters {{ master_city }} & EWC {{ ewc_city }}!
         {% elif campaign.current_stage == 'ewc_qualifier' %}
           16 đội Phase 1 (Single Elim) tranh 2 suất tiến vào Phase 2 cùng 6 đội Stage 1 (Double Elim). Hai đội lọt vào Chung kết giành vé EWC!
         {% elif campaign.current_stage == 'master' %}
           4 Quán quân Stage 1 vào thẳng Tứ kết Playoffs. 8 Á quân & Hạng 3 tranh tài qua Vòng Thụy Sĩ (Swiss 10 trận) để giành 4 suất còn lại vào Double Elimination Playoffs (14 trận). Quán quân nhận 7 Championship Points!
         {% elif campaign.current_stage == 'ewc' %}
-          16 đội tuyển tranh tài qua 4 bảng GSL (20 trận BO3) để chọn ra 8 đội vào Vòng Playoffs Single Elimination (8 trận). Nhà Vô Địch Thế Giới nâng cao chiếc Cúp EWC danh giá!
+          16 đội tuyển tranh tài qua 4 bảng GSL (20 trận BO3) để chọn ra 8 đội vào Vòng Playoffs Single Elimination (8 trận). Nhà Vô Địch Thế Giới nâng cao chiếc Cúp EWC {{ ewc_city }} danh giá!
         {% elif campaign.current_stage == 'oq_stage2' %}
           4 đội xếp cuối Stage 1 cùng 12 đội tuyển tự do thi đấu Vòng Thụy Sĩ (33 trận) và Double Elimination (10 trận) để giành 4 tấm vé cuối cùng vào VCT Stage 2.
         {% elif campaign.current_stage == 'stage2' %}
-          12 đội tuyển mỗi khu vực bước vào giai đoạn quyết định Vòng Bảng & Playoffs Stage 2 để tích lũy điểm số và giành vé tới VALORANT Champions Paris!
+          12 đội tuyển mỗi khu vực bước vào giai đoạn quyết định Vòng Bảng & Playoffs Stage 2 để tích lũy điểm số và giành vé tới VALORANT Champions {{ champ_city }}!
         {% elif campaign.current_stage == 'champion' %}
-          Giải vô địch thế giới VALORANT lớn nhất năm quy tụ 16 đội tuyển tinh hoa toàn cầu qua Vòng Bảng GSL (20 trận) và Playoffs (14 trận) để tìm ra Tân Vương Thế Giới!
+          Giải vô địch thế giới VALORANT lớn nhất năm quy tụ 16 đội tuyển tinh hoa toàn cầu qua Vòng Bảng GSL (20 trận) và Playoffs (14 trận) để tìm ra Tân Vương Thế Giới tại {{ champ_city }}!
         {% elif campaign.current_stage == 'season_summary' %}
           Tổng kết năm thi đấu, vinh danh các nhà vô địch, giải thưởng cá nhân & câu lạc bộ của năm, lưu danh vào Bảng Vàng (Hall of Fame)!
         {% endif %}
@@ -119,7 +128,7 @@
         </a>
       {% elif campaign.current_stage == 'major' %}
         <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
-          🎮 Vào sàn đấu VCT Major ➔
+          🎮 Vào sàn đấu VCT Major {{ major_city }} ➔
         </a>
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
           Xem lại Kickoff
@@ -130,7 +139,7 @@
         </a>
         {% if major_data and major_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại VCT Major
+          Xem lại VCT Major {{ major_city }}
         </a>
         {% endif %}
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -147,7 +156,7 @@
         {% endif %}
         {% if major_data and major_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/major" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại VCT Major
+          Xem lại VCT Major {{ major_city }}
         </a>
         {% endif %}
         <a href="/campaign/{{ campaign.id }}/stage/kickoff" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -169,7 +178,7 @@
         {% endif %}
       {% elif campaign.current_stage == 'master' %}
         <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
-          🎮 Vào sàn đấu Masters Toronto ➔
+          🎮 Vào sàn đấu VCT Masters {{ master_city }} ➔
         </a>
         {% if ewc_qual_data and ewc_qual_data.regions %}
         <a href="/campaign/{{ campaign.id }}/stage/ewc_qualifier" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -188,11 +197,11 @@
         {% endif %}
       {% elif campaign.current_stage == 'ewc' %}
         <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
-          🎮 Vào sàn đấu Esports World Cup ➔
+          🎮 Vào sàn đấu Esports World Cup {{ ewc_city }} ➔
         </a>
         {% if master_data and master_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại Masters Toronto
+          Xem lại VCT Masters {{ master_city }}
         </a>
         {% endif %}
         {% if ewc_qual_data and ewc_qual_data.regions %}
@@ -206,12 +215,12 @@
         </a>
         {% if ewc_data and ewc_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại EWC
+          Xem lại EWC {{ ewc_city }}
         </a>
         {% endif %}
         {% if master_data and master_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại Masters Toronto
+          Xem lại VCT Masters {{ master_city }}
         </a>
         {% endif %}
       {% elif campaign.current_stage == 'stage2' %}
@@ -225,12 +234,12 @@
         {% endif %}
         {% if ewc_data and ewc_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại EWC
+          Xem lại EWC {{ ewc_city }}
         </a>
         {% endif %}
       {% elif campaign.current_stage == 'champion' %}
         <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-start" style="text-decoration: none; padding: 12px 24px; font-size: 1.1em; font-weight: bold; display: inline-block; background: var(--accent); color: #fff; border-radius: 8px;">
-          🎮 Vào sàn đấu Champions Paris ➔
+          🎮 Vào sàn đấu Champions {{ champ_city }} ➔
         </a>
         {% if stage2_data and stage2_data.regional_results %}
         <a href="/campaign/{{ campaign.id }}/stage/stage2" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
@@ -243,7 +252,7 @@
         </a>
         {% if champion_data and champion_data.result %}
         <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-sm" style="text-decoration: none; padding: 10px 14px; background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: inline-block; margin-left: 8px;">
-          Xem lại Champions Paris
+          Xem lại Champions {{ champ_city }}
         </a>
         {% endif %}
       {% else %}
@@ -301,7 +310,7 @@
   <div class="champion-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.22) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
-        🏆 Nhà Vô Địch Thế Giới VALORANT Champions Paris
+        🏆 Nhà Vô Địch Thế Giới VALORANT Champions {{ champ_city }}
       </span>
       <h3 style="font-size: 1.2em; color: #fff; margin: 4px 0;">
         World Champion: <span style="color: #fbbf24;">{{ champion_data.result.champion.name }} ({{ champion_data.result.champion.short_code }})</span> (+10 Rating)
@@ -312,7 +321,7 @@
     </div>
     <div style="display: flex; gap: 8px;">
       <a href="/campaign/{{ campaign.id }}/stage/champion" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
-        Xem sàn đấu Champions ➔
+        Xem sàn đấu Champions {{ champ_city }} ➔
       </a>
       <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: #eab308; color: #000; font-weight: bold; border-radius: 6px;">
         Tổng Kết Mùa Giải ➔
@@ -325,7 +334,7 @@
   <div class="ewc-quick-summary" style="background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
-        🏆 Esports World Cup Kết Thúc
+        🏆 Esports World Cup {{ ewc_city }} Kết Thúc
       </span>
       <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
         Nhà Vô Địch EWC: <span style="color: #4ade80;">{{ ewc_data.result.champion.name }} ({{ ewc_data.result.champion.short_code }})</span> (+5 Rating)
@@ -335,7 +344,7 @@
       </div>
     </div>
     <a href="/campaign/{{ campaign.id }}/stage/ewc" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
-      Xem toàn bộ sàn đấu EWC ➔
+      Xem toàn bộ sàn đấu EWC {{ ewc_city }} ➔
     </a>
   </div>
   {% endif %}
@@ -344,7 +353,7 @@
   <div class="master-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.18) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
-        🏆 VCT Masters Toronto Kết Thúc
+        🏆 VCT Masters {{ master_city }} Kết Thúc
       </span>
       <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
         Nhà Vô Địch Thế Giới: <span style="color: #fbbf24;">{{ master_data.result.champion.name }} ({{ master_data.result.champion.short_code }})</span> (+7 CP)
@@ -354,7 +363,7 @@
       </div>
     </div>
     <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-sm" style="text-decoration: none; padding: 8px 14px; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 6px;">
-      Xem toàn bộ sàn đấu Masters Toronto ➔
+      Xem toàn bộ sàn đấu Masters {{ master_city }} ➔
     </a>
   </div>
   {% endif %}
@@ -368,10 +377,10 @@
   <div class="stage1-quick-summary" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #3b82f6; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.75em; background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
-        🇨🇦 Vé Masters Toronto & 🌍 EWC từ Stage 1
+        {{ master_host.flag if master_host else '🏆' }} Vé Masters {{ master_city }} & 🌍 EWC {{ ewc_city }} từ Stage 1
       </span>
       <h3 style="font-size: 1.1em; color: #fff; margin: 4px 0;">
-        VCT Stage 1 Đã Hoàn Thành — 12 Đội Giành Vé Masters Toronto & 16 Đội Đi EWC!
+        VCT Stage 1 Đã Hoàn Thành — 12 Đội Giành Vé Masters {{ master_city }} & 16 Đội Đi EWC!
       </h3>
       <div style="font-size: 0.85em; color: var(--dim);">
         1 CP mỗi trận thắng vòng bảng • Playoffs: 1st (+5 CP), 2nd (+3 CP), 3rd (+2 CP), 4th (+1 CP)
@@ -388,7 +397,7 @@
   <div class="major-quick-summary" style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #eab308; border-radius: 8px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
     <div>
       <span style="font-size: 0.75em; background: #eab308; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 800; text-transform: uppercase;">
-        🏆 VCT Major Bangkok Kết Thúc
+        🏆 VCT Major {{ major_city }} Kết Thúc
       </span>
       <h3 style="font-size: 1.15em; color: #fff; margin: 4px 0;">
         Nhà Vô Địch: <span style="color: #fbbf24;">{{ major_data.result.champion.name }} ({{ major_data.result.champion.short_code }})</span> (+5 CP)
@@ -406,13 +415,13 @@
   {% if kickoff_data and kickoff_data.regional_results %}
   <div class="kickoff-quick-summary" style="background: var(--bg); border: 1px solid #22c55e; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
     <h3 style="font-size: 0.95em; color: #4ade80; margin-bottom: 10px; text-transform: uppercase;">
-      🎉 8 Đội tuyển giành vé tham dự VCT Major (Masters Bangkok) từ Kickoff:
+      🎉 8 Đội tuyển giành vé tham dự VCT Major {{ major_city }} từ Kickoff:
     </h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
       {% for r_slug, r_data in kickoff_data.regional_results.items() %}
       <div style="padding: 10px; background: var(--surface); border-radius: 6px; border-left: 4px solid var(--green);">
         <strong style="color: #fff; text-transform: uppercase;">{{ r_slug }}:</strong>
-        <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">Top 2 đi Major:</div>
+        <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">Top 2 đi Major {{ major_city }}:</div>
         <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
           {% for q in r_data.major_qualifiers %}
           <span style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em;">
@@ -451,16 +460,16 @@
   {% endif %}
 </div>
 
-<!-- Championship Points Race (Đường tới Champions Paris) -->
+<!-- Championship Points Race (Đường tới Champions {{ champ_city }}) -->
 <div class="card" style="margin-bottom: 24px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
     <div>
       <div style="font-size: 0.8em; color: var(--yellow); text-transform: uppercase; font-weight: bold;">
         Hệ thống Tích lũy VCT {{ campaign.current_year }}
       </div>
-      <h2 style="margin: 2px 0 0; font-size: 1.3em;">Bảng xếp hạng Championship Points (Đường tới Champions Paris)</h2>
+      <h2 style="margin: 2px 0 0; font-size: 1.3em;">Bảng xếp hạng Championship Points (Đường tới Champions {{ champ_city }})</h2>
       <p style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">
-        Mỗi khu vực có <strong>4 suất đi Champions Paris</strong>: Vô địch Stage 2 + Á quân Stage 2 + <strong>Top 2 đội có điểm CP cao nhất</strong> chưa có vé.
+        Mỗi khu vực có <strong>4 suất đi Champions {{ champ_city }}</strong>: Vô địch Stage 2 + Á quân Stage 2 + <strong>Top 2 đội có điểm CP cao nhất</strong> chưa có vé.
       </p>
     </div>
     <div class="region-tabs" style="display: flex; gap: 6px;">
@@ -482,9 +491,9 @@
             <th>Loại đội</th>
             <th style="color: var(--yellow); font-size: 1.05em;">Tổng Điểm CP</th>
             <th>Hạng Stage 2</th>
-            <th>Hạng Master (Toronto)</th>
+            <th>Hạng Masters ({{ master_city }})</th>
             <th>Hạng Stage 1</th>
-            <th>Hạng Major (Bangkok)</th>
+            <th>Hạng Major ({{ major_city }})</th>
             <th>Hạng Kickoff</th>
             <th>Trận thắng vòng bảng</th>
             <th>Hiệu số Map</th>

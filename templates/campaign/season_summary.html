@@ -2,6 +2,16 @@
 {% block title %}Bảng Vàng & Hall of Fame Mùa Giải {{ summary_data.year }} - {{ campaign.name }}{% endblock %}
 {% block content %}
 
+{% set season_hosts = summary_data.season_hosts if summary_data and summary_data.season_hosts else {} %}
+{% set major_host = (summary_data.titles.major.host_city if summary_data.titles and summary_data.titles.major else None) or season_hosts.get('major') %}
+{% set master_host = (summary_data.titles.master.host_city if summary_data.titles and summary_data.titles.master else None) or season_hosts.get('master') %}
+{% set ewc_host = (summary_data.titles.ewc.host_city if summary_data.titles and summary_data.titles.ewc else None) or season_hosts.get('ewc') %}
+{% set champ_host = (summary_data.titles.champion.host_city if summary_data.titles and summary_data.titles.champion else None) or season_hosts.get('champion') %}
+{% set major_city = major_host.city_name if major_host else 'Tokyo' %}
+{% set master_city = master_host.city_name if master_host else 'Madrid' %}
+{% set ewc_city = ewc_host.city_name if ewc_host else 'Riyadh' %}
+{% set champ_city = champ_host.city_name if champ_host else 'Seoul' %}
+
 <!-- Header -->
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
@@ -70,7 +80,7 @@
       </div>
     </div>
     <div style="margin-top: 12px; font-size: 0.85em; color: #fbbf24;">
-      ★ Đăng quang đỉnh cao tại VALORANT Champions Paris {{ summary_data.year }}
+      ★ Đăng quang đỉnh cao tại VALORANT Champions {{ champ_city }} {{ summary_data.year }}
     </div>
     {% else %}
     <div style="color: var(--dim); margin-top: 12px; font-size: 0.9em;">Chưa xác định</div>
@@ -169,10 +179,10 @@
   </div>
 
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
-    <!-- 1. Champions Paris -->
+    <!-- 1. Champions -->
     <div style="background: var(--surface); border: 2px solid #eab308; border-radius: 8px; padding: 12px 14px;">
       <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VALORANT Champions Paris (Thế Giới)
+        VALORANT Champions {{ champ_city }} (Thế Giới)
       </div>
       {% set ch_title = summary_data.titles.get('champion') %}
       {% if ch_title and ch_title.champion %}
@@ -192,10 +202,10 @@
       {% endif %}
     </div>
 
-    <!-- 2. Masters Toronto -->
+    <!-- 2. Masters -->
     <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
       <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VCT Masters Toronto (Master)
+        VCT Masters {{ master_city }}
       </div>
       {% set master_title = summary_data.titles.get('master') %}
       {% if master_title and master_title.champion %}
@@ -215,10 +225,10 @@
       {% endif %}
     </div>
 
-    <!-- 3. Masters Bangkok -->
+    <!-- 3. Major -->
     <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
       <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VCT Masters Bangkok (Major)
+        VCT Major {{ major_city }}
       </div>
       {% set major_title = summary_data.titles.get('major') %}
       {% if major_title and major_title.champion %}
@@ -241,7 +251,7 @@
     <!-- 4. Esports World Cup -->
     <div style="background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 12px 14px;">
       <div style="font-size: 0.75em; color: #4ade80; font-weight: 800; text-transform: uppercase;">
-        Esports World Cup (EWC Riyadh)
+        Esports World Cup ({{ ewc_city }})
       </div>
       {% set ewc_title = summary_data.titles.get('ewc') %}
       {% if ewc_title and ewc_title.champion %}
@@ -349,12 +359,12 @@
       <!-- Stage Selector Buttons -->
       <div style="display: flex; gap: 6px; flex-wrap: wrap;">
         <button type="button" class="hof-stage-btn active" onclick="switchHofStageTab('kickoff')">Kickoff</button>
-        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('major')">Masters Bangkok</button>
+        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('major')">VCT Major {{ major_city }}</button>
         <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('stage1')">Stage 1</button>
-        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('master')">Masters Toronto</button>
-        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('ewc')">EWC Riyadh</button>
+        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('master')">VCT Masters {{ master_city }}</button>
+        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('ewc')">EWC {{ ewc_city }}</button>
         <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('stage2')">Stage 2</button>
-        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('champion')">Champions Paris</button>
+        <button type="button" class="hof-stage-btn" onclick="switchHofStageTab('champion')">Champions {{ champ_city }}</button>
       </div>
     </div>
 
@@ -545,6 +555,7 @@
             <th class="team-col">Đội tuyển</th>
             <th style="text-align: center;">Khu vực</th>
             <th style="text-align: center; color: #fbbf24;">👑 Cúp Champions</th>
+            <th style="text-align: center; color: #f59e0b;">🌟 Cúp Major</th>
             <th style="text-align: center; color: #38bdf8;">🏆 Cúp Masters</th>
             <th style="text-align: center; color: #4ade80;">🌍 Cúp EWC</th>
             <th style="text-align: center; color: #a855f7;">⚡ Cúp Quốc Nội</th>
@@ -574,6 +585,9 @@
             </td>
             <td style="text-align: center; font-weight: 800; font-size: 1.15em; color: #fbbf24;">
               {{ t.champions_titles if t.champions_titles > 0 else '-' }}
+            </td>
+            <td style="text-align: center; font-weight: 800; font-size: 1.1em; color: #f59e0b;">
+              {{ t.major_titles if t.major_titles > 0 else '-' }}
             </td>
             <td style="text-align: center; font-weight: 800; font-size: 1.1em; color: #38bdf8;">
               {{ t.masters_titles if t.masters_titles > 0 else '-' }}
@@ -636,9 +650,9 @@
               <th class="team-col">Đội tuyển</th>
               <th style="text-align: center; color: var(--yellow);">Tổng Điểm CP</th>
               <th style="text-align: center;">Stage 2</th>
-              <th style="text-align: center;">Masters Toronto</th>
+              <th style="text-align: center;">Masters {{ master_city }}</th>
               <th style="text-align: center;">Stage 1</th>
-              <th style="text-align: center;">Masters Bangkok</th>
+              <th style="text-align: center;">Major {{ major_city }}</th>
               <th style="text-align: center;">Kickoff</th>
               <th style="text-align: center;">Trận thắng vòng bảng</th>
             </tr>

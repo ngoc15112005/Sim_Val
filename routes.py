@@ -349,6 +349,7 @@ def register_routes(app):
         get_team_profile_data,
         confirm_stage_region, confirm_stage_tournament, confirm_stage_all,
         unlock_stage_region, unlock_stage_tournament,
+        get_season_hosts,
     )
 
     @app.route('/campaigns')
@@ -407,6 +408,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, campaign.current_year)
 
         return render_template(
             'campaign/detail.html',
@@ -425,6 +427,7 @@ def register_routes(app):
             stage2_data=stage2_data,
             champion_data=champion_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -580,6 +583,7 @@ def register_routes(app):
         kickoff_data = get_kickoff_data(campaign_id, year=req_year)
         selected_region = request.args.get('region', 'pacific')
         stage = get_stage_record(campaign_id, 'kickoff', year=req_year)
+        season_hosts = get_season_hosts(campaign.id, req_year)
 
         return render_template(
             'campaign/kickoff.html',
@@ -590,6 +594,7 @@ def register_routes(app):
             selected_region=selected_region,
             active_region=selected_region,
             clubs_by_id={c.id: c for c in Club.query.all()},
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -721,6 +726,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, req_year)
 
         return render_template(
             'campaign/major.html',
@@ -729,6 +735,7 @@ def register_routes(app):
             req_year=req_year,
             major_data=major_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -834,6 +841,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, req_year)
 
         return render_template(
             'campaign/stage1.html',
@@ -843,6 +851,7 @@ def register_routes(app):
             active_region=active_region,
             stage1_data=stage1_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -1198,6 +1207,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, req_year)
 
         return render_template(
             'campaign/master.html',
@@ -1207,6 +1217,7 @@ def register_routes(app):
             master_data=master_data,
             ewc_data=ewc_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -1290,6 +1301,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, req_year)
 
         return render_template(
             'campaign/ewc.html',
@@ -1298,6 +1310,7 @@ def register_routes(app):
             req_year=req_year,
             ewc_data=ewc_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -1507,6 +1520,7 @@ def register_routes(app):
             r: get_championship_leaderboard(campaign_id, region_slug=r)
             for r in ['pacific', 'americas', 'emea', 'china']
         }
+        season_hosts = get_season_hosts(campaign.id, req_year)
         return render_template(
             'campaign/stage2.html',
             campaign=campaign,
@@ -1515,6 +1529,7 @@ def register_routes(app):
             active_region=active_region,
             stage2_data=stage2_data,
             cp_leaderboards=cp_leaderboards,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 
@@ -1622,12 +1637,14 @@ def register_routes(app):
         req_year = request.args.get('year', type=int) or campaign.current_year
         stage = get_stage_record(campaign_id, 'champion', year=req_year)
         champion_data = get_champion_data(campaign_id, year=req_year)
+        season_hosts = get_season_hosts(campaign.id, req_year)
         return render_template(
             'campaign/champion.html',
             campaign=campaign,
             stage=stage,
             req_year=req_year,
             champion_data=champion_data,
+            season_hosts=season_hosts,
             cfg=Config,
         )
 

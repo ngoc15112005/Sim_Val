@@ -58,7 +58,7 @@ class TestCampaignMajor(unittest.TestCase):
         # 5. Test Web Route before simulation
         r_pre = self.client.get(f'/campaign/{campaign.id}/stage/major')
         self.assertEqual(r_pre.status_code, 200)
-        self.assertIn('VCT Major (Masters Bangkok)'.encode('utf-8'), r_pre.data)
+        self.assertIn('VCT Major'.encode('utf-8'), r_pre.data)
 
         # 6. Execute Major Simulation
         res = run_major_stage(campaign.id)
@@ -142,7 +142,7 @@ class TestCampaignMajor(unittest.TestCase):
         self.assertEqual(r_post.status_code, 200)
         self.assertIn('Giai đoạn 1: Vòng Thụy Sĩ'.encode('utf-8'), r_post.data)
         self.assertIn('Giai đoạn 2: Vòng Playoffs'.encode('utf-8'), r_post.data)
-        self.assertIn('Nhà Vô Địch Thế Giới Masters Bangkok'.encode('utf-8'), r_post.data)
+        self.assertIn('Nhà Vô Địch VCT Major'.encode('utf-8'), r_post.data)
 
         # Test API endpoints
         r_api_override = self.client.post(

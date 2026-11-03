@@ -338,7 +338,7 @@ function renderTeamProfileModal(profile, campId) {
   if (troEl) troEl.textContent = `${trophies.total_titles || 0} 🏆`;
 
   const troDetEl = document.getElementById('tpm-stat-trophies-detail');
-  if (troDetEl) troDetEl.textContent = `${trophies.champions_titles || 0} Ch. / ${trophies.masters_titles || 0} M. / ${trophies.regional_titles || 0} Reg.`;
+  if (troDetEl) troDetEl.textContent = `${trophies.champions_titles || 0} Ch. / ${trophies.major_titles || 0} Maj. / ${trophies.masters_titles || 0} M. / ${trophies.ewc_titles || 0} EWC / ${trophies.regional_titles || 0} Reg.`;
 
   const streakEl = document.getElementById('tpm-stat-streak');
   if (streakEl) {

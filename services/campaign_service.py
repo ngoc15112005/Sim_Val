@@ -1,3 +1,4 @@
+from engine.host_cities import pick_season_hosts, get_city_by_id, get_all_host_cities
 """
 services/campaign_service.py — Service layer for VCT Story / Campaign Mode.
 
@@ -249,6 +250,35 @@ def init_campaign_open_qualifier(campaign_id: int) -> Dict[str, Any]:
     return data
 
 
+
+
+def get_season_hosts(campaign_id: int, year: int) -> Dict[str, Dict[str, Any]]:
+    """Return the 4 host cities for the 4 international tournaments of this year:
+    - major: VCT Major (8 teams from Kickoff)
+    - master: VCT Masters (12 teams from Stage 1)
+    - ewc: Esports World Cup (16 teams)
+    - champion: VALORANT Champions (16 teams)
+
+    Business Rules:
+    - 4 distinct cities across 4 distinct regions (Pacific, EMEA, Americas, China)
+    - Deterministic per campaign & year for stability across page reloads
+    - Honors any host_city already persisted in stage_data
+    """
+    from engine.host_cities import pick_season_hosts
+    seed = campaign_id * 10007 + year
+    hosts = pick_season_hosts(year, seed=seed)
+
+    for s_key in ['major', 'master', 'ewc', 'champion']:
+        st = CampaignStage.query.filter_by(campaign_id=campaign_id, year=year, stage_key=s_key).first()
+        if st and st.stage_data:
+            try:
+                s_data = json.loads(st.stage_data)
+                if s_data.get('host_city') and s_data['host_city'].get('city_name'):
+                    hosts[s_key] = s_data['host_city']
+            except Exception:
+                pass
+
+    return hosts
 
 def is_stage_region_actually_completed(stage_key: str, reg_data: Dict[str, Any]) -> Tuple[bool, str]:
     """Check if a regional tournament stage is genuinely finished and eligible for confirmation.
@@ -1086,14 +1116,19 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
 
     initial_result = init_major_state(major_roster) if len(major_roster) == 8 else None
 
+    hosts = get_season_hosts(campaign.id, campaign.current_year)
+    major_host = hosts.get('major')
+    major_city = major_host['city_name'] if major_host else 'Tokyo'
+    st_name = f'VCT Major {major_city} {campaign.current_year}'
+
     if not major_stage:
         major_stage = CampaignStage(
             campaign_id=campaign.id,
             year=campaign.current_year,
             stage_key='major',
-            stage_name=f'VCT Major {campaign.current_year} (Masters Bangkok)',
+            stage_name=st_name,
             status='pending',
-            stage_data=json.dumps({'roster': major_roster, 'result': initial_result}),
+            stage_data=json.dumps({'roster': major_roster, 'result': initial_result, 'host_city': major_host}),
         )
         db.session.add(major_stage)
     else:
@@ -1101,6 +1136,9 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
         m_data['roster'] = major_roster
         if 'result' not in m_data or not m_data['result']:
             m_data['result'] = initial_result
+        if 'host_city' not in m_data or not m_data['host_city']:
+            m_data['host_city'] = major_host
+        major_stage.stage_name = st_name
         major_stage.stage_data = json.dumps(m_data)
 
 
@@ -1118,6 +1156,14 @@ def get_major_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dic
 
     if roster and len(roster) == 8 and ('result' not in data or not data['result'] or not data['result'].get('swiss_matches')):
         data['result'] = init_major_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    if 'host_city' not in data or not data['host_city']:
+        hosts = get_season_hosts(campaign_id, stage.year)
+        data['host_city'] = hosts.get('major')
+        if data['host_city']:
+            stage.stage_name = f"VCT Major {data['host_city']['city_name']} {stage.year}"
         stage.stage_data = json.dumps(data)
         db.session.commit()
 
@@ -1744,21 +1790,27 @@ def _prepare_master_stage(campaign: Campaign, s1_regional_results: Dict[str, Any
 
     init_state = init_master_state(master_roster) if len(master_roster) == 12 else None
 
+    hosts = get_season_hosts(campaign.id, campaign.current_year)
+    master_host = hosts.get('master')
+    master_city = master_host['city_name'] if master_host else 'Madrid'
+    st_name = f'VCT Masters {master_city} {campaign.current_year}'
+
     if not master_stage:
         master_stage = CampaignStage(
             campaign_id=campaign.id,
             year=campaign.current_year,
             stage_key='master',
-            stage_name=f'VCT Masters {campaign.current_year} (Masters Toronto)',
+            stage_name=st_name,
             status='pending',
-            stage_data=json.dumps({'roster': master_roster, 'result': init_state} if init_state else {'roster': master_roster}),
+            stage_data=json.dumps({'roster': master_roster, 'result': init_state, 'host_city': master_host} if init_state else {'roster': master_roster, 'host_city': master_host}),
         )
         db.session.add(master_stage)
     else:
         m_data = json.loads(master_stage.stage_data) if master_stage.stage_data else {}
         m_data['roster'] = master_roster
-        if init_state and ('result' not in m_data or not m_data['result']):
-            m_data['result'] = init_state
+        if 'host_city' not in m_data or not m_data['host_city']:
+            m_data['host_city'] = master_host
+        master_stage.stage_name = st_name
         master_stage.stage_data = json.dumps(m_data)
 
 
@@ -1795,21 +1847,27 @@ def _prepare_ewc_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
 
     init_state = init_ewc_state(ewc_roster) if len(ewc_roster) == 16 else None
 
+    hosts = get_season_hosts(campaign.id, campaign.current_year)
+    ewc_host = hosts.get('ewc')
+    ewc_city = ewc_host['city_name'] if ewc_host else 'Riyadh'
+    st_name = f'Esports World Cup {ewc_city} {campaign.current_year}'
+
     if not ewc_stage:
         ewc_stage = CampaignStage(
             campaign_id=campaign.id,
             year=campaign.current_year,
             stage_key='ewc',
-            stage_name=f'Esports World Cup (EWC) {campaign.current_year}',
+            stage_name=st_name,
             status='pending',
-            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state} if init_state else {'roster': ewc_roster}),
+            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state, 'host_city': ewc_host} if init_state else {'roster': ewc_roster, 'host_city': ewc_host}),
         )
         db.session.add(ewc_stage)
     else:
         e_data = json.loads(ewc_stage.stage_data) if ewc_stage.stage_data else {}
         e_data['roster'] = ewc_roster
-        if init_state and ('result' not in e_data or not e_data['result']):
-            e_data['result'] = init_state
+        if 'host_city' not in e_data or not e_data['host_city']:
+            e_data['host_city'] = ewc_host
+        ewc_stage.stage_name = st_name
         ewc_stage.stage_data = json.dumps(e_data)
 
 
@@ -2113,21 +2171,27 @@ def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_q
 
     init_state = init_ewc_state(ewc_roster) if len(ewc_roster) == 16 else None
 
+    hosts = get_season_hosts(campaign.id, campaign.current_year)
+    ewc_host = hosts.get('ewc')
+    ewc_city = ewc_host['city_name'] if ewc_host else 'Riyadh'
+    st_name = f'Esports World Cup {ewc_city} {campaign.current_year}'
+
     if not ewc_stage:
         ewc_stage = CampaignStage(
             campaign_id=campaign.id,
             year=campaign.current_year,
             stage_key='ewc',
-            stage_name=f'Esports World Cup (EWC) {campaign.current_year}',
+            stage_name=st_name,
             status='pending',
-            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state} if init_state else {'roster': ewc_roster}),
+            stage_data=json.dumps({'roster': ewc_roster, 'result': init_state, 'host_city': ewc_host} if init_state else {'roster': ewc_roster, 'host_city': ewc_host}),
         )
         db.session.add(ewc_stage)
     else:
         e_data = json.loads(ewc_stage.stage_data) if ewc_stage.stage_data else {}
         e_data['roster'] = ewc_roster
-        if init_state and ('result' not in e_data or not e_data['result']):
-            e_data['result'] = init_state
+        if 'host_city' not in e_data or not e_data['host_city']:
+            e_data['host_city'] = ewc_host
+        ewc_stage.stage_name = st_name
         ewc_stage.stage_data = json.dumps(e_data)
 
 
@@ -2294,6 +2358,14 @@ def get_master_data(campaign_id: int, year: Optional[int] = None) -> Optional[Di
         stage.stage_data = json.dumps(data)
         db.session.commit()
 
+    if 'host_city' not in data or not data['host_city']:
+        hosts = get_season_hosts(campaign_id, stage.year)
+        data['host_city'] = hosts.get('master')
+        if data['host_city']:
+            stage.stage_name = f"VCT Masters {data['host_city']['city_name']} {stage.year}"
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
     campaign = get_campaign(campaign_id)
     if campaign:
         heal_stage_tournament_state(campaign, stage, 'master', data)
@@ -2439,6 +2511,14 @@ def get_ewc_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[
 
     if roster and len(roster) == 16 and ('result' not in data or not data['result'] or not data['result'].get('groups')):
         data['result'] = init_ewc_state(roster)
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    if 'host_city' not in data or not data['host_city']:
+        hosts = get_season_hosts(campaign_id, stage.year)
+        data['host_city'] = hosts.get('ewc')
+        if data['host_city']:
+            stage.stage_name = f"Esports World Cup {data['host_city']['city_name']} {stage.year}"
         stage.stage_data = json.dumps(data)
         db.session.commit()
 
@@ -3106,14 +3186,19 @@ def _prepare_champion_stage(campaign: Campaign, qualifiers: Optional[List[Dict[s
 
     champ_result = init_champion_state(roster) if len(roster) == 16 else {}
 
+    hosts = get_season_hosts(campaign.id, campaign.current_year)
+    champ_host = hosts.get('champion')
+    champ_city = champ_host['city_name'] if champ_host else 'Seoul'
+    st_name = f'VALORANT Champions {champ_city} {campaign.current_year}'
+
     if not champ_stage:
         champ_stage = CampaignStage(
             campaign_id=campaign.id,
             year=campaign.current_year,
             stage_key='champion',
-            stage_name=f'VALORANT Champions Paris {campaign.current_year}',
+            stage_name=st_name,
             status='pending',
-            stage_data=json.dumps({'roster': roster, 'result': champ_result}),
+            stage_data=json.dumps({'roster': roster, 'result': champ_result, 'host_city': champ_host}),
         )
         db.session.add(champ_stage)
     else:
@@ -3121,6 +3206,9 @@ def _prepare_champion_stage(campaign: Campaign, qualifiers: Optional[List[Dict[s
         c_data['roster'] = roster
         if 'result' not in c_data or not c_data['result']:
             c_data['result'] = champ_result
+        if 'host_city' not in c_data or not c_data['host_city']:
+            c_data['host_city'] = champ_host
+        champ_stage.stage_name = st_name
         champ_stage.stage_data = json.dumps(c_data)
 
 
@@ -3351,6 +3439,14 @@ def get_champion_data(campaign_id: int, year: Optional[int] = None) -> Optional[
         _hydrate_t(res.get('runner_up'))
         _hydrate_t(res.get('third_place'))
         _hydrate_t(res.get('fourth_place'))
+
+    if 'host_city' not in data or not data['host_city']:
+        hosts = get_season_hosts(campaign_id, stage.year)
+        data['host_city'] = hosts.get('champion')
+        if data['host_city']:
+            stage.stage_name = f"VALORANT Champions {data['host_city']['city_name']} {stage.year}"
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
 
     campaign = get_campaign(campaign_id)
     if campaign:
@@ -3634,7 +3730,8 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='major', rank=2).first()
         if p2 and p2.club:
             m_ru = p2.club.to_dict()
-    titles['major'] = {'champion': m_champ, 'runner_up': m_ru}
+    hosts = get_season_hosts(campaign_id, target_year)
+    titles['major'] = {'champion': m_champ, 'runner_up': m_ru, 'host_city': (json.loads(m_stage.stage_data).get('host_city') if (m_stage and m_stage.stage_data) else None) or hosts.get('major')}
 
     # 3. Stage 1 Regional Winners
     s1_stage = get_stage_record(campaign_id, 'stage1', year=year)
@@ -3681,7 +3778,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='master', rank=2).first()
         if p2 and p2.club:
             mt_ru = p2.club.to_dict()
-    titles['master'] = {'champion': mt_champ, 'runner_up': mt_ru}
+    titles['master'] = {'champion': mt_champ, 'runner_up': mt_ru, 'host_city': (json.loads(mt_stage.stage_data).get('host_city') if (mt_stage and mt_stage.stage_data) else None) or hosts.get('master')}
 
     # 5. Esports World Cup (EWC)
     ewc_stage = get_stage_record(campaign_id, 'ewc', year=year)
@@ -3705,7 +3802,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         p2 = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id, year=year, stage_key='ewc', rank=2).first()
         if p2 and p2.club:
             ewc_ru = p2.club.to_dict()
-    titles['ewc'] = {'champion': ewc_champ, 'runner_up': ewc_ru, 'third_place': ewc_3rd}
+    titles['ewc'] = {'champion': ewc_champ, 'runner_up': ewc_ru, 'third_place': ewc_3rd, 'host_city': (json.loads(ewc_stage.stage_data).get('host_city') if (ewc_stage and ewc_stage.stage_data) else None) or hosts.get('ewc')}
 
     # 6. Stage 2 Regional Winners
     s2_stage = get_stage_record(campaign_id, 'stage2', year=year)
@@ -3761,6 +3858,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         'runner_up': ch_ru,
         'third_place': ch_3rd,
         'fourth_place': ch_4th,
+        'host_city': (json.loads(ch_stage.stage_data).get('host_city') if (ch_stage and ch_stage.stage_data) else None) or hosts.get('champion'),
     }
 
     # Leaderboards
@@ -3826,6 +3924,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         'all_time_trophies': get_all_time_trophy_table(campaign_id),
         'global_power_rankings': get_global_power_rankings(campaign_id),
         'stage_placements': stage_placements,
+        'season_hosts': hosts,
     }
 
 
@@ -4127,9 +4226,11 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
                 l = s.get('matches_lost', s.get('losses', 0))
                 _save_placement(cid, rk, r_slug, tour_name, s.get('elimination_stage', ''), cp, w, l)
 
-    # 2. MAJOR (Masters Bangkok)
+    # 2. MAJOR
     elif stage_key == 'major':
-        tour_name = f"VCT Masters Bangkok {target_year}"
+        hosts = get_season_hosts(campaign_id, target_year)
+        m_city = (data.get('host_city') or {}).get('city_name') or (hosts.get('major') or {}).get('city_name', 'Tokyo')
+        tour_name = f"VCT Major {m_city} {target_year}"
         res = data.get('result', {})
         for s in res.get('standings', []):
             cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
@@ -4177,9 +4278,11 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
                 _save_placement(cid, curr_rank, r_slug, tour_name, 'Group Stage', cp, w, l)
                 curr_rank += 1
 
-    # 4. MASTER (Masters Toronto)
+    # 4. MASTER
     elif stage_key == 'master':
-        tour_name = f"VCT Masters Toronto {target_year}"
+        hosts = get_season_hosts(campaign_id, target_year)
+        mt_city = (data.get('host_city') or {}).get('city_name') or (hosts.get('master') or {}).get('city_name', 'Madrid')
+        tour_name = f"VCT Masters {mt_city} {target_year}"
         res = data.get('result', {})
         for s in res.get('standings', []):
             cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
@@ -4190,9 +4293,11 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
             reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
             _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), cp, w, l)
 
-    # 5. EWC (Esports World Cup Riyadh)
+    # 5. EWC
     elif stage_key == 'ewc':
-        tour_name = f"Esports World Cup Riyadh {target_year}"
+        hosts = get_season_hosts(campaign_id, target_year)
+        ewc_city = (data.get('host_city') or {}).get('city_name') or (hosts.get('ewc') or {}).get('city_name', 'Riyadh')
+        tour_name = f"Esports World Cup {ewc_city} {target_year}"
         res = data.get('result', {})
         for s in res.get('standings', []):
             cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
@@ -4202,9 +4307,11 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
             reg = s.get('region') or (s.get('team', {}).get('region') if isinstance(s.get('team'), dict) else None)
             _save_placement(cid, rk, reg, tour_name, s.get('elimination_stage', ''), 0, w, l)
 
-    # 6. CHAMPION (VALORANT Champions Paris)
+    # 6. CHAMPION
     elif stage_key == 'champion':
-        tour_name = f"VALORANT Champions Paris {target_year}"
+        hosts = get_season_hosts(campaign_id, target_year)
+        ch_city = (data.get('host_city') or {}).get('city_name') or (hosts.get('champion') or {}).get('city_name', 'Seoul')
+        tour_name = f"VALORANT Champions {ch_city} {target_year}"
         res = data.get('result', {})
         for s in res.get('standings', []):
             cid = s.get('club_id') or (s.get('team', {}).get('id') if isinstance(s.get('team'), dict) else None)
@@ -4299,6 +4406,7 @@ def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
     stats = {c.id: {
         'club': c.to_dict(),
         'champions_titles': 0,
+        'major_titles': 0,
         'masters_titles': 0,
         'ewc_titles': 0,
         'regional_titles': 0,
@@ -4315,7 +4423,9 @@ def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
         if p.rank == 1:
             if p.stage_key == 'champion':
                 stats[cid]['champions_titles'] += 1
-            elif p.stage_key in ('master', 'major'):
+            elif p.stage_key == 'major':
+                stats[cid]['major_titles'] += 1
+            elif p.stage_key == 'master':
                 stats[cid]['masters_titles'] += 1
             elif p.stage_key == 'ewc':
                 stats[cid]['ewc_titles'] += 1
@@ -4331,6 +4441,7 @@ def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
     table = [s for s in stats.values() if s['total_finals'] > 0]
     table.sort(key=lambda s: (
         s['champions_titles'],
+        s.get('major_titles', 0),
         s['masters_titles'],
         s['ewc_titles'],
         s['regional_titles'],
@@ -4517,6 +4628,7 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
 
     tournament_results = []
     champions_titles = 0
+    major_titles = 0
     masters_titles = 0
     ewc_titles = 0
     regional_titles = 0
@@ -4526,9 +4638,9 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
     lifetime_cp = 0
 
     tier_cat_map = {
-        'champion': ('👑 World Championship', 'tier-world'),
-        'master': ('🏆 International Masters', 'tier-master'),
-        'major': ('🏆 International Masters', 'tier-master'),
+        'champion': ('👑 VALORANT Champions', 'tier-world'),
+        'major': ('🌟 VCT Major', 'tier-major'),
+        'master': ('🏆 VCT Masters', 'tier-master'),
         'ewc': ('🌍 Esports World Cup', 'tier-ewc'),
         'stage1': ('⚡ Regional VCT', 'tier-regional'),
         'stage2': ('⚡ Regional VCT', 'tier-regional'),
@@ -4543,7 +4655,9 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
         if p.rank == 1:
             if p.stage_key == 'champion':
                 champions_titles += 1
-            elif p.stage_key in ('master', 'major'):
+            elif p.stage_key == 'major':
+                major_titles += 1
+            elif p.stage_key == 'master':
                 masters_titles += 1
             elif p.stage_key == 'ewc':
                 ewc_titles += 1
@@ -4581,7 +4695,7 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
             'tier': p_tier,
         })
 
-    total_titles = champions_titles + masters_titles + ewc_titles + regional_titles
+    total_titles = champions_titles + major_titles + masters_titles + ewc_titles + regional_titles
     total_finals = total_titles + runners_up
     total_matches = total_matches_won + total_matches_lost
     overall_win_rate = round((total_matches_won / total_matches * 100), 1) if total_matches > 0 else 0.0
@@ -4650,6 +4764,7 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
         },
         'trophy_cabinet': {
             'champions_titles': champions_titles,
+            'major_titles': major_titles,
             'masters_titles': masters_titles,
             'ewc_titles': ewc_titles,
             'regional_titles': regional_titles,
