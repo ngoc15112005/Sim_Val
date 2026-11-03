@@ -4,6 +4,9 @@
 
 {% set regions_data = eq_data.regions if eq_data and eq_data.regions else {} %}
 {% set direct_map = eq_data.direct_ewc_qualifiers if eq_data and eq_data.direct_ewc_qualifiers else {} %}
+{% set all_regions_confirmed = (regions_data.pacific and regions_data.pacific.is_confirmed and regions_data.americas and regions_data.americas.is_confirmed and regions_data.emea and regions_data.emea.is_confirmed and regions_data.china and regions_data.china.is_confirmed) if (regions_data.pacific is defined and regions_data.americas is defined and regions_data.emea is defined and regions_data.china is defined) else False %}
+{% set all_regions_ready = (regions_data.pacific and (regions_data.pacific.matches_completed or regions_data.pacific.status == 'completed') and regions_data.americas and (regions_data.americas.matches_completed or regions_data.americas.status == 'completed') and regions_data.emea and (regions_data.emea.matches_completed or regions_data.emea.status == 'completed') and regions_data.china and (regions_data.china.matches_completed or regions_data.china.status == 'completed')) if (regions_data.pacific is defined and regions_data.americas is defined and regions_data.emea is defined and regions_data.china is defined) else False %}
+{% set all_completed = (stage and stage.status == 'completed') or all_regions_confirmed %}
 
 <div class="campaign-header card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
   <div>
@@ -16,8 +19,8 @@
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center;">
-    {% if campaign.current_stage == 'master' or campaign.current_stage == 'ewc' %}
-    <a href="/campaign/{{ campaign.id }}" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+    {% if all_completed or campaign.current_stage == 'master' or campaign.current_stage == 'ewc' %}
+    <a href="/campaign/{{ campaign.id }}/stage/master" class="btn-start" style="text-decoration: none; padding: 10px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
       Tới VCT Masters Toronto ➔
     </a>
     {% endif %}
@@ -38,7 +41,9 @@
       {% set reg = regions_data.get(r_slug) %}
       <button type="button" class="region-tab-btn {% if (region_slug == r_slug) or (not region_slug and loop.first) %}active{% endif %}" onclick="switchEwcRegion('{{ r_slug }}')">
         {{ r_slug|upper }}
-        {% if reg and reg.status == 'completed' %}
+        {% if reg and reg.is_confirmed %}
+          <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Khóa 🔒</span>
+        {% elif reg and (reg.status == 'completed' or reg.matches_completed) %}
           <span style="font-size: 0.75em; background: #22c55e; color: #000; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px;">Xong ✓</span>
         {% elif reg and reg.current_phase == 'phase2' %}
           <span style="font-size: 0.75em; background: #8b5cf6; color: #fff; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Phase 2</span>
@@ -95,7 +100,7 @@
       </div>
       <div>
         <span style="font-size: 0.8em; padding: 4px 10px; border-radius: 6px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-weight: bold;">
-          Trạng thái: {{ 'Đã hoàn thành' if reg.status == 'completed' else ('Đang ở Phase 2' if reg.current_phase == 'phase2' else 'Đang ở Phase 1') }}
+          Trạng thái: {{ 'Đã khóa kết quả 🔒' if reg.is_confirmed else ('Đã hoàn thành thi đấu (Chờ khóa)' if (reg.status == 'completed' or reg.matches_completed) else ('Đang ở Phase 2' if reg.current_phase == 'phase2' else 'Đang ở Phase 1')) }}
         </span>
       </div>
     </div>

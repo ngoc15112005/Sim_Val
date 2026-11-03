@@ -329,14 +329,16 @@ def is_stage_region_actually_completed(stage_key: str, reg_data: Dict[str, Any])
         return True, ""
 
     elif stage_key == 'ewc_qualifier':
-        matches = reg_data.get('matches', [])
-        if not matches:
-            return False, "Chưa có danh sách trận đấu"
-        if not all(m.get('status') == 'completed' for m in matches):
-            done_cnt = sum(1 for m in matches if m.get('status') == 'completed')
-            return False, f"Các trận đấu chưa hoàn thành ({done_cnt}/{len(matches)} trận)"
-        if not reg_data.get('champion'):
-            return False, "Chưa xác định đội Vô địch"
+        p1 = reg_data.get('phase1_matches', [])
+        p2 = reg_data.get('phase2_matches', [])
+        all_matches = p1 + p2
+        if not all_matches or len(all_matches) < 28:
+            return False, "Chưa đủ danh sách trận đấu EWC Qualifier (cần 28 trận)"
+        if not all(m.get('status') == 'completed' for m in all_matches):
+            done_cnt = sum(1 for m in all_matches if m.get('status') == 'completed')
+            return False, f"Các trận đấu EWC Qualifier chưa hoàn thành ({done_cnt}/{len(all_matches)} trận)"
+        if not reg_data.get('champion') or not reg_data.get('runner_up'):
+            return False, "Chưa xác định đủ 2 đội giành vé EWC (Champion & Runner-up)"
         return True, ""
 
     return True, ""
@@ -2121,6 +2123,18 @@ def get_ewc_qualifier_data(campaign_id: int, year: Optional[int] = None) -> Opti
     campaign = get_campaign(campaign_id)
     if campaign:
         heal_stage_regional_state(campaign, stage, 'ewc_qualifier', data)
+        # Self-heal / state recovery: if all 28 matches are completed for a region, ensure status and matches_completed reflect this
+        updated = False
+        for r_slug, reg_data in data.get('regions', {}).items():
+            is_done, _ = is_stage_region_actually_completed('ewc_qualifier', reg_data)
+            if is_done:
+                if not reg_data.get('matches_completed') or reg_data.get('status') != 'completed':
+                    reg_data['matches_completed'] = True
+                    reg_data['status'] = 'completed'
+                    updated = True
+        if updated:
+            stage.stage_data = json.dumps(data)
+            db.session.commit()
     return data
 
 
@@ -2200,8 +2214,10 @@ def _check_and_finalize_ewc_qualifier(campaign: Campaign, stage: CampaignStage, 
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
 
     for r_slug, reg_data in data.get('regions', {}).items():
-        if (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+        is_done, _ = is_stage_region_actually_completed('ewc_qualifier', reg_data)
+        if is_done and (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
             reg_data['matches_completed'] = True
+            reg_data['status'] = 'completed'
             if auto_confirm:
                 reg_data['is_confirmed'] = True
 

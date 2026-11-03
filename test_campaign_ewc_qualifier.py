@@ -14,6 +14,7 @@ from services.campaign_service import (
     sim_ewc_qualifier_region_interactive,
     sim_ewc_qualifier_all_interactive,
     resolve_ewc_qualifier_match_interactive,
+    is_stage_region_actually_completed,
 )
 
 
@@ -122,6 +123,87 @@ class TestCampaignEWCQualifierIntegration(unittest.TestCase):
         # Verify pool distribution
         pools = [t['pool'] for t in e_data['roster'] if t['region_slug'] == 'pacific']
         self.assertEqual(sorted(pools), [1, 2, 3, 4])
+
+        # 11. Crucial regression check: calling get_ewc_qualifier_data does not revert stage
+        re_data = get_ewc_qualifier_data(cid)
+        campaign = db.session.get(Campaign, cid)
+        self.assertEqual(campaign.current_stage, 'master')
+        self.assertTrue(re_data['regions']['pacific']['is_confirmed'])
+
+    def test_ewc_qualifier_review_lock_flow(self):
+        """Test the interactive flow without auto-confirm: review mode, lock, and continue buttons."""
+        campaign = create_campaign("EWC Qualifier Review Lock Test", start_year=2027)
+        self.cid = campaign.id
+        cid = campaign.id
+
+        run_open_qualifier_stage(cid)
+        run_kickoff_stage(cid)
+        run_major_stage(cid)
+        sim_oq_stage1_all(cid)
+        sim_stage1_all_interactive(cid)
+
+        # 1. Sim Pacific region only with auto_confirm=False (as done by frontend UI)
+        resp_reg = self.client.post(
+            f'/api/campaign/{cid}/ewc_qualifier/sim-region',
+            json={'region': 'pacific', 'auto_confirm': False}
+        )
+        self.assertEqual(resp_reg.status_code, 200)
+
+        # 2. Pacific is completed but NOT confirmed
+        eq_data = get_ewc_qualifier_data(cid)
+        pac = eq_data['regions']['pacific']
+        is_done, reason = is_stage_region_actually_completed('ewc_qualifier', pac)
+        self.assertTrue(is_done, f"Completion check failed: {reason}")
+        self.assertTrue(pac['matches_completed'])
+        self.assertEqual(pac['status'], 'completed')
+        self.assertFalse(pac.get('is_confirmed', False))
+
+        # 3. View Pacific: Review banner and lock button should be present
+        resp_view = self.client.get(f'/campaign/{cid}/stage/ewc_qualifier?region=pacific')
+        self.assertEqual(resp_view.status_code, 200)
+        html = resp_view.data.decode('utf-8')
+        self.assertIn('review-confirmation-banner', html)
+        self.assertIn('Xác nhận & Khóa PACIFIC', html)
+
+        # 4. Confirm Pacific individually
+        resp_lock = self.client.post(
+            f'/api/campaign/{cid}/ewc_qualifier/confirm-region',
+            json={'region_slug': 'pacific'}
+        )
+        self.assertEqual(resp_lock.status_code, 200)
+        self.assertTrue(resp_lock.get_json()['success'])
+
+        # View Pacific again: Locked banner should be present
+        resp_view2 = self.client.get(f'/campaign/{cid}/stage/ewc_qualifier?region=pacific')
+        html2 = resp_view2.data.decode('utf-8')
+        self.assertIn('KẾT QUẢ ĐÃ ĐƯỢC XÁC NHẬN VÀ KHÓA VĨNH VIỄN', html2)
+
+        # 5. Sim remaining regions with auto_confirm=False
+        for r in ['americas', 'emea', 'china']:
+            resp_sim = self.client.post(
+                f'/api/campaign/{cid}/ewc_qualifier/sim-region',
+                json={'region': r, 'auto_confirm': False}
+            )
+            self.assertEqual(resp_sim.status_code, 200)
+
+        # 6. Confirm all remaining via confirm-all
+        resp_lock_all = self.client.post(
+            f'/api/campaign/{cid}/ewc_qualifier/confirm-all',
+            json={}
+        )
+        self.assertEqual(resp_lock_all.status_code, 200)
+        self.assertTrue(resp_lock_all.get_json()['success'])
+
+        # 7. Campaign advanced to 'master', EWC stage populated
+        campaign = db.session.get(Campaign, cid)
+        self.assertEqual(campaign.current_stage, 'master')
+
+        # 8. View should show Advance button and Header button to Masters Toronto
+        resp_view3 = self.client.get(f'/campaign/{cid}/stage/ewc_qualifier?region=pacific')
+        html3 = resp_view3.data.decode('utf-8')
+        self.assertIn(f'/campaign/{cid}/stage/master', html3)
+        self.assertIn('Tới VCT Masters Toronto', html3)
+        self.assertIn('Tiếp tục sang giải đấu tiếp theo', html3)
 
 
 if __name__ == '__main__':
