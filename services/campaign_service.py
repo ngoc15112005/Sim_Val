@@ -11,7 +11,7 @@ Manages:
 
 import json
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from models import (
     db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
 )
@@ -249,6 +249,272 @@ def init_campaign_open_qualifier(campaign_id: int) -> Dict[str, Any]:
     return data
 
 
+
+def is_stage_region_actually_completed(stage_key: str, reg_data: Dict[str, Any]) -> Tuple[bool, str]:
+    """Check if a regional tournament stage is genuinely finished and eligible for confirmation.
+    Returns (is_completed: bool, reason_if_not: str).
+    """
+    if not reg_data or not isinstance(reg_data, dict):
+        return False, "Dữ liệu khu vực không tồn tại"
+
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2']:
+        playoffs = reg_data.get('playoff_matches', [])
+        if not playoffs:
+            return False, "Chưa diễn ra vòng Playoffs"
+        if len(playoffs) < 10 or not all(m.get('status') == 'completed' for m in playoffs):
+            completed_count = sum(1 for m in playoffs if m.get('status') == 'completed')
+            return False, f"Chưa hoàn thành tất cả các trận Playoffs ({completed_count}/{len(playoffs)} trận)"
+        qual_teams = reg_data.get('qualified_teams', [])
+        if len(qual_teams) < 4:
+            return False, f"Chưa xác định đủ 4 đội vượt qua vòng loại ({len(qual_teams)}/4 đội)"
+        return True, ""
+
+    elif stage_key == 'kickoff':
+        champ = reg_data.get('champion')
+        if not champ:
+            return False, "Chưa xác định đội Vô địch Kickoff"
+        matches = reg_data.get('matches', [])
+        if not matches:
+            return False, "Chưa có danh sách trận đấu Kickoff"
+        gf_match = next((m for m in matches if m.get('round_name') == 'grand_final'), None)
+        if not gf_match or gf_match.get('status') != 'completed':
+            return False, "Trận Chung kết tổng (Grand Final) chưa hoàn thành"
+        return True, ""
+
+    elif stage_key in ['stage1', 'stage2']:
+        reg_matches = reg_data.get('regular_matches', [])
+        if not reg_matches:
+            return False, "Chưa có danh sách trận đấu Vòng bảng"
+        if not all(m.get('status') == 'completed' for m in reg_matches):
+            done_reg = sum(1 for m in reg_matches if m.get('status') == 'completed')
+            return False, f"Vòng bảng chưa hoàn thành ({done_reg}/{len(reg_matches)} trận)"
+        playoffs = reg_data.get('playoff_matches', [])
+        if not playoffs:
+            return False, "Chưa diễn ra vòng Playoffs"
+        if not all(m.get('status') == 'completed' for m in playoffs):
+            done_po = sum(1 for m in playoffs if m.get('status') == 'completed')
+            return False, f"Vòng Playoffs chưa hoàn thành ({done_po}/{len(playoffs)} trận)"
+        if not reg_data.get('champion'):
+            return False, "Chưa xác định đội Vô địch"
+        return True, ""
+
+    elif stage_key == 'ewc_qualifier':
+        matches = reg_data.get('matches', [])
+        if not matches:
+            return False, "Chưa có danh sách trận đấu"
+        if not all(m.get('status') == 'completed' for m in matches):
+            done_cnt = sum(1 for m in matches if m.get('status') == 'completed')
+            return False, f"Các trận đấu chưa hoàn thành ({done_cnt}/{len(matches)} trận)"
+        if not reg_data.get('champion'):
+            return False, "Chưa xác định đội Vô địch"
+        return True, ""
+
+    return True, ""
+
+
+def is_stage_tournament_actually_completed(stage_key: str, res: Dict[str, Any]) -> Tuple[bool, str]:
+    """Check if an international tournament is genuinely finished.
+    Returns (is_completed: bool, reason_if_not: str).
+    """
+    if not res or not isinstance(res, dict):
+        return False, "Dữ liệu giải đấu không tồn tại"
+
+    target = res.get('result', {}) if 'result' in res else res
+    if not target.get('champion'):
+        return False, f"Chưa xác định đội Vô địch {stage_key.upper()}"
+
+    playoffs = target.get('playoff_matches') or target.get('bracket_matches') or target.get('matches') or []
+    if playoffs and not all(m.get('status') == 'completed' for m in playoffs):
+        done_cnt = sum(1 for m in playoffs if m.get('status') == 'completed')
+        return False, f"Chưa hoàn thành tất cả các trận Playoffs ({done_cnt}/{len(playoffs)} trận)"
+
+    return True, ""
+
+
+def heal_stage_regional_state(campaign: Campaign, stage: CampaignStage, stage_key: str, data: Dict[str, Any]) -> bool:
+    """Detects and repairs any regions that were prematurely marked confirmed/completed
+    before their matches were actually played.
+    Returns True if any repairs were made and saved.
+    """
+    if not campaign or not stage or not data:
+        return False
+
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2', 'ewc_qualifier']:
+        reg_map = data.get('regions', {})
+    elif stage_key in ['kickoff', 'stage1', 'stage2']:
+        reg_map = data.get('regional_results', {})
+    else:
+        return False
+
+    all_regions = ['pacific', 'americas', 'emea', 'china']
+    club_states = None
+    repaired = False
+
+    for r_slug in all_regions:
+        reg_data = reg_map.get(r_slug)
+        if not reg_data:
+            continue
+        is_done, _ = is_stage_region_actually_completed(stage_key, reg_data)
+        if not is_done:
+            # If falsely flagged as confirmed or completed, repair it!
+            if reg_data.get('is_confirmed') or reg_data.get('matches_completed') or reg_data.get('status') == 'completed':
+                reg_data['is_confirmed'] = False
+                reg_data['matches_completed'] = False
+                reg_data['status'] = 'in_progress'
+
+                # If ratings were prematurely awarded/deducted on OQ:
+                if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2'] and reg_data.get('ratings_awarded'):
+                    if club_states is None:
+                        club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all()}
+                    for s in reg_data.get('swiss_standings', []):
+                        cid = s.get('club_id')
+                        if s.get('wins', 0) == 0 and cid in club_states:
+                            club_states[cid].story_rating = min(99, club_states[cid].story_rating + 1)
+                    reg_data['ratings_awarded'] = False
+
+                repaired = True
+
+    if repaired:
+        all_truly_confirmed = all(reg_map.get(r, {}).get('is_confirmed') for r in all_regions)
+        if not all_truly_confirmed:
+            if stage.status == 'completed':
+                stage.status = 'in_progress'
+                stage.completed_at = None
+            stage_order = [
+                'open_qualifier', 'kickoff', 'major',
+                'oq_stage1', 'stage1', 'ewc_qualifier',
+                'master', 'ewc',
+                'oq_stage2', 'stage2', 'champion', 'season_summary'
+            ]
+            if stage_key in stage_order and campaign.current_stage in stage_order:
+                if stage_order.index(campaign.current_stage) > stage_order.index(stage_key):
+                    campaign.current_stage = stage_key
+
+        stage.stage_data = json.dumps(data)
+        db.session.commit()
+
+    return repaired
+
+
+def heal_stage_tournament_state(campaign: Campaign, stage: CampaignStage, stage_key: str, data: Dict[str, Any]) -> bool:
+    """Repairs international tournament state if falsely marked confirmed/completed."""
+    if not campaign or not stage or not data:
+        return False
+
+    res = data.get('result', {}) if 'result' in data else data
+    is_done, _ = is_stage_tournament_actually_completed(stage_key, res)
+    if not is_done:
+        if res.get('is_confirmed') or res.get('matches_completed') or res.get('status') == 'completed':
+            res['is_confirmed'] = False
+            res['matches_completed'] = False
+            res['status'] = 'in_progress'
+            if stage.status == 'completed':
+                stage.status = 'in_progress'
+                stage.completed_at = None
+            stage_order = [
+                'open_qualifier', 'kickoff', 'major',
+                'oq_stage1', 'stage1', 'ewc_qualifier',
+                'master', 'ewc',
+                'oq_stage2', 'stage2', 'champion', 'season_summary'
+            ]
+            if stage_key in stage_order and campaign.current_stage in stage_order:
+                if stage_order.index(campaign.current_stage) > stage_order.index(stage_key):
+                    campaign.current_stage = stage_key
+
+            stage.stage_data = json.dumps(data)
+            db.session.commit()
+            return True
+    return False
+
+
+def unlock_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> Dict[str, Any]:
+    """Explicitly unlock a locked region to allow reviewing, editing scores, or rolling matches again."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, stage_key)
+    if not stage:
+        raise ValueError(f"Stage {stage_key} not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {}
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2', 'ewc_qualifier']:
+        reg_map = data.get('regions', {})
+    elif stage_key in ['kickoff', 'stage1', 'stage2']:
+        reg_map = data.get('regional_results', {})
+    else:
+        raise ValueError(f"Stage {stage_key} is not a regional stage.")
+
+    if region_slug not in reg_map:
+        raise ValueError(f"Region {region_slug} not found in stage {stage_key}")
+
+    reg_data = reg_map[region_slug]
+    reg_data['is_confirmed'] = False
+
+    if stage.status == 'completed':
+        stage.status = 'in_progress'
+        stage.completed_at = None
+
+    stage_order = [
+        'open_qualifier', 'kickoff', 'major',
+        'oq_stage1', 'stage1', 'ewc_qualifier',
+        'master', 'ewc',
+        'oq_stage2', 'stage2', 'champion', 'season_summary'
+    ]
+    if stage_key in stage_order and campaign.current_stage in stage_order:
+        if stage_order.index(campaign.current_stage) > stage_order.index(stage_key):
+            campaign.current_stage = stage_key
+
+    stage.stage_data = json.dumps(data)
+    db.session.commit()
+
+    return {
+        'success': True,
+        'region': region_slug,
+        'stage_key': stage_key,
+        'is_confirmed': False,
+        'message': f"Đã mở khóa thành công khu vực {region_slug.upper()}."
+    }
+
+
+def unlock_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
+    """Explicitly unlock a locked international tournament."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, stage_key)
+    if not stage:
+        raise ValueError(f"Stage {stage_key} not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {}
+    res = data.get('result', {}) if 'result' in data else data
+    res['is_confirmed'] = False
+
+    if stage.status == 'completed':
+        stage.status = 'in_progress'
+        stage.completed_at = None
+
+    stage_order = [
+        'open_qualifier', 'kickoff', 'major',
+        'oq_stage1', 'stage1', 'ewc_qualifier',
+        'master', 'ewc',
+        'oq_stage2', 'stage2', 'champion', 'season_summary'
+    ]
+    if stage_key in stage_order and campaign.current_stage in stage_order:
+        if stage_order.index(campaign.current_stage) > stage_order.index(stage_key):
+            campaign.current_stage = stage_key
+
+    stage.stage_data = json.dumps(data)
+    db.session.commit()
+
+    return {
+        'success': True,
+        'stage_key': stage_key,
+        'is_confirmed': False,
+        'message': f"Đã mở khóa thành công giải đấu {stage_key.upper()}."
+    }
+
 def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     """Retrieve full Open Qualifier data for all regions in a campaign.
     Auto-initializes any uninitialized region with Swiss Round 1 matches in 'pending' status.
@@ -264,6 +530,9 @@ def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     regions = data.get('regions', {})
     if any(r not in regions for r in ['pacific', 'americas', 'emea', 'china']):
         data = init_campaign_open_qualifier(campaign_id)
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'open_qualifier', data)
     return data
 
 
@@ -274,10 +543,12 @@ def _check_and_finalize_oq_regions(campaign: Campaign, stage: CampaignStage, dat
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
-            reg_res['matches_completed'] = True
-            if auto_confirm:
-                reg_res['is_confirmed'] = True
+        if reg_res:
+            is_done, _ = is_stage_region_actually_completed('open_qualifier', reg_res)
+            if is_done and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+                reg_res['matches_completed'] = True
+                if auto_confirm:
+                    reg_res['is_confirmed'] = True
 
             if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
@@ -534,6 +805,10 @@ def get_kickoff_data(campaign_id: int, year: Optional[int] = None) -> Optional[D
             _hydrate_team(reg_d.get('champion'))
             _hydrate_team(reg_d.get('runner_up'))
 
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'kickoff', data)
+
     return data
 
 
@@ -544,10 +819,12 @@ def _check_and_finalize_kickoff_regions(campaign: Campaign, stage: CampaignStage
 
     for r_slug in all_regions:
         reg_data = data.get('regional_results', {}).get(r_slug)
-        if reg_data and (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
-            reg_data['matches_completed'] = True
-            if auto_confirm:
-                reg_data['is_confirmed'] = True
+        if reg_data:
+            is_done, _ = is_stage_region_actually_completed('kickoff', reg_data)
+            if is_done and (reg_data.get('status') == 'completed' or reg_data.get('matches_completed')):
+                reg_data['matches_completed'] = True
+                if auto_confirm:
+                    reg_data['is_confirmed'] = True
 
             if reg_data.get('is_confirmed') and not reg_data.get('rewards_awarded'):
                 cp_awards = []
@@ -843,6 +1120,10 @@ def get_major_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dic
         data['result'] = init_major_state(roster)
         stage.stage_data = json.dumps(data)
         db.session.commit()
+
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_tournament_state(campaign, stage, 'major', data)
 
     return data
 
@@ -1149,7 +1430,11 @@ def get_oq_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
             stage = get_stage_record(campaign_id, 'oq_stage1')
     if not stage or not stage.stage_data:
         return None
-    return json.loads(stage.stage_data)
+    data = json.loads(stage.stage_data)
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'oq_stage1', data)
+    return data
 
 
 def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
@@ -1159,10 +1444,12 @@ def _check_and_finalize_oq_stage1(campaign: Campaign, stage: CampaignStage, data
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
-            reg_res['matches_completed'] = True
-            if auto_confirm:
-                reg_res['is_confirmed'] = True
+        if reg_res:
+            is_done, _ = is_stage_region_actually_completed('open_qualifier', reg_res)
+            if is_done and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+                reg_res['matches_completed'] = True
+                if auto_confirm:
+                    reg_res['is_confirmed'] = True
 
             if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
@@ -1417,6 +1704,10 @@ def get_stage1_data(campaign_id: int, year: Optional[int] = None) -> Optional[Di
         data['regional_results'] = reg_results
         stage.stage_data = json.dumps(data)
         db.session.commit()
+
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'stage1', data)
 
     return data
 
@@ -1768,7 +2059,11 @@ def get_ewc_qualifier_data(campaign_id: int, year: Optional[int] = None) -> Opti
                 stage = get_stage_record(campaign_id, 'ewc_qualifier', year=year)
     if not stage or not stage.stage_data:
         return None
-    return json.loads(stage.stage_data)
+    data = json.loads(stage.stage_data)
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'ewc_qualifier', data)
+    return data
 
 
 def _finalize_ewc_roster(campaign: Campaign, stage1_record: CampaignStage, ewc_qual_data: Dict[str, Any]):
@@ -1999,6 +2294,10 @@ def get_master_data(campaign_id: int, year: Optional[int] = None) -> Optional[Di
         stage.stage_data = json.dumps(data)
         db.session.commit()
 
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_tournament_state(campaign, stage, 'master', data)
+
     return data
 
 
@@ -2142,6 +2441,10 @@ def get_ewc_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[
         data['result'] = init_ewc_state(roster)
         stage.stage_data = json.dumps(data)
         db.session.commit()
+
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_tournament_state(campaign, stage, 'ewc', data)
 
     return data
 
@@ -2460,7 +2763,11 @@ def get_oq_stage2_data(campaign_id: int) -> Optional[Dict[str, Any]]:
             stage = get_stage_record(campaign_id, 'oq_stage2')
     if not stage or not stage.stage_data:
         return None
-    return json.loads(stage.stage_data)
+    data = json.loads(stage.stage_data)
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'oq_stage2', data)
+    return data
 
 
 def _check_and_finalize_oq_stage2(campaign: Campaign, stage: CampaignStage, data: Dict[str, Any], auto_confirm: bool = True):
@@ -2470,10 +2777,12 @@ def _check_and_finalize_oq_stage2(campaign: Campaign, stage: CampaignStage, data
 
     for r_slug in all_regions:
         reg_res = data.get('regions', {}).get(r_slug)
-        if reg_res and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
-            reg_res['matches_completed'] = True
-            if auto_confirm:
-                reg_res['is_confirmed'] = True
+        if reg_res:
+            is_done, _ = is_stage_region_actually_completed('open_qualifier', reg_res)
+            if is_done and (reg_res.get('status') == 'completed' or reg_res.get('matches_completed')):
+                reg_res['matches_completed'] = True
+                if auto_confirm:
+                    reg_res['is_confirmed'] = True
 
             if reg_res.get('is_confirmed') and not reg_res.get('ratings_awarded'):
                 qual_ids = {t['id'] for t in reg_res.get('qualified_teams', [])}
@@ -2755,6 +3064,10 @@ def get_stage2_data(campaign_id: int, year: Optional[int] = None) -> Optional[Di
         data['regional_results'] = reg_results
         stage.stage_data = json.dumps(data)
         db.session.commit()
+
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_regional_state(campaign, stage, 'stage2', data)
 
     return data
 
@@ -3038,6 +3351,10 @@ def get_champion_data(campaign_id: int, year: Optional[int] = None) -> Optional[
         _hydrate_t(res.get('runner_up'))
         _hydrate_t(res.get('third_place'))
         _hydrate_t(res.get('fourth_place'))
+
+    campaign = get_campaign(campaign_id)
+    if campaign:
+        heal_stage_tournament_state(campaign, stage, 'champion', data)
 
     return data
 
@@ -4446,6 +4763,12 @@ def confirm_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> 
         raise ValueError(f"Region {region_slug} not found in stage {stage_key}")
 
     reg_data = reg_map[region_slug]
+
+    # Validation guard: ensure regional tournament is actually completed
+    is_done, reason = is_stage_region_actually_completed(stage_key, reg_data)
+    if not is_done:
+        raise ValueError(f"Không thể khóa khu vực {region_slug.upper()}: {reason}")
+
     if reg_data.get('is_confirmed'):
         return {
             'success': True,
@@ -4610,6 +4933,11 @@ def confirm_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]
     data = json.loads(stage.stage_data) if stage.stage_data else {}
     res = data.get('result', {}) if 'result' in data else data
 
+    # Validation guard: ensure international tournament is actually completed
+    is_done, reason = is_stage_tournament_actually_completed(stage_key, res)
+    if not is_done:
+        raise ValueError(f"Không thể khóa giải đấu {stage_key.upper()}: {reason}")
+
     if res.get('is_confirmed'):
         return {
             'success': True,
@@ -4731,7 +5059,33 @@ def confirm_stage_all(campaign_id: int, stage_key: str) -> Dict[str, Any]:
     if stage_key in ['major', 'master', 'ewc', 'champion']:
         return confirm_stage_tournament(campaign_id, stage_key)
 
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    stage = get_stage_record(campaign_id, stage_key)
+    if not stage:
+        raise ValueError(f"Stage {stage_key} not found")
+
+    data = json.loads(stage.stage_data) if stage.stage_data else {}
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2', 'ewc_qualifier']:
+        reg_map = data.get('regions', {})
+    elif stage_key in ['kickoff', 'stage1', 'stage2']:
+        reg_map = data.get('regional_results', {})
+    else:
+        raise ValueError(f"Stage {stage_key} is not a regional stage.")
+
     all_regions = ['pacific', 'americas', 'emea', 'china']
+    incomplete = []
+    for r in all_regions:
+        reg_data = reg_map.get(r, {})
+        is_done, reason = is_stage_region_actually_completed(stage_key, reg_data)
+        if not is_done:
+            incomplete.append(f"{r.upper()} ({reason})")
+
+    if incomplete:
+        raise ValueError(f"Không thể khóa cả 4 khu vực vì còn khu vực chưa hoàn thành: {', '.join(incomplete)}")
+
     last_res = None
     for r in all_regions:
         last_res = confirm_stage_region(campaign_id, stage_key, r)

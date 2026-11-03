@@ -177,6 +177,68 @@ class TestCampaignConfirmationFlow(unittest.TestCase):
         self.assertTrue(data['success'])
         self.assertTrue(data['result']['is_confirmed'])
 
+    def test_cannot_confirm_incomplete_region_and_all(self):
+        campaign = create_campaign(name="Incomplete Lock Guard Test", start_year=2028)
+        # Open Qualifier is newly initialized, 0 matches played
+        # 1. Directly trying to confirm an incomplete region MUST raise ValueError
+        with self.assertRaises(ValueError) as ctx:
+            confirm_stage_region(campaign.id, 'open_qualifier', 'americas')
+        self.assertIn('khóa', str(ctx.exception).lower())
+
+        # 2. Directly trying to confirm-all when regions are not finished MUST raise ValueError
+        with self.assertRaises(ValueError) as ctx:
+            confirm_stage_all(campaign.id, 'open_qualifier')
+        self.assertIn('khóa', str(ctx.exception).lower())
+
+        # 3. API endpoint also returns 400
+        resp = self.client.post(f'/api/campaign/{campaign.id}/open_qualifier/confirm-region', json={
+            'region_slug': 'americas'
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('khóa', resp.get_json()['error'].lower())
+
+    def test_auto_healing_prematurely_locked_region(self):
+        campaign = create_campaign(name="Auto Healing Test", start_year=2028)
+        stage_rec = get_stage_record(campaign.id, 'open_qualifier')
+        data = json.loads(stage_rec.stage_data)
+
+        # Simulate corrupted / premature lock state like the reported bug
+        data['regions']['americas']['is_confirmed'] = True
+        data['regions']['americas']['matches_completed'] = True
+        data['regions']['americas']['status'] = 'completed'
+        stage_rec.stage_data = json.dumps(data)
+        db.session.commit()
+
+        # Reading through get_open_qualifier_data should auto-detect and heal
+        from services.campaign_service import get_open_qualifier_data
+        healed_data = get_open_qualifier_data(campaign.id)
+        am_data = healed_data['regions']['americas']
+
+        self.assertFalse(am_data.get('is_confirmed'))
+        self.assertFalse(am_data.get('matches_completed'))
+        self.assertEqual(am_data.get('status'), 'in_progress')
+
+    def test_unlock_region_api(self):
+        campaign = create_campaign(name="Unlock Test", start_year=2028)
+        run_open_qualifier_stage(campaign.id, auto_confirm=True)
+        run_kickoff_stage(campaign.id, region_slug='pacific', auto_confirm=False)
+
+        # Confirm Pacific
+        c_res = confirm_stage_region(campaign.id, 'kickoff', 'pacific')
+        self.assertTrue(c_res['is_confirmed'])
+
+        # Unlock Pacific via API
+        resp = self.client.post(f'/api/campaign/{campaign.id}/kickoff/unlock-region', json={
+            'region_slug': 'pacific'
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json()['success'])
+        self.assertFalse(resp.get_json()['result']['is_confirmed'])
+
+        # Verify DB state is unlocked
+        ko_data = get_kickoff_data(campaign.id)
+        self.assertFalse(ko_data['regional_results']['pacific']['is_confirmed'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,6 +2,11 @@
 {% set is_stage_locked = is_confirmed or (reg_obj and reg_obj.is_confirmed) %}
 {% set is_stage_review = (matches_completed or (reg_obj and reg_obj.matches_completed)) and not is_stage_locked %}
 
+{% if all_regions_ready is not defined %}
+  {% set _reg_dict = regions_data or (kickoff_data.regional_results if kickoff_data and kickoff_data.regional_results else None) or (stage1_data.regional_results if stage1_data and stage1_data.regional_results else None) or (stage2_data.regional_results if stage2_data and stage2_data.regional_results else None) or (ewc_data.regions if ewc_data and ewc_data.regions else None) or (data.regional_results if data and data.regional_results else None) or (data.regions if data and data.regions else None) or {} %}
+  {% set all_regions_ready = (_reg_dict.pacific and _reg_dict.pacific.matches_completed and _reg_dict.americas and _reg_dict.americas.matches_completed and _reg_dict.emea and _reg_dict.emea.matches_completed and _reg_dict.china and _reg_dict.china.matches_completed) if (_reg_dict.pacific is defined and _reg_dict.americas is defined and _reg_dict.emea is defined and _reg_dict.china is defined) else False %}
+{% endif %}
+
 {% if is_stage_review %}
 <!-- REVIEW & EDIT BANNER -->
 <div class="card review-confirmation-banner" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(245, 158, 11, 0.05)); border: 1px solid rgba(234, 179, 8, 0.5); border-left: 6px solid #f59e0b; border-radius: 8px; padding: 16px 20px;">
@@ -23,9 +28,11 @@
       <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '{{ target_reg }}', '{{ review_target_name or target_reg|upper }}', false)" style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
         <span>🔒</span> Xác nhận & Khóa {{ target_reg|upper }}
       </button>
+      {% if all_regions_ready %}
       <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', 'Tất cả 4 khu vực', true)" style="padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <span>🌟</span> Khóa cả 4 khu vực
       </button>
+      {% endif %}
       {% else %}
       <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', '{{ review_target_name or 'giải đấu' }}', false)" style="padding: 10px 22px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
         <span>🔒</span> Xác nhận & Khóa kết quả
@@ -49,11 +56,17 @@
         </div>
       </div>
     </div>
-    {% if all_completed_advance_url %}
-    <a href="{{ all_completed_advance_url }}" class="btn-start" style="text-decoration: none; padding: 9px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
-      Tiếp tục sang giải đấu tiếp theo ➡️
-    </a>
-    {% endif %}
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      {% set target_reg_unlock = r_slug or active_region or selected_region or region_slug or '' %}
+      <button type="button" class="btn-sm btn-manual" onclick="unlockCurrentStage('{{ stage_key }}', '{{ target_reg_unlock if is_regional else '' }}')" style="padding: 8px 14px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; font-weight: 600;">
+        <span>🔓</span> Mở khóa lại
+      </button>
+      {% if all_completed_advance_url %}
+      <a href="{{ all_completed_advance_url }}" class="btn-start" style="text-decoration: none; padding: 9px 18px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+        Tiếp tục sang giải đấu tiếp theo ➡️
+      </a>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endif %}
@@ -162,6 +175,29 @@ if (typeof window.openStageConfirmModal !== 'function') {
         btn.disabled = false;
         btn.textContent = 'Đồng ý Xác nhận & Khóa';
       }
+    }
+  };
+
+  window.unlockCurrentStage = async function(stageKey, regionSlug) {
+    const targetLabel = regionSlug ? regionSlug.toUpperCase() : 'giải đấu này';
+    if (!confirm(`Bạn có chắc chắn muốn mở khóa lại ${targetLabel} để tiếp tục chỉnh sửa hoặc thi đấu không?`)) {
+      return;
+    }
+    let endpoint = `/api/campaign/{{ campaign.id }}/${stageKey}/unlock`;
+    let payload = {};
+    if (regionSlug) {
+      endpoint = `/api/campaign/{{ campaign.id }}/${stageKey}/unlock-region`;
+      payload = { region_slug: regionSlug };
+    }
+    try {
+      const res = await API.post(endpoint, payload);
+      if (res.success) {
+        window.location.reload();
+      } else {
+        alert("Lỗi: " + (res.error || "Không thể mở khóa"));
+      }
+    } catch (err) {
+      alert("Lỗi kết nối: " + err.message);
     }
   };
 }

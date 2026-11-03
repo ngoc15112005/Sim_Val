@@ -78,6 +78,7 @@
   {% set review_target_name = 'Open Qualifier ' ~ r_slug|upper %}
   {% set is_confirmed = is_reg_locked %}
   {% set matches_completed = reg.matches_completed if reg else False %}
+  {% set all_regions_ready = (regions_data.pacific and regions_data.pacific.matches_completed and regions_data.americas and regions_data.americas.matches_completed and regions_data.emea and regions_data.emea.matches_completed and regions_data.china and regions_data.china.matches_completed) if (regions_data.pacific is defined and regions_data.americas is defined and regions_data.emea is defined and regions_data.china is defined) else False %}
   {% set all_completed_advance_url = ('/campaign/' ~ campaign.id ~ '/stage/kickoff' if all_completed else None) %}
   {% include 'campaign/_stage_confirmation_bar.html' %}
 

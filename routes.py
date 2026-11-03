@@ -348,6 +348,7 @@ def register_routes(app):
         get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
         get_team_profile_data,
         confirm_stage_region, confirm_stage_tournament, confirm_stage_all,
+        unlock_stage_region, unlock_stage_tournament,
     )
 
     @app.route('/campaigns')
@@ -1852,6 +1853,39 @@ def register_routes(app):
                 res = confirm_stage_tournament(campaign_id, stage_key)
             else:
                 res = confirm_stage_all(campaign_id, stage_key)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/unlock-region', methods=['POST'])
+    def api_campaign_unlock_stage_region(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json(silent=True) or {}
+        region_slug = data.get('region') or data.get('region_slug')
+        if not region_slug:
+            return jsonify({'error': 'region is required'}), 400
+
+        try:
+            res = unlock_stage_region(campaign_id, stage_key, region_slug)
+            return jsonify({'success': True, 'result': res})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/<stage_key>/unlock', methods=['POST'])
+    def api_campaign_unlock_stage_unified(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json(silent=True) or {}
+        region_slug = data.get('region') or data.get('region_slug')
+        try:
+            if region_slug:
+                res = unlock_stage_region(campaign_id, stage_key, region_slug)
+            else:
+                res = unlock_stage_tournament(campaign_id, stage_key)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
