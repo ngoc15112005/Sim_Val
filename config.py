@@ -1,19 +1,42 @@
 import os
+import urllib.parse
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 
 
+def _clean_database_url(url: str | None) -> str:
+    if not url:
+        return f'sqlite:///{os.path.join(INSTANCE_DIR, "val.db")}'
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme.startswith('postgres'):
+            query_params = urllib.parse.parse_qs(parsed.query)
+            # Connection poolers (Neon / Supabase PgBouncer) do NOT support channel_binding.
+            # Stripping channel_binding prevents "channel binding not supported" OperationalError.
+            query_params.pop('channel_binding', None)
+            if 'sslmode' not in query_params:
+                query_params['sslmode'] = ['require']
+            new_query = urllib.parse.urlencode([(k, v) for k, vals in query_params.items() for v in vals])
+            parsed = parsed._replace(query=new_query)
+            url = urllib.parse.urlunsplit(parsed)
+    except Exception:
+        pass
+    return url
+
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'val-sim-dev-key')
-    _raw_db_url = os.environ.get(
-        'DATABASE_URL', f'sqlite:///{os.path.join(INSTANCE_DIR, "val.db")}'
-    )
-    if _raw_db_url.startswith('postgres://'):
-        _raw_db_url = _raw_db_url.replace('postgres://', 'postgresql://', 1)
-    SQLALCHEMY_DATABASE_URI = _raw_db_url
+    SQLALCHEMY_DATABASE_URI = _clean_database_url(os.environ.get('DATABASE_URL'))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 
     TOURNAMENT_TYPES = {
         'major': {
