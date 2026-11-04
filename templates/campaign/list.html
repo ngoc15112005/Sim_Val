@@ -91,7 +91,12 @@
   </section>
 
   <section class="card">
-    <h2>Danh sách mùa giải đang lưu</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+      <h2 style="margin: 0;">Danh sách mùa giải đang lưu</h2>
+      <button type="button" class="btn-sm" onclick="openImportModal()" style="padding: 8px 14px; font-weight: bold; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <span>📤</span> Nạp Save Game
+      </button>
+    </div>
     {% if campaigns %}
       <ul class="campaign-list" style="list-style: none; padding: 0;">
         {% for c in campaigns %}
@@ -104,11 +109,14 @@
                 Giai đoạn: <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); text-transform: uppercase;">{{ c.current_stage }}</span>
               </div>
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <a href="/api/campaign/{{ c.id }}/export" class="action-btn" style="text-decoration: none; padding: 6px 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; font-size: 0.85em; font-weight: bold;" title="Tải file lưu (.json) của mùa giải này về máy">
+                📥 Xuất
+              </a>
               <a href="/campaign/{{ c.id }}" class="action-btn view-btn" style="text-decoration: none; padding: 6px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-weight: bold;">
                 Vào chơi ➔
               </a>
-              <form action="/campaign/{{ c.id }}/delete" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mùa giải này không?');" style="display: inline;">
+              <form action="/campaign/{{ c.id }}/delete" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mùa giải này không?');" style="display: inline; margin: 0;">
                 <button type="submit" class="action-btn delete-btn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
                   Xóa
                 </button>
@@ -119,10 +127,158 @@
       </ul>
     {% else %}
       <p style="color: var(--dim); text-align: center; padding: 24px 0;">
-        Chưa có mùa giải nào được tạo. Hãy nhấn "Bắt đầu mùa giải mới" ở cột bên trái!
+        Chưa có mùa giải nào được tạo. Hãy nhấn "Bắt đầu mùa giải mới" ở cột bên trái hoặc "Nạp Save Game" để khôi phục dữ liệu!
       </p>
     {% endif %}
   </section>
 </div>
+
+<!-- Modal Nạp Save Game -->
+<div id="modal-import-save" style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 16px;">
+  <div class="card" style="max-width: 520px; width: 100%; border: 1px solid rgba(59, 130, 246, 0.5); box-shadow: 0 10px 40px rgba(0,0,0,0.8); position: relative;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+      <h3 style="margin: 0; color: #60a5fa; display: flex; align-items: center; gap: 8px;">
+        <span>📤</span> Nạp Save Game VCT (JSON)
+      </h3>
+      <button type="button" onclick="closeImportModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer; line-height: 1;">&times;</button>
+    </div>
+
+    <p style="font-size: 0.9em; color: var(--dim); margin-bottom: 16px; line-height: 1.5;">
+      Chọn file sao lưu (.json) của chiến dịch đã xuất trước đó. Toàn bộ tiến trình thi đấu, điểm số CP, thứ hạng các giải đấu sẽ được khôi phục nguyên vẹn 100%.
+    </p>
+
+    <div id="import-drop-zone" style="border: 2px dashed rgba(59, 130, 246, 0.5); border-radius: 8px; padding: 24px 16px; text-align: center; background: rgba(59, 130, 246, 0.05); cursor: pointer; margin-bottom: 16px; transition: border-color 0.2s;" onclick="document.getElementById('import-file-input').click()">
+      <div style="font-size: 2em; margin-bottom: 8px;">📁</div>
+      <div id="import-file-label" style="font-weight: 500; color: var(--text);">
+        Nhấn vào đây để chọn file <strong>.json</strong> hoặc kéo thả vào đây
+      </div>
+      <div style="font-size: 0.8em; color: var(--dim); margin-top: 4px;">Hỗ trợ file xuất: vct_save_*.json</div>
+      <input type="file" id="import-file-input" accept=".json,application/json" style="display: none;" onchange="onFileSelected(event)">
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-size: 0.9em; font-weight: 500; margin-bottom: 6px;">
+        Tên mùa giải mới (tùy chọn, để trống nếu giữ nguyên theo file save):
+      </label>
+      <input type="text" id="import-custom-name" placeholder="VD: VCT 2027 Circuit Journey (Khôi phục)" style="width: 100%; box-sizing: border-box;">
+    </div>
+
+    <div id="import-error-msg" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; padding: 10px; border-radius: 6px; font-size: 0.85em; margin-bottom: 16px;"></div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" onclick="closeImportModal()" class="btn-manual" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;">
+        Hủy
+      </button>
+      <button type="button" id="btn-submit-import" onclick="submitImportSave()" class="btn-start" style="padding: 8px 20px; font-weight: bold; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+        🚀 Khôi Phục & Nạp
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedSaveFile = null;
+
+function openImportModal() {
+  selectedSaveFile = null;
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-file-label').innerHTML = 'Nhấn vào đây để chọn file <strong>.json</strong> hoặc kéo thả vào đây';
+  document.getElementById('import-custom-name').value = '';
+  const errBox = document.getElementById('import-error-msg');
+  errBox.style.display = 'none';
+  errBox.textContent = '';
+  document.getElementById('btn-submit-import').disabled = false;
+  document.getElementById('btn-submit-import').textContent = '🚀 Khôi Phục & Nạp';
+  document.getElementById('modal-import-save').style.display = 'flex';
+}
+
+function closeImportModal() {
+  document.getElementById('modal-import-save').style.display = 'none';
+}
+
+function onFileSelected(event) {
+  const file = event.target.files[0];
+  if (file) {
+    selectedSaveFile = file;
+    document.getElementById('import-file-label').innerHTML = `Đã chọn: <strong style="color: #60a5fa;">${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+    const errBox = document.getElementById('import-error-msg');
+    errBox.style.display = 'none';
+  }
+}
+
+// Drag & drop support
+const dropZone = document.getElementById('import-drop-zone');
+if (dropZone) {
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.borderColor = '#60a5fa';
+      dropZone.style.background = 'rgba(59, 130, 246, 0.15)';
+    }, false);
+  });
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+      dropZone.style.background = 'rgba(59, 130, 246, 0.05)';
+    }, false);
+  });
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const file = dt.files[0];
+    if (file) {
+      selectedSaveFile = file;
+      document.getElementById('import-file-label').innerHTML = `Đã chọn: <strong style="color: #60a5fa;">${file.name}</strong> (${(file.size / 1024).toFixed(1)} KB)`;
+      const errBox = document.getElementById('import-error-msg');
+      errBox.style.display = 'none';
+    }
+  }, false);
+}
+
+async function submitImportSave() {
+  const errBox = document.getElementById('import-error-msg');
+  errBox.style.display = 'none';
+
+  if (!selectedSaveFile) {
+    errBox.textContent = 'Vui lòng chọn một file save (.json) trước khi nạp.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btn-submit-import');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang nạp dữ liệu...';
+
+  const formData = new FormData();
+  formData.append('file', selectedSaveFile);
+  const customName = document.getElementById('import-custom-name').value.trim();
+  if (customName) {
+    formData.append('custom_name', customName);
+  }
+
+  try {
+    const response = await fetch('/api/campaign/import', {
+      method: 'POST',
+      body: formData,
+    });
+    const result = await response.json();
+    if (response.ok && result.success) {
+      window.location.href = result.redirect_url;
+    } else {
+      errBox.textContent = result.error || 'Đã có lỗi xảy ra khi nạp save game.';
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = '🚀 Khôi Phục & Nạp';
+    }
+  } catch (err) {
+    errBox.textContent = 'Lỗi kết nối máy chủ: ' + err.message;
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '🚀 Khôi Phục & Nạp';
+  }
+}
+</script>
 
 {% endblock %}

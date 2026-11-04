@@ -25,6 +25,9 @@
     <button type="button" class="btn-sm" onclick="openSeasonPosterModal()" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(245, 158, 11, 0.15)); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);">
       <span>📜</span> Áp Phích Đăng Cai Mùa Giải
     </button>
+    <a href="/api/campaign/{{ campaign.id }}/export" class="btn-sm" style="text-decoration: none; padding: 10px 16px; font-weight: bold; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: flex; align-items: center; gap: 6px;" title="Tải file lưu (.json) của chiến dịch này về máy để dự phòng">
+      <span>📥</span> Xuất Save Game
+    </a>
     <a href="/campaign/{{ campaign.id }}/hall-of-fame" class="btn-sm" style="text-decoration: none; padding: 10px 16px; font-weight: bold; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
       <span>🏛️</span> Bảng Vàng Hall of Fame
     </a>

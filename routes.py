@@ -351,6 +351,10 @@ def register_routes(app):
         unlock_stage_region, unlock_stage_tournament,
         get_season_hosts,
     )
+    from services.campaign_export_service import (
+        export_campaign_save,
+        import_campaign_save,
+    )
 
     @app.route('/campaigns')
     def campaigns_list():
@@ -1908,4 +1912,49 @@ def register_routes(app):
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    # ==================== CAMPAIGN EXPORT & IMPORT ROUTES ====================
+
+    @app.route('/api/campaign/<int:campaign_id>/export', methods=['GET'])
+    def api_campaign_export(campaign_id):
+        try:
+            data = export_campaign_save(campaign_id)
+            safe_name = "".join(c for c in data['campaign']['name'] if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+            filename = f"vct_save_{safe_name or 'campaign'}_{data['campaign']['current_year']}.json"
+            return Response(
+                json.dumps(data, indent=2, ensure_ascii=False),
+                mimetype='application/json',
+                headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+            )
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/import', methods=['POST'])
+    def api_campaign_import():
+        try:
+            custom_name = None
+            if 'file' in request.files:
+                file = request.files['file']
+                if not file or not file.filename:
+                    return jsonify({'error': 'Chưa chọn file lưu (.json)'}), 400
+                content = file.read().decode('utf-8')
+                payload = json.loads(content)
+                custom_name = request.form.get('custom_name')
+            else:
+                payload = request.get_json(silent=True)
+                if not payload:
+                    return jsonify({'error': 'Không có dữ liệu save file'}), 400
+                custom_name = payload.get('custom_name')
+
+            campaign = import_campaign_save(payload, custom_name=custom_name)
+            return jsonify({
+                'success': True,
+                'campaign_id': campaign.id,
+                'name': campaign.name,
+                'redirect_url': url_for('campaign_detail', campaign_id=campaign.id)
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
 
