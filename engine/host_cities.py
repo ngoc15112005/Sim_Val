@@ -1,9 +1,9 @@
 """
-engine/host_cities.py — Thư viện thành phố đăng cai thể thao điện tử chuyên nghiệp (56+ thành phố).
+engine/host_cities.py — Thư viện thành phố đăng cai thể thao điện tử chuyên nghiệp (57+ thành phố).
 
 Phân bổ đều khắp 4 khu vực giải đấu quốc tế:
 - PACIFIC (16 thành phố)
-- EMEA (15 thành phố)
+- EMEA (16 thành phố)
 - AMERICAS (15 thành phố)
 - CHINA (10 thành phố)
 
@@ -463,6 +463,20 @@ HOST_CITIES: List[Dict[str, Any]] = [
         "atmosphere_tier": "A",
         "description": "Siêu đô thị tương lai vùng Vịnh với cơ sở vật chất xa hoa, lộng lẫy.",
     },
+    {
+        "id": "riyadh",
+        "city_name": "Riyadh",
+        "city_name_vi": "Riyadh",
+        "country": "Saudi Arabia",
+        "country_vi": "Ả Rập Xê Út",
+        "country_code": "SA",
+        "flag": "🇸🇦",
+        "region_slug": "emea",
+        "venue": "Boulevard City Arena",
+        "capacity": 12000,
+        "atmosphere_tier": "S",
+        "description": "Đấu trường thể thao điện tử hiện đại và quy mô bậc nhất toàn cầu, tâm điểm eSports thế giới.",
+    },
 
     # ─────────────────────────────────────────────────────────────────────────
     # 🌎 AMERICAS / BẮC & NAM MỸ (15 Thành Phố)
@@ -904,5 +918,11 @@ def pick_season_hosts(
 
         chosen_city = rng.choice(available_pool)
         assigned_hosts[tourney_key] = chosen_city
+
+    # Strict invariant validation: exactly 4 tournaments, 4 distinct regions matching tournament draw
+    if len(assigned_hosts) == 4:
+        assigned_regions = {c.get("region_slug") for c in assigned_hosts.values()}
+        if assigned_regions != {"pacific", "emea", "americas", "china"}:
+            raise ValueError(f"Invalid regional distribution in pick_season_hosts: {assigned_regions}")
 
     return assigned_hosts

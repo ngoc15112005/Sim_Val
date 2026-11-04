@@ -307,6 +307,68 @@ class TestHostCitiesAndTournamentLegitimacy(unittest.TestCase):
         html_reveal = resp_reveal.data.decode('utf-8')
         self.assertIn('openSeasonPosterModal()', html_reveal)
 
+        # 3. Strict Regional Consistency: Every card's region badge must match its city's region
+        import re
+        p1 = html.find('id="season-reveal-poster-modal"')
+        p2 = html.find('Rule & Cooldown Note', p1)
+        modal_fragment = html[p1:p2]
+
+        cities_rendered = [c.strip() for c in re.findall(r'<h3[^>]*>(.*?)</h3>', modal_fragment, re.DOTALL)]
+        regions_rendered = [r.strip() for r in re.findall(r'<span style="font-size: 0.75em; color:[^>]*>(.*?)</span>', modal_fragment, re.DOTALL)]
+
+        self.assertEqual(len(cities_rendered), 4)
+        self.assertEqual(len(regions_rendered), 4)
+        self.assertEqual(set(regions_rendered), {'PACIFIC', 'EMEA', 'AMERICAS', 'CHINA'})
+
+        # Map each city name back to its actual region
+        from engine.host_cities import HOST_CITIES
+        city_to_region = {c['city_name']: c['region_slug'].upper() for c in HOST_CITIES}
+
+        for c_name, r_badge in zip(cities_rendered, regions_rendered):
+            self.assertIn(c_name, city_to_region, f"Rendered city {c_name} must exist in HOST_CITIES")
+            self.assertEqual(r_badge, city_to_region[c_name],
+                             f"Card for {c_name} must display region {city_to_region[c_name]}, but showed {r_badge}!")
+
+        # Explicitly verify China is NOT Seoul and Americas is NOT Riyadh
+        if 'CHINA' in regions_rendered:
+            idx = regions_rendered.index('CHINA')
+            self.assertNotEqual(cities_rendered[idx], 'Seoul', "China tournament card can NEVER host Seoul!")
+        if 'AMERICAS' in regions_rendered:
+            idx = regions_rendered.index('AMERICAS')
+            self.assertNotEqual(cities_rendered[idx], 'Riyadh', "Americas tournament card can NEVER host Riyadh!")
+
+    def test_riyadh_and_world_tour_100_draws_strict_regional_pairing(self):
+        """Verify Riyadh is in EMEA pool and 100 draws maintain strict 1-to-1 region pairing."""
+        # 1. Riyadh integrity
+        riyadh = get_city_by_id('riyadh')
+        self.assertIsNotNone(riyadh, "Riyadh must exist in HOST_CITIES")
+        self.assertEqual(riyadh['region_slug'], 'emea', "Riyadh must belong to EMEA")
+        self.assertEqual(riyadh['country_code'], 'SA')
+        self.assertEqual(riyadh['flag'], '🇸🇦')
+        self.assertEqual(riyadh['venue'], 'Boulevard City Arena')
+
+        # 2. 100 random draws test
+        for s in range(100):
+            draw = pick_season_hosts(2027 + (s % 5), seed=s * 73)
+            self.assertEqual(set(draw.keys()), {'major', 'master', 'ewc', 'champion'})
+            
+            regions_in_draw = {c['region_slug'] for c in draw.values()}
+            self.assertEqual(regions_in_draw, {'pacific', 'emea', 'americas', 'china'},
+                             "Every draw must contain exactly 4 distinct regions")
+
+            # Verify China tournament only picks from China cities
+            for tourney, city in draw.items():
+                if city['region_slug'] == 'china':
+                    self.assertIn(city['country'], ['China', 'Hong Kong'])
+                elif city['region_slug'] == 'pacific':
+                    self.assertNotIn(city['country'], ['China', 'Hong Kong'])
+                elif city['region_slug'] == 'emea':
+                    self.assertIn(city['country'], ['Saudi Arabia', 'Germany', 'Spain', 'France', 'United Kingdom',
+                                                    'Denmark', 'Iceland', 'Turkey', 'Poland', 'Sweden',
+                                                    'Netherlands', 'Portugal', 'Austria', 'United Arab Emirates'])
+                elif city['region_slug'] == 'americas':
+                    self.assertIn(city['country'], ['United States', 'Brazil', 'Canada', 'Mexico', 'Argentina', 'Chile'])
+
 
 if __name__ == '__main__':
     unittest.main()

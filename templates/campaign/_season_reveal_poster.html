@@ -1,4 +1,9 @@
 <!-- VCT Season Host Cities Reveal Poster Modal Component -->
+{% set p_major = major_host or (season_hosts.get('major') if season_hosts else None) %}
+{% set p_master = master_host or (season_hosts.get('master') if season_hosts else None) %}
+{% set p_ewc = ewc_host or (season_hosts.get('ewc') if season_hosts else None) %}
+{% set p_champ = champ_host or (season_hosts.get('champion') if season_hosts else None) %}
+
 <div id="season-reveal-poster-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(10px); z-index: 10000; justify-content: center; align-items: center; padding: 16px; overflow-y: auto;">
   <div class="card poster-card" style="max-width: 1050px; width: 100%; max-height: 92vh; overflow-y: auto; background: linear-gradient(145deg, #0b0f19 0%, #0d1527 50%, #080c14 100%); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.85), 0 0 30px rgba(234, 179, 8, 0.15); position: relative;">
     
@@ -31,28 +36,28 @@
               🏆 VCT Major • Tháng 3
             </span>
             <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
-              {{ major_host.region_slug if major_host else 'PACIFIC' }}
+              {{ p_major.region_slug|upper if p_major and p_major.region_slug else 'PACIFIC' }}
             </span>
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size: 2em; line-height: 1;">{{ major_host.flag if major_host else '🇯🇵' }}</span>
+            <span style="font-size: 2em; line-height: 1;">{{ p_major.flag if p_major and p_major.flag else '🇯🇵' }}</span>
             <div>
               <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
-                {{ major_host.city_name if major_host else 'Tokyo' }}
+                {{ p_major.city_name if p_major and p_major.city_name else 'Tokyo' }}
               </h3>
-              <div style="font-size: 0.82em; color: var(--dim);">{{ major_host.country if major_host else 'Japan' }}</div>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ p_major.country if p_major and p_major.country else 'Japan' }}</div>
             </div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
-            <div style="color: #60a5fa; font-weight: bold; margin-bottom: 4px;">🏟️ {{ major_host.venue if major_host else 'Nippon Budokan' }}</div>
-            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(major_host.capacity) if major_host else '14,471' }}</strong> chỗ ngồi</div>
-            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ major_host.atmosphere_tier if major_host else 'S+' }}</span></div>
+            <div style="color: #60a5fa; font-weight: bold; margin-bottom: 4px;">🏟️ {{ p_major.venue if p_major and p_major.venue else 'Nippon Budokan' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(p_major.capacity) if p_major and p_major.capacity else '14,471' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ p_major.atmosphere_tier if p_major and p_major.atmosphere_tier else 'S+' }}</span></div>
           </div>
 
           <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
-            "{{ major_host.description if major_host else 'Khán đài rực lửa với văn hóa cổ vũ văn minh, cuồng nhiệt bậc nhất châu Á.' }}"
+            "{{ p_major.description if p_major and p_major.description else 'Khán đài rực lửa với văn hóa cổ vũ văn minh, cuồng nhiệt bậc nhất châu Á.' }}"
           </p>
         </div>
 
@@ -69,28 +74,28 @@
               🌟 VCT Masters • Tháng 6
             </span>
             <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
-              {{ master_host.region_slug if master_host else 'EMEA' }}
+              {{ p_master.region_slug|upper if p_master and p_master.region_slug else 'EMEA' }}
             </span>
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size: 2em; line-height: 1;">{{ master_host.flag if master_host else '🇪🇸' }}</span>
+            <span style="font-size: 2em; line-height: 1;">{{ p_master.flag if p_master and p_master.flag else '🇪🇸' }}</span>
             <div>
               <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
-                {{ master_host.city_name if master_host else 'Madrid' }}
+                {{ p_master.city_name if p_master and p_master.city_name else 'Madrid' }}
               </h3>
-              <div style="font-size: 0.82em; color: var(--dim);">{{ master_host.country if master_host else 'Spain' }}</div>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ p_master.country if p_master and p_master.country else 'Spain' }}</div>
             </div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
-            <div style="color: #c084fc; font-weight: bold; margin-bottom: 4px;">🏟️ {{ master_host.venue if master_host else 'WiZink Center' }}</div>
-            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(master_host.capacity) if master_host else '17,453' }}</strong> chỗ ngồi</div>
-            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ master_host.atmosphere_tier if master_host else 'S+' }}</span></div>
+            <div style="color: #c084fc; font-weight: bold; margin-bottom: 4px;">🏟️ {{ p_master.venue if p_master and p_master.venue else 'WiZink Center' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(p_master.capacity) if p_master and p_master.capacity else '17,453' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ p_master.atmosphere_tier if p_master and p_master.atmosphere_tier else 'S+' }}</span></div>
           </div>
 
           <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
-            "{{ master_host.description if master_host else 'Sân khấu trung tâm của bóng đá và esports Tây Âu với âm lượng bùng nổ.' }}"
+            "{{ p_master.description if p_master and p_master.description else 'Sân khấu trung tâm của bóng đá và esports Tây Âu với âm lượng bùng nổ.' }}"
           </p>
         </div>
 
@@ -107,28 +112,28 @@
               🌍 Esports World Cup • Tháng 7
             </span>
             <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
-              {{ ewc_host.region_slug if ewc_host else 'AMERICAS' }}
+              {{ p_ewc.region_slug|upper if p_ewc and p_ewc.region_slug else 'AMERICAS' }}
             </span>
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size: 2em; line-height: 1;">{{ ewc_host.flag if ewc_host else '🇸🇦' }}</span>
+            <span style="font-size: 2em; line-height: 1;">{{ p_ewc.flag if p_ewc and p_ewc.flag else '🇺🇸' }}</span>
             <div>
               <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
-                {{ ewc_host.city_name if ewc_host else 'Riyadh' }}
+                {{ p_ewc.city_name if p_ewc and p_ewc.city_name else 'Los Angeles' }}
               </h3>
-              <div style="font-size: 0.82em; color: var(--dim);">{{ ewc_host.country if ewc_host else 'Saudi Arabia' }}</div>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ p_ewc.country if p_ewc and p_ewc.country else 'United States' }}</div>
             </div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
-            <div style="color: #2dd4bf; font-weight: bold; margin-bottom: 4px;">🏟️ {{ ewc_host.venue if ewc_host else 'Boulevard City Arena' }}</div>
-            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(ewc_host.capacity) if ewc_host else '12,000' }}</strong> chỗ ngồi</div>
-            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ ewc_host.atmosphere_tier if ewc_host else 'S' }}</span></div>
+            <div style="color: #2dd4bf; font-weight: bold; margin-bottom: 4px;">🏟️ {{ p_ewc.venue if p_ewc and p_ewc.venue else 'Kia Forum' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(p_ewc.capacity) if p_ewc and p_ewc.capacity else '17,500' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ p_ewc.atmosphere_tier if p_ewc and p_ewc.atmosphere_tier else 'S+' }}</span></div>
           </div>
 
           <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
-            "{{ ewc_host.description if ewc_host else 'Đấu trường thể thao điện tử hiện đại và quy mô bậc nhất toàn cầu.' }}"
+            "{{ p_ewc.description if p_ewc and p_ewc.description else 'Thánh địa giải trí toàn cầu với cơ sở thi đấu tiêu chuẩn thế giới.' }}"
           </p>
         </div>
 
@@ -145,28 +150,28 @@
               👑 Champions • Tháng 9
             </span>
             <span style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-              {{ champ_host.region_slug if champ_host else 'CHINA' }}
+              {{ p_champ.region_slug|upper if p_champ and p_champ.region_slug else 'CHINA' }}
             </span>
           </div>
 
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span style="font-size: 2em; line-height: 1;">{{ champ_host.flag if champ_host else '🇰🇷' }}</span>
+            <span style="font-size: 2em; line-height: 1;">{{ p_champ.flag if p_champ and p_champ.flag else '🇨🇳' }}</span>
             <div>
               <h3 style="margin: 0; font-size: 1.3em; color: #fbbf24; font-weight: 900;">
-                {{ champ_host.city_name if champ_host else 'Seoul' }}
+                {{ p_champ.city_name if p_champ and p_champ.city_name else 'Shanghai' }}
               </h3>
-              <div style="font-size: 0.82em; color: #cbd5e1;">{{ champ_host.country if champ_host else 'South Korea' }}</div>
+              <div style="font-size: 0.82em; color: #cbd5e1;">{{ p_champ.country if p_champ and p_champ.country else 'China' }}</div>
             </div>
           </div>
 
           <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
-            <div style="color: #fbbf24; font-weight: bold; margin-bottom: 4px;">🏟️ {{ champ_host.venue if champ_host else 'INSPIRE Arena' }}</div>
-            <div style="color: #cbd5e1;">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(champ_host.capacity) if champ_host else '15,000' }}</strong> chỗ ngồi</div>
-            <div style="color: #cbd5e1;">Độ cuồng nhiệt: <span class="badge" style="background: #eab308; color: #000; font-weight: 900;">Tier {{ champ_host.atmosphere_tier if champ_host else 'S+' }}</span></div>
+            <div style="color: #fbbf24; font-weight: bold; margin-bottom: 4px;">🏟️ {{ p_champ.venue if p_champ and p_champ.venue else 'Mercedes-Benz Arena' }}</div>
+            <div style="color: #cbd5e1;">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(p_champ.capacity) if p_champ and p_champ.capacity else '18,000' }}</strong> chỗ ngồi</div>
+            <div style="color: #cbd5e1;">Độ cuồng nhiệt: <span class="badge" style="background: #eab308; color: #000; font-weight: 900;">Tier {{ p_champ.atmosphere_tier if p_champ and p_champ.atmosphere_tier else 'S+' }}</span></div>
           </div>
 
           <p style="font-size: 0.8em; color: #e2e8f0; margin: 0 0 12px; line-height: 1.4; font-style: italic;">
-            "{{ champ_host.description if champ_host else 'Thánh địa khai sinh thể thao điện tử hiện đại với niềm đam mê bất tận.' }}"
+            "{{ p_champ.description if p_champ and p_champ.description else 'Trung tâm kinh tế và esport phồn hoa bậc nhất Châu Á, đại bản doanh VCT CN.' }}"
           </p>
         </div>
 
@@ -181,7 +186,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px;">
       <div style="font-size: 0.85em; color: var(--dim); line-height: 1.5;">
         <span style="color: #fbbf24; font-weight: bold;">⚖️ Quy chế đăng cai VCT:</span>
-        Mỗi mùa giải 4 giải quốc tế luân phiên tổ chức tại 4 khu vực riêng biệt. Thành phố đã đăng cai một giải đấu sẽ bước vào thời gian hồi chiêu <strong>5 năm</strong> trước khi có thể đăng cai lại chính giải đấu đó.
+        Mỗi mùa giải 4 giải quốc tế luân phiên tổ chức tại 4 khu vực riêng biệt (Pacific, EMEA, Americas, China). Thành phố đã đăng cai một giải đấu sẽ bước vào thời gian hồi chiêu <strong>5 năm</strong> trước khi có thể đăng cai lại chính giải đấu đó.
       </div>
       <button type="button" onclick="closeSeasonPosterModal()" class="btn-start" style="padding: 11px 26px; font-weight: bold; font-size: 1em; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);">
         <span>🚀</span> Bắt Đầu Mùa Giải {{ campaign.current_year }}
