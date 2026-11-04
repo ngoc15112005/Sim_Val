@@ -91,7 +91,7 @@
 
 {% if loop is not defined or loop.first %}
 <!-- Stage Confirmation Modal -->
-<div id="stage-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center;">
+<div id="stage-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 10000; justify-content: center; align-items: center;" onclick="if (event.target === this) closeStageConfirmModal()">
   <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
       <h3 style="margin: 0; color: #fbbf24; font-size: 1.2em; display: flex; align-items: center; gap: 8px;">
@@ -123,6 +123,15 @@
 </div>
 
 <script>
+(function() {
+  const m = document.getElementById('stage-confirm-modal');
+  if (m && m.parentElement !== document.body) {
+    document.body.appendChild(m);
+  }
+})();
+</script>
+
+<script>
 if (typeof window.openStageConfirmModal !== 'function') {
   window.pendingConfirmStageKey = '';
   window.pendingConfirmRegionSlug = '';
@@ -137,7 +146,12 @@ if (typeof window.openStageConfirmModal !== 'function') {
     if (targetEl) targetEl.textContent = targetName || stageKey;
 
     const modal = document.getElementById('stage-confirm-modal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+      if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+      }
+      modal.style.display = 'flex';
+    }
   };
 
   window.handleStageConfirmClick = function(btn) {
@@ -155,6 +169,13 @@ if (typeof window.openStageConfirmModal !== 'function') {
     const modal = document.getElementById('stage-confirm-modal');
     if (modal) modal.style.display = 'none';
   };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('stage-confirm-modal');
+    if (modal && modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+  });
 
   document.addEventListener('click', function(e) {
     const trigger = e.target.closest('.btn-trigger-confirm');
