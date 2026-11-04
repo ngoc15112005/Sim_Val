@@ -449,12 +449,15 @@
           Bảng xếp hạng sức mạnh toán học chính thức (80% Team Performance + 20% Regional League Elo + Dynamic Margin of Victory).
         </p>
       </div>
-      <div style="display: flex; gap: 6px;">
+      <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
         <button type="button" class="gpr-filter-btn active" onclick="filterGprTable('all')">Tất cả</button>
         <button type="button" class="gpr-filter-btn" onclick="filterGprTable('pacific')">Pacific</button>
         <button type="button" class="gpr-filter-btn" onclick="filterGprTable('americas')">Americas</button>
         <button type="button" class="gpr-filter-btn" onclick="filterGprTable('emea')">EMEA</button>
         <button type="button" class="gpr-filter-btn" onclick="filterGprTable('china')">China</button>
+        <button type="button" id="btn-recalc-gpr" onclick="recalculateGpr()" style="margin-left: 8px; background: rgba(251, 191, 36, 0.15); border: 1px solid #f59e0b; color: #fbbf24; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85em; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+          <span>🔄</span> Cập nhật & Đồng bộ GPR
+        </button>
       </div>
     </div>
 
@@ -483,8 +486,16 @@
             <td style="text-align: center; font-weight: 800; font-size: 1.05em;">
               {% if loop.index == 1 %}👑 1{% elif loop.index == 2 %}🥈 2{% elif loop.index == 3 %}🥉 3{% else %}#{{ loop.index }}{% endif %}
             </td>
-            <td style="text-align: center; font-weight: bold; font-size: 0.85em; color: {{ delta.color }};">
-              {{ delta.symbol }}
+            <td style="text-align: center;">
+              {% if delta.delta > 0 %}
+                <span class="badge" style="background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); font-weight: 800;">{{ delta.symbol }}</span>
+              {% elif delta.delta < 0 %}
+                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 800;">{{ delta.symbol }}</span>
+              {% elif delta.symbol == '★ NEW' %}
+                <span class="badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); font-weight: 800;">{{ delta.symbol }}</span>
+              {% else %}
+                <span style="color: var(--dim); font-size: 0.9em;">▬ 0</span>
+              {% endif %}
             </td>
             <td>
               <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ c.id }})" title="Xem hồ sơ đội tuyển {{ c.name }}">
@@ -514,13 +525,13 @@
             </td>
             <td style="text-align: center;">
               {% if item.win_streak >= 3 %}
-                <span style="color: #fbbf24; font-weight: bold;">🔥 W{{ item.win_streak }}</span>
+                <span class="badge" style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); font-weight: 800;">🔥 W{{ item.win_streak }}</span>
               {% elif item.win_streak <= -3 %}
-                <span style="color: #60a5fa; font-weight: bold;">❄️ L{{ -item.win_streak }}</span>
+                <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 800;">❄️ L{{ -item.win_streak }}</span>
               {% elif item.win_streak > 0 %}
-                <span style="color: #4ade80;">W{{ item.win_streak }}</span>
+                <span class="badge" style="background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); font-weight: bold;">W{{ item.win_streak }}</span>
               {% elif item.win_streak < 0 %}
-                <span style="color: #ef4444;">L{{ -item.win_streak }}</span>
+                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: bold;">L{{ -item.win_streak }}</span>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
@@ -763,6 +774,36 @@ function filterGprTable(region) {
       r.style.display = 'none';
     }
   });
+}
+
+async function recalculateGpr() {
+  const btn = document.getElementById('btn-recalc-gpr');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Đang tính toán Elo...';
+  }
+  try {
+    const res = await fetch(`/api/campaign/{{ campaign.id }}/gpr/recalculate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      window.location.reload();
+    } else {
+      alert('Lỗi cập nhật GPR: ' + (data.error || 'Vui lòng thử lại'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄</span> Cập nhật & Đồng bộ GPR';
+      }
+    }
+  } catch (err) {
+    alert('Lỗi kết nối khi cập nhật GPR: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔄</span> Cập nhật & Đồng bộ GPR';
+    }
+  }
 }
 
 function confirmAdvanceYear() {

@@ -478,7 +478,10 @@
         Mỗi khu vực có <strong>4 suất đi Champions {{ champ_city }}</strong>: Vô địch Stage 2 + Á quân Stage 2 + <strong>Top 2 đội có điểm CP cao nhất</strong> chưa có vé.
       </p>
     </div>
-    <div class="region-tabs" style="display: flex; gap: 6px;">
+    <div class="region-tabs" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <a href="/campaign/{{ campaign.id }}/stage/season_summary" class="btn-sm" style="text-decoration: none; padding: 6px 12px; background: rgba(251, 191, 36, 0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-weight: 600; font-size: 0.85em; display: inline-flex; align-items: center; gap: 6px; margin-right: 6px;">
+        ⚡ Xem Riot GPR & Bảng Vàng
+      </a>
       <button type="button" class="cp-tab-btn active" onclick="switchCpTab('pacific')">Pacific</button>
       <button type="button" class="cp-tab-btn" onclick="switchCpTab('americas')">Americas</button>
       <button type="button" class="cp-tab-btn" onclick="switchCpTab('emea')">EMEA</button>

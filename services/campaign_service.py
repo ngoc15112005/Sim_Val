@@ -546,6 +546,7 @@ def unlock_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> D
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
+    recalculate_campaign_gpr(campaign.id)
 
     return {
         'success': True,
@@ -586,6 +587,7 @@ def unlock_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
+    recalculate_campaign_gpr(campaign.id)
 
     return {
         'success': True,
@@ -4009,6 +4011,7 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
 
     old_year = campaign.current_year
     backfill_stage_placements_if_needed(campaign.id)
+    recalculate_campaign_gpr(campaign.id)
     summary_data = get_season_summary_data(campaign_id)
 
     # 1. Archive to permanent Hall of Fame stage record
@@ -4221,6 +4224,274 @@ def apply_match_power_rating(
         'winner_power_score': w_state.power_score,
         'loser_power_score': l_state.power_score,
     }
+
+
+def _extract_all_matches_from_stage(stage_key: str, stage_data: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+    """Extract all matches from a stage in chronological order (regular/groups then playoffs)."""
+    matches = []
+    if not stage_data or not isinstance(stage_data, dict):
+        return matches
+
+    # 1. Regional qualifier stages
+    if stage_key in ['open_qualifier', 'oq_stage1', 'oq_stage2', 'ewc_qualifier']:
+        reg_map = stage_data.get('regions', {})
+        if isinstance(reg_map, dict):
+            for r_slug, r_data in reg_map.items():
+                if not isinstance(r_data, dict):
+                    continue
+                for k in ['swiss_matches', 'phase1_matches', 'phase2_matches', 'matches']:
+                    for m in r_data.get(k, []):
+                        if isinstance(m, dict):
+                            matches.append(('regular', m))
+                for m in r_data.get('playoff_matches', []):
+                    if isinstance(m, dict):
+                        matches.append(('playoff', m))
+
+    # 2. Main regional circuits (kickoff, stage1, stage2)
+    elif stage_key in ['kickoff', 'stage1', 'stage2']:
+        reg_map = stage_data.get('regional_results', {})
+        if isinstance(reg_map, dict):
+            for r_slug, r_data in reg_map.items():
+                if not isinstance(r_data, dict):
+                    continue
+                for k in ['regular_matches', 'alpha_matches', 'omega_matches', 'matches']:
+                    for m in r_data.get(k, []):
+                        if isinstance(m, dict):
+                            matches.append(('regular', m))
+                for m in r_data.get('playoff_matches', []):
+                    if isinstance(m, dict):
+                        matches.append(('playoff', m))
+
+    # 3. International tournaments (major, master, ewc, champion)
+    elif stage_key in ['major', 'master', 'ewc', 'champion']:
+        res = stage_data.get('result', stage_data)
+        if isinstance(res, dict):
+            for k in ['swiss_matches', 'group_matches', 'matches']:
+                for m in res.get(k, []):
+                    if isinstance(m, dict):
+                        matches.append(('regular', m))
+            for k in ['playoff_matches', 'bracket_matches']:
+                for m in res.get(k, []):
+                    if isinstance(m, dict):
+                        matches.append(('playoff', m))
+
+    return matches
+
+
+def recalculate_campaign_gpr(campaign_id: int) -> List[Dict[str, Any]]:
+    """Comprehensively recalculate dynamic Elo, win/loss streaks, power scores, and rank deltas
+    for all 48 clubs across all played matches, placements, and story development in the campaign.
+    """
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return []
+
+    backfill_stage_placements_if_needed(campaign_id)
+
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    if not club_states:
+        return []
+
+    clubs = {c.id: c for c in Club.query.all()}
+    club_region_map = {c.id: (c.region.slug if c.region else 'pacific') for c in clubs.values()}
+
+    # Initialize ratings from base rating
+    team_elo_map = {}
+    win_streak_map = {}
+    for cs in club_states:
+        c = clubs.get(cs.club_id)
+        base_r = float(c.base_rating or 75.0) if c else 75.0
+        team_elo_map[cs.club_id] = base_r * 18.75
+        win_streak_map[cs.club_id] = 0
+
+    # Initial baseline ranking (pre-season snapshot)
+    baseline_ranked = sorted(
+        club_states,
+        key=lambda s: team_elo_map.get(s.club_id, 1500.0),
+        reverse=True
+    )
+    previous_stage_ranks = {cs.club_id: idx for idx, cs in enumerate(baseline_ranked, start=1)}
+
+    league_ratings = {"pacific": 1500.0, "americas": 1500.0, "emea": 1500.0, "china": 1500.0}
+    try:
+        if campaign.league_ratings:
+            parsed = json.loads(campaign.league_ratings)
+            if isinstance(parsed, dict) and all(k in parsed for k in ['pacific', 'americas', 'emea', 'china']):
+                league_ratings = parsed
+    except Exception:
+        pass
+
+    STAGE_CHRONOLOGY = [
+        'open_qualifier', 'kickoff', 'major',
+        'oq_stage1', 'stage1', 'ewc_qualifier',
+        'master', 'ewc',
+        'oq_stage2', 'stage2', 'champion'
+    ]
+
+    all_stages = CampaignStage.query.filter_by(campaign_id=campaign_id).all()
+    # Sort stages by year, then by STAGE_CHRONOLOGY order
+    sorted_stages = sorted(
+        all_stages,
+        key=lambda s: (
+            s.year,
+            STAGE_CHRONOLOGY.index(s.stage_key) if s.stage_key in STAGE_CHRONOLOGY else 99,
+            s.id
+        )
+    )
+
+    stages_with_matches_played = 0
+
+    for st in sorted_stages:
+        if not st.stage_data:
+            continue
+        try:
+            st_data = json.loads(st.stage_data)
+        except Exception:
+            continue
+
+        matches_with_meta = _extract_all_matches_from_stage(st.stage_key, st_data)
+        completed_stage_matches = []
+        for tag, m in matches_with_meta:
+            w_id = m.get('winner_id') or (m.get('winner', {}).get('id') if isinstance(m.get('winner'), dict) else None)
+            ta_id = m.get('team_a_id') or (m.get('team_a', {}).get('id') if isinstance(m.get('team_a'), dict) else None)
+            tb_id = m.get('team_b_id') or (m.get('team_b', {}).get('id') if isinstance(m.get('team_b'), dict) else None)
+            if not w_id:
+                sa = m.get('team_a_score', 0)
+                sb = m.get('team_b_score', 0)
+                if sa is not None and sb is not None and (sa > 0 or sb > 0) and sa != sb:
+                    w_id = ta_id if sa > sb else tb_id
+            if w_id and ta_id and tb_id and ta_id != tb_id:
+                completed_stage_matches.append((tag, m, w_id, ta_id, tb_id))
+
+        if not completed_stage_matches:
+            continue
+
+        stages_with_matches_played += 1
+
+        # Snapshot ranks before this stage executes
+        temp_ranked = sorted(
+            club_states,
+            key=lambda s: (
+                calculate_composite_power_score(
+                    team_elo_map.get(s.club_id, 1500.0),
+                    league_ratings.get(club_region_map.get(s.club_id, 'pacific'), 1500.0),
+                    win_streak_map.get(s.club_id, 0)
+                ),
+                s.championship_points or 0
+            ),
+            reverse=True
+        )
+        pre_stage_ranks = {s.club_id: idx for idx, s in enumerate(temp_ranked, start=1)}
+
+        for tag, m, w_id, ta_id, tb_id in completed_stage_matches:
+            l_id = tb_id if w_id == ta_id else ta_id
+            sa = m.get('team_a_score', 0) or 0
+            sb = m.get('team_b_score', 0) or 0
+            w_score = sa if w_id == ta_id else sb
+            l_score = sb if w_id == ta_id else sa
+            map_diff = max(1, w_score - l_score)
+            round_diff = m.get('round_diff') or (map_diff * 4)
+
+            tier = st.stage_key
+            if 'playoff' in tag.lower() and st.stage_key in ('stage1', 'stage2'):
+                tier = f'{st.stage_key}_playoffs'
+
+            cur_w = team_elo_map.get(w_id, 1500.0)
+            cur_l = team_elo_map.get(l_id, 1500.0)
+            nw, nl, delta = update_team_elo(
+                cur_w, cur_l,
+                tournament_tier=tier,
+                map_diff=map_diff,
+                round_diff=round_diff
+            )
+            team_elo_map[w_id] = nw
+            team_elo_map[l_id] = nl
+
+            sw = win_streak_map.get(w_id, 0)
+            sl = win_streak_map.get(l_id, 0)
+            win_streak_map[w_id] = (sw + 1) if sw >= 0 else 1
+            win_streak_map[l_id] = (sl - 1) if sl <= 0 else -1
+
+            reg_w = club_region_map.get(w_id, 'pacific')
+            reg_l = club_region_map.get(l_id, 'pacific')
+            if st.stage_key in ('major', 'master', 'ewc', 'champion') and reg_w != reg_l:
+                league_ratings, _ = update_regional_league_elo(
+                    league_ratings, reg_w, reg_l, tournament_tier=st.stage_key
+                )
+
+        # Apply prestige bonuses for this stage's official placements
+        st_placements = CampaignStagePlacement.query.filter_by(
+            campaign_id=campaign_id, stage_key=st.stage_key, year=st.year
+        ).all()
+        for p in st_placements:
+            bonus = 0.0
+            if p.stage_key == 'champion':
+                bonus = 120.0 if p.rank == 1 else (60.0 if p.rank == 2 else (30.0 if p.rank <= 4 else 0.0))
+            elif p.stage_key == 'master':
+                bonus = 90.0 if p.rank == 1 else (45.0 if p.rank == 2 else (20.0 if p.rank <= 4 else 0.0))
+            elif p.stage_key == 'major':
+                bonus = 80.0 if p.rank == 1 else (40.0 if p.rank == 2 else (15.0 if p.rank <= 4 else 0.0))
+            elif p.stage_key == 'ewc':
+                bonus = 70.0 if p.rank == 1 else (35.0 if p.rank == 2 else (15.0 if p.rank <= 4 else 0.0))
+            elif p.stage_key in ('kickoff', 'stage1', 'stage2'):
+                bonus = 40.0 if p.rank == 1 else (20.0 if p.rank == 2 else 0.0)
+
+            if bonus > 0 and p.club_id in team_elo_map:
+                team_elo_map[p.club_id] = round(team_elo_map[p.club_id] + bonus, 1)
+
+        # Update previous stage ranks
+        previous_stage_ranks = pre_stage_ranks
+
+    # Synchronize Story Rating development gains
+    for cs in club_states:
+        c = clubs.get(cs.club_id)
+        base_r = float(c.base_rating or 75.0) if c else 75.0
+        sr = float(cs.story_rating or base_r)
+        if sr > base_r:
+            team_elo_map[cs.club_id] = round(team_elo_map[cs.club_id] + (sr - base_r) * 6.0, 1)
+        elif sr < base_r:
+            team_elo_map[cs.club_id] = round(team_elo_map[cs.club_id] - (base_r - sr) * 4.0, 1)
+
+    # Persist updated values into CampaignClubState
+    results = []
+    for cs in club_states:
+        cid = cs.club_id
+        c = clubs.get(cid)
+        reg = club_region_map.get(cid, 'pacific')
+        le = league_ratings.get(reg, 1500.0)
+        t_elo = team_elo_map.get(cid, 1500.0)
+        streak = win_streak_map.get(cid, 0)
+        ps = calculate_composite_power_score(t_elo, le, streak)
+        ovr = power_score_to_ovr(ps)
+
+        cs.team_elo = round(t_elo, 1)
+        cs.win_streak = streak
+        cs.power_score = round(ps, 1)
+        cs.power_rating = round(ovr, 1)
+        if stages_with_matches_played > 0:
+            cs.previous_rank = previous_stage_ranks.get(cid)
+
+        results.append({
+            'club': c.to_dict() if c else {'id': cid},
+            'power_score': cs.power_score,
+            'power_rating': cs.power_rating,
+            'team_elo': cs.team_elo,
+            'win_streak': cs.win_streak,
+            'championship_points': cs.championship_points or 0,
+            'tier': get_tier_info(cs.power_score),
+            'previous_rank': cs.previous_rank,
+        })
+
+    campaign.league_ratings = json.dumps(league_ratings)
+    db.session.commit()
+
+    # Sort descending by power_score and championship_points
+    results.sort(key=lambda x: (x['power_score'], x['championship_points']), reverse=True)
+    for idx, item in enumerate(results, start=1):
+        item['rank'] = idx
+        item['rank_delta'] = format_rank_delta(idx, item['previous_rank'])
+
+    return results
 
 
 def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -4529,8 +4800,17 @@ def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
 
 def get_global_power_rankings(campaign_id: int, region_slug: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieve full 48-team Riot Global Power Rankings (GPR x AWS) leaderboard with Tier Badges & Delta Rank."""
-    q = CampaignClubState.query.filter_by(campaign_id=campaign_id)
-    club_states = q.all()
+    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+
+    # Auto-synchronize GPR if any completed stage exists but GPR rankings are uninitialized/frozen
+    if club_states:
+        all_stages = CampaignStage.query.filter_by(campaign_id=campaign_id).all()
+        has_completed_stage = any(s.status == 'completed' for s in all_stages)
+        all_zero_streaks = all((cs.win_streak or 0) == 0 for cs in club_states)
+        all_no_prev_rank = all(cs.previous_rank is None for cs in club_states)
+        if has_completed_stage and (all_zero_streaks or all_no_prev_rank):
+            recalculate_campaign_gpr(campaign_id)
+            club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
 
     items = []
     for cs in club_states:
@@ -5095,6 +5375,7 @@ def confirm_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> 
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
+    recalculate_campaign_gpr(campaign.id)
 
     return {
         'success': True,
@@ -5230,6 +5511,7 @@ def confirm_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
+    recalculate_campaign_gpr(campaign.id)
 
     return {
         'success': True,

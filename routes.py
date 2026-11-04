@@ -346,6 +346,7 @@ def register_routes(app):
         sim_champion_round_interactive, sim_champion_tournament_interactive,
         run_champion_stage, get_season_summary_data, advance_campaign_to_next_year,
         get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
+        recalculate_campaign_gpr,
         get_team_profile_data,
         confirm_stage_region, confirm_stage_tournament, confirm_stage_all,
         unlock_stage_region, unlock_stage_tournament,
@@ -1769,6 +1770,18 @@ def register_routes(app):
         region = request.args.get('region')
         rankings = get_global_power_rankings(campaign_id, region_slug=region)
         return jsonify({'success': True, 'rankings': rankings})
+
+    @app.route('/api/campaign/<int:campaign_id>/gpr/recalculate', methods=['POST'])
+    def api_campaign_gpr_recalculate(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        try:
+            rankings = recalculate_campaign_gpr(campaign_id)
+            return jsonify({'success': True, 'count': len(rankings), 'rankings': rankings})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/campaign/<int:campaign_id>/all-time-trophies')
     def api_campaign_all_time_trophies(campaign_id):
