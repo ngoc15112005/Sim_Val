@@ -842,7 +842,11 @@ def get_cities_by_region(region_slug: str) -> List[Dict[str, Any]]:
     return [c for c in HOST_CITIES if c["region_slug"] == region_slug]
 
 
-def pick_season_hosts(year: int, seed: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
+def pick_season_hosts(
+    year: int,
+    seed: Optional[int] = None,
+    history_hosts: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None
+) -> Dict[str, Dict[str, Any]]:
     """Lottery engine for 4 international tournaments of a competitive year.
     
     Tournaments:
@@ -854,11 +858,21 @@ def pick_season_hosts(year: int, seed: Optional[int] = None) -> Dict[str, Dict[s
     Business Rules:
     1. Perfect regional distribution: Each of the 4 major regions (pacific, emea, americas, china)
        hosts exactly ONE international tournament in the year!
-    2. No duplicate cities: 4 different cities.
-    3. Reproducible: Uses `seed` or `year` to guarantee deterministic selection across reloads,
-       while varying year-by-year.
+    2. No duplicate cities: 4 different cities per year.
+    3. True Randomization: If `seed is None`, uses `secrets.randbelow(1_000_000_000)` so that every newly created
+       campaign save receives a genuinely unique draw.
+       If `seed is not None`, uses deterministic seed for reproducible unit testing.
+    4. 5-Year Per-Tournament Cooldown Rule (Quy tắc hồi chiêu 5 năm theo từng giải):
+       - If a city hosted tournament T in year Y, it CANNOT host tournament T again in years [Y+1, Y+5].
+       - However, it CAN still host any of the other 3 tournaments in those 5 years!
+       - After 5 years (from year Y+6), the city is eligible to host tournament T again.
     """
-    effective_seed = (seed * 10007 + year) if seed is not None else (year * 997 + 101)
+    if seed is None:
+        import secrets
+        effective_seed = secrets.randbelow(1_000_000_000)
+    else:
+        effective_seed = seed * 10007 + year
+
     rng = random.Random(effective_seed)
 
     regions = ["pacific", "emea", "americas", "china"]
@@ -869,8 +883,26 @@ def pick_season_hosts(year: int, seed: Optional[int] = None) -> Dict[str, Dict[s
     assigned_hosts: Dict[str, Dict[str, Any]] = {}
 
     for tourney_key, region_slug in zip(tournaments, regions):
+        # Determine which cities in this region hosted *this exact tournament* in the last 5 years
+        excluded_city_ids = set()
+        if history_hosts:
+            for past_year_str, past_season in history_hosts.items():
+                try:
+                    past_year = int(past_year_str)
+                    if year - 5 <= past_year < year:
+                        past_tourney_host = past_season.get(tourney_key)
+                        if past_tourney_host and isinstance(past_tourney_host, dict) and past_tourney_host.get("id"):
+                            excluded_city_ids.add(past_tourney_host["id"])
+                except Exception:
+                    pass
+
         regional_pool = get_cities_by_region(region_slug)
-        chosen_city = rng.choice(regional_pool)
+        # Filter out cities that hosted this tournament in the last 5 years
+        available_pool = [c for c in regional_pool if c["id"] not in excluded_city_ids]
+        if not available_pool:
+            available_pool = regional_pool
+
+        chosen_city = rng.choice(available_pool)
         assigned_hosts[tourney_key] = chosen_city
 
     return assigned_hosts

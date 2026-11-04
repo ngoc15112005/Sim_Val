@@ -129,9 +129,7 @@ class TestHostCitiesAndTournamentLegitimacy(unittest.TestCase):
         _prepare_major_stage(campaign, dummy_ko_results)
         m_stage = get_stage_record(campaign.id, 'major', year=2027)
         self.assertIsNotNone(m_stage)
-        self.assertIn("VCT Major", m_stage.stage_name)
-        self.assertNotIn("Masters Bangkok", m_stage.stage_name)
-        self.assertIn(hosts['major']['city_name'], m_stage.stage_name)
+        self.assertEqual(m_stage.stage_name, f"VCT Major {hosts['major']['city_name']} 2027")
 
         m_data = json.loads(m_stage.stage_data)
         self.assertEqual(m_data['host_city']['city_name'], hosts['major']['city_name'])
@@ -144,9 +142,7 @@ class TestHostCitiesAndTournamentLegitimacy(unittest.TestCase):
         _prepare_master_stage(campaign, dummy_s1_results)
         mt_stage = get_stage_record(campaign.id, 'master', year=2027)
         self.assertIsNotNone(mt_stage)
-        self.assertIn("VCT Masters", mt_stage.stage_name)
-        self.assertNotIn("Masters Toronto", mt_stage.stage_name)
-        self.assertIn(hosts['master']['city_name'], mt_stage.stage_name)
+        self.assertEqual(mt_stage.stage_name, f"VCT Masters {hosts['master']['city_name']} 2027")
 
         # 3. EWC Stage preparation
         _prepare_ewc_stage(campaign, dummy_s1_results)
@@ -159,9 +155,7 @@ class TestHostCitiesAndTournamentLegitimacy(unittest.TestCase):
         _prepare_champion_stage(campaign, qualifiers=[])
         ch_stage = get_stage_record(campaign.id, 'champion', year=2027)
         self.assertIsNotNone(ch_stage)
-        self.assertIn("VALORANT Champions", ch_stage.stage_name)
-        self.assertNotIn("Champions Paris", ch_stage.stage_name)
-        self.assertIn(hosts['champion']['city_name'], ch_stage.stage_name)
+        self.assertEqual(ch_stage.stage_name, f"VALORANT Champions {hosts['champion']['city_name']} 2027")
 
     def test_major_and_masters_separation_in_trophies_and_profiles(self):
         """Verify Major and Masters are tracked separately in trophy tables and team profiles."""
@@ -215,6 +209,103 @@ class TestHostCitiesAndTournamentLegitimacy(unittest.TestCase):
         self.assertEqual(cabinet['major_titles'], 1)
         self.assertEqual(cabinet['masters_titles'], 1)
         self.assertEqual(cabinet['total_titles'], 3)
+
+
+    def test_season_hosts_true_randomness_across_saves(self):
+        """Verify that separate campaigns receive different random host draws and stay persistent."""
+        camp_a = create_campaign(name="Save A", start_year=2027)
+        camp_b = create_campaign(name="Save B", start_year=2027)
+        camp_c = create_campaign(name="Save C", start_year=2027)
+
+        hosts_a = get_season_hosts(camp_a.id, 2027)
+        hosts_b = get_season_hosts(camp_b.id, 2027)
+        hosts_c = get_season_hosts(camp_c.id, 2027)
+
+        # Persistence check: reloading hosts for camp_a returns identical cities
+        hosts_a_reload = get_season_hosts(camp_a.id, 2027)
+        self.assertEqual(hosts_a, hosts_a_reload, "Reloading the same campaign must return identical host cities")
+
+        # Randomness check: across 3 different saves, they shouldn't all have identical 4 cities
+        keys_a = tuple(hosts_a[k]['id'] for k in sorted(hosts_a.keys()))
+        keys_b = tuple(hosts_b[k]['id'] for k in sorted(hosts_b.keys()))
+        keys_c = tuple(hosts_c[k]['id'] for k in sorted(hosts_c.keys()))
+
+        distinct_draws = len({keys_a, keys_b, keys_c})
+        self.assertGreater(distinct_draws, 1, "Separate campaigns should roll distinct host cities combinations")
+
+    def test_five_year_per_tournament_cooldown_rule(self):
+        """Test the 5-Year Per-Tournament Cooldown Rule:
+        If City X hosts tournament T in year Y:
+        - City X CANNOT host tournament T in years [Y+1, Y+5].
+        - City X CAN host other tournaments in those 5 years.
+        - After 5 years (year Y+6), City X can host tournament T again.
+        """
+        history = {}
+        # Fixed 2027 hosts: force major=tokyo, master=madrid, ewc=los_angeles, champion=shanghai
+        tokyo = get_city_by_id('tokyo')
+        madrid = get_city_by_id('madrid')
+        la = get_city_by_id('los_angeles')
+        shanghai = get_city_by_id('shanghai')
+
+        history["2027"] = {
+            "major": tokyo,
+            "master": madrid,
+            "ewc": la,
+            "champion": shanghai,
+        }
+
+        # In years 2028-2032 (5 years cooldown):
+        # Madrid CANNOT host 'master'
+        for y in range(2028, 2033):
+            # Run multiple lottery draws for year y using history
+            for seed_val in range(10):
+                draw = pick_season_hosts(y, seed=seed_val, history_hosts=history)
+                # Madrid cannot be 'master' in these 5 years
+                self.assertNotEqual(draw['master']['id'], 'madrid',
+                                    f"Madrid cannot host Masters in year {y} due to 5-year cooldown!")
+
+        # However, Madrid CAN host Major/EWC/Champions if EMEA is picked for them
+        # Let's verify pick_season_hosts does NOT ban Madrid from other tournaments
+        # We simulate 100 draws for year 2028 to verify Madrid is eligible for other tournaments
+        madrid_other_count = 0
+        for s in range(100):
+            d = pick_season_hosts(2028, seed=s, history_hosts=history)
+            if d['major']['id'] == 'madrid' or d['ewc']['id'] == 'madrid' or d['champion']['id'] == 'madrid':
+                madrid_other_count += 1
+        self.assertGreater(madrid_other_count, 0, "Madrid should still be eligible for other tournaments during Masters cooldown")
+
+        # After 5 years (Year 2033 = 2027 + 6):
+        # Madrid is eligible again to host Masters!
+        # Fill history up to 2032 with other cities
+        for y in range(2028, 2033):
+            history[str(y)] = pick_season_hosts(y, seed=y * 11, history_hosts=history)
+
+        # In 2033, Madrid can be chosen for Masters
+        can_be_master_2033 = False
+        for s in range(200):
+            d = pick_season_hosts(2033, seed=s, history_hosts=history)
+            if d['master']['id'] == 'madrid':
+                can_be_master_2033 = True
+                break
+        self.assertTrue(can_be_master_2033, "Madrid should be eligible to host Masters again after 5-year cooldown (Year 2033)")
+
+    def test_season_reveal_poster_rendering(self):
+        """Verify the Season Reveal Poster modal and trigger buttons render correctly."""
+        campaign = create_campaign(name="Poster UI Test", start_year=2027)
+
+        # 1. Normal view: Poster button is visible on page
+        resp = self.client.get(f'/campaign/{campaign.id}')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+        self.assertIn('Áp Phích Đăng Cai Mùa Giải', html)
+        self.assertIn('season-reveal-poster-modal', html)
+        self.assertIn('CÔNG BỐ 4 THÀNH PHỐ ĐĂNG CAI MÙA GIẢI 2027', html)
+
+        # 2. View with reveal=1 (auto-popup triggered)
+        resp_reveal = self.client.get(f'/campaign/{campaign.id}?reveal=1')
+        self.assertEqual(resp_reveal.status_code, 200)
+        html_reveal = resp_reveal.data.decode('utf-8')
+        self.assertIn('openSeasonPosterModal()', html_reveal)
 
 
 if __name__ == '__main__':

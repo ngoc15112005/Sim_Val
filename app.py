@@ -33,6 +33,8 @@ def create_app():
                 cols = [row[1] for row in cursor.fetchall()]
                 if cols and 'league_ratings' not in cols:
                     cursor.execute("ALTER TABLE campaigns ADD COLUMN league_ratings TEXT DEFAULT '{\"pacific\": 1500.0, \"americas\": 1500.0, \"emea\": 1500.0, \"china\": 1500.0}'")
+                if cols and 'season_hosts' not in cols:
+                    cursor.execute("ALTER TABLE campaigns ADD COLUMN season_hosts TEXT DEFAULT '{}'")
 
                 cursor.execute("PRAGMA table_info(campaign_club_states)")
                 state_cols = [row[1] for row in cursor.fetchall()]

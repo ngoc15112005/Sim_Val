@@ -116,6 +116,11 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
         current_stage='open_qualifier',
         status='active'
     )
+    # Roll genuinely unique host cities for the starting season
+    from engine.host_cities import pick_season_hosts
+    init_hosts = pick_season_hosts(start_year, seed=None)
+    campaign.season_hosts = json.dumps({str(start_year): init_hosts})
+
     db.session.add(campaign)
     db.session.flush()
 
@@ -261,23 +266,51 @@ def get_season_hosts(campaign_id: int, year: int) -> Dict[str, Dict[str, Any]]:
 
     Business Rules:
     - 4 distinct cities across 4 distinct regions (Pacific, EMEA, Americas, China)
-    - Deterministic per campaign & year for stability across page reloads
-    - Honors any host_city already persisted in stage_data
+    - Genuinely random per save & permanently persistent throughout the season in Campaign.season_hosts
+    - Follows 5-Year Per-Tournament Cooldown Rule (cities cannot host the same tournament within 5 years)
     """
     from engine.host_cities import pick_season_hosts
-    seed = campaign_id * 10007 + year
-    hosts = pick_season_hosts(year, seed=seed)
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        return pick_season_hosts(year)
 
+    saved_hosts_map = {}
+    if getattr(campaign, 'season_hosts', None):
+        try:
+            saved_hosts_map = json.loads(campaign.season_hosts)
+        except Exception:
+            saved_hosts_map = {}
+
+    year_str = str(year)
+    if year_str in saved_hosts_map and isinstance(saved_hosts_map[year_str], dict) and all(k in saved_hosts_map[year_str] for k in ['major', 'master', 'ewc', 'champion']):
+        return saved_hosts_map[year_str]
+
+    # Check if any stage already had a host_city stored (backward compatibility)
+    existing_stage_hosts = {}
     for s_key in ['major', 'master', 'ewc', 'champion']:
         st = CampaignStage.query.filter_by(campaign_id=campaign_id, year=year, stage_key=s_key).first()
         if st and st.stage_data:
             try:
                 s_data = json.loads(st.stage_data)
                 if s_data.get('host_city') and s_data['host_city'].get('city_name'):
-                    hosts[s_key] = s_data['host_city']
+                    existing_stage_hosts[s_key] = s_data['host_city']
             except Exception:
                 pass
 
+    if len(existing_stage_hosts) == 4:
+        saved_hosts_map[year_str] = existing_stage_hosts
+        campaign.season_hosts = json.dumps(saved_hosts_map)
+        db.session.commit()
+        return existing_stage_hosts
+
+    # Generate genuinely random hosts for this season, respecting 5-year cooldown
+    hosts = pick_season_hosts(year, seed=None, history_hosts=saved_hosts_map)
+    for k, v in existing_stage_hosts.items():
+        hosts[k] = v
+
+    saved_hosts_map[year_str] = hosts
+    campaign.season_hosts = json.dumps(saved_hosts_map)
+    db.session.commit()
     return hosts
 
 def is_stage_region_actually_completed(stage_key: str, reg_data: Dict[str, Any]) -> Tuple[bool, str]:
@@ -4056,6 +4089,18 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
     db.session.flush()
 
     init_campaign_open_qualifier(campaign.id)
+
+    # 4b. Draw and persist new year's host cities with 5-year cooldown
+    from engine.host_cities import pick_season_hosts
+    saved_hosts_map = {}
+    if getattr(campaign, 'season_hosts', None):
+        try:
+            saved_hosts_map = json.loads(campaign.season_hosts)
+        except Exception:
+            saved_hosts_map = {}
+    new_hosts = pick_season_hosts(campaign.current_year, seed=None, history_hosts=saved_hosts_map)
+    saved_hosts_map[str(campaign.current_year)] = new_hosts
+    campaign.season_hosts = json.dumps(saved_hosts_map)
 
     db.session.commit()
     return {

@@ -201,6 +201,7 @@ class Campaign(db.Model):
     current_stage = db.Column(db.String(30), default='open_qualifier')
     status = db.Column(db.String(20), default='active')  # 'active', 'completed'
     league_ratings = db.Column(db.Text, default='{"pacific": 1500.0, "americas": 1500.0, "emea": 1500.0, "china": 1500.0}')
+    season_hosts = db.Column(db.Text, default='{}')  # JSON: {"2027": {"major": {...}, "master": {...}, ...}, ...}
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))

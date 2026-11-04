@@ -362,7 +362,7 @@ def register_routes(app):
         name = request.form.get('name', 'VCT 2027 Circuit Journey').strip()
         year = int(request.form.get('year', 2027))
         campaign = create_campaign(name=name, start_year=year)
-        return redirect(url_for('campaign_detail', campaign_id=campaign.id))
+        return redirect(url_for('campaign_detail', campaign_id=campaign.id, reveal='1'))
 
     @app.route('/campaign/<int:campaign_id>/delete', methods=['POST'])
     def campaign_delete(campaign_id):
@@ -409,6 +409,7 @@ def register_routes(app):
             for r in ['pacific', 'americas', 'emea', 'china']
         }
         season_hosts = get_season_hosts(campaign.id, campaign.current_year)
+        show_season_reveal = bool(request.args.get('reveal') == '1')
 
         return render_template(
             'campaign/detail.html',
@@ -428,6 +429,7 @@ def register_routes(app):
             champion_data=champion_data,
             cp_leaderboards=cp_leaderboards,
             season_hosts=season_hosts,
+            show_season_reveal=show_season_reveal,
             cfg=Config,
         )
 

@@ -783,7 +783,7 @@ async function executeAdvanceYear() {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/advance-year`, {});
     if (res.success) {
-      window.location.href = `/campaign/{{ campaign.id }}`;
+      window.location.href = `/campaign/{{ campaign.id }}?reveal=1`;
     } else {
       alert("Lỗi: " + (res.error || "Không thể chuyển mùa giải"));
       if (btn) {

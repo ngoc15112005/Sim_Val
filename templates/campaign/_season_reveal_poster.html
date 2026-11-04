@@ -1,0 +1,216 @@
+<!-- VCT Season Host Cities Reveal Poster Modal Component -->
+<div id="season-reveal-poster-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(10px); z-index: 10000; justify-content: center; align-items: center; padding: 16px; overflow-y: auto;">
+  <div class="card poster-card" style="max-width: 1050px; width: 100%; max-height: 92vh; overflow-y: auto; background: linear-gradient(145deg, #0b0f19 0%, #0d1527 50%, #080c14 100%); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 16px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.85), 0 0 30px rgba(234, 179, 8, 0.15); position: relative;">
+    
+    <!-- Close Button -->
+    <button type="button" onclick="closeSeasonPosterModal()" style="position: absolute; top: 20px; right: 22px; background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: #fff; width: 36px; height: 36px; border-radius: 50%; font-size: 1.3em; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">&times;</button>
+
+    <!-- Poster Header Branding -->
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 20px; padding: 5px 16px; margin-bottom: 10px;">
+        <span style="color: #fbbf24; font-size: 0.9em; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">
+          VALORANT CHAMPIONS TOUR • OFFICIAL ANNOUNCEMENT
+        </span>
+      </div>
+      <h1 style="font-size: 2.1em; margin: 4px 0 8px; font-weight: 900; letter-spacing: 0.5px; background: linear-gradient(135deg, #ffffff 30%, #fbbf24 80%, #f59e0b 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        CÔNG BỐ 4 THÀNH PHỐ ĐĂNG CAI MÙA GIẢI {{ campaign.current_year }}
+      </h1>
+      <p style="color: var(--dim); font-size: 0.95em; margin: 0; max-width: 650px; margin: 0 auto; line-height: 1.5;">
+        Hành trình VCT {{ campaign.current_year }} đi qua 4 châu lục, quy tụ những thánh địa thể thao điện tử cuồng nhiệt bậc nhất hành tinh trước khi hướng tới ngai vàng thế giới.
+      </p>
+    </div>
+
+    <!-- 4 International Tournament Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 16px; margin-bottom: 24px;">
+
+      <!-- 1. VCT MAJOR -->
+      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(59, 130, 246, 0.35); border-top: 4px solid #3b82f6; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.75em; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px;">
+              🏆 VCT Major • Tháng 3
+            </span>
+            <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
+              {{ major_host.region_slug if major_host else 'PACIFIC' }}
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span style="font-size: 2em; line-height: 1;">{{ major_host.flag if major_host else '🇯🇵' }}</span>
+            <div>
+              <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
+                {{ major_host.city_name if major_host else 'Tokyo' }}
+              </h3>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ major_host.country if major_host else 'Japan' }}</div>
+            </div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
+            <div style="color: #60a5fa; font-weight: bold; margin-bottom: 4px;">🏟️ {{ major_host.venue if major_host else 'Nippon Budokan' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(major_host.capacity) if major_host else '14,471' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ major_host.atmosphere_tier if major_host else 'S+' }}</span></div>
+          </div>
+
+          <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
+            "{{ major_host.description if major_host else 'Khán đài rực lửa với văn hóa cổ vũ văn minh, cuồng nhiệt bậc nhất châu Á.' }}"
+          </p>
+        </div>
+
+        <div style="font-size: 0.78em; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #94a3b8; text-align: center;">
+          ⚡ 8 Đội Tuyển Tinh Hoa • +5 CP Quán Quân
+        </div>
+      </div>
+
+      <!-- 2. VCT MASTERS -->
+      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(168, 85, 247, 0.35); border-top: 4px solid #a855f7; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.75em; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: rgba(168, 85, 247, 0.2); color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px;">
+              🌟 VCT Masters • Tháng 6
+            </span>
+            <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
+              {{ master_host.region_slug if master_host else 'EMEA' }}
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span style="font-size: 2em; line-height: 1;">{{ master_host.flag if master_host else '🇪🇸' }}</span>
+            <div>
+              <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
+                {{ master_host.city_name if master_host else 'Madrid' }}
+              </h3>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ master_host.country if master_host else 'Spain' }}</div>
+            </div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
+            <div style="color: #c084fc; font-weight: bold; margin-bottom: 4px;">🏟️ {{ master_host.venue if master_host else 'WiZink Center' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(master_host.capacity) if master_host else '17,453' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ master_host.atmosphere_tier if master_host else 'S+' }}</span></div>
+          </div>
+
+          <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
+            "{{ master_host.description if master_host else 'Sân khấu trung tâm của bóng đá và esports Tây Âu với âm lượng bùng nổ.' }}"
+          </p>
+        </div>
+
+        <div style="font-size: 0.78em; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #94a3b8; text-align: center;">
+          🔥 12 Đội Tinh Nhuệ • +7 CP Quán Quân
+        </div>
+      </div>
+
+      <!-- 3. ESPORTS WORLD CUP -->
+      <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(20, 184, 166, 0.35); border-top: 4px solid #14b8a6; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.75em; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: rgba(20, 184, 166, 0.2); color: #2dd4bf; text-transform: uppercase; letter-spacing: 0.5px;">
+              🌍 Esports World Cup • Tháng 7
+            </span>
+            <span style="font-size: 0.75em; color: var(--dim); font-weight: bold; text-transform: uppercase;">
+              {{ ewc_host.region_slug if ewc_host else 'AMERICAS' }}
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span style="font-size: 2em; line-height: 1;">{{ ewc_host.flag if ewc_host else '🇸🇦' }}</span>
+            <div>
+              <h3 style="margin: 0; font-size: 1.3em; color: #fff; font-weight: 800;">
+                {{ ewc_host.city_name if ewc_host else 'Riyadh' }}
+              </h3>
+              <div style="font-size: 0.82em; color: var(--dim);">{{ ewc_host.country if ewc_host else 'Saudi Arabia' }}</div>
+            </div>
+          </div>
+
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
+            <div style="color: #2dd4bf; font-weight: bold; margin-bottom: 4px;">🏟️ {{ ewc_host.venue if ewc_host else 'Boulevard City Arena' }}</div>
+            <div style="color: var(--dim);">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(ewc_host.capacity) if ewc_host else '12,000' }}</strong> chỗ ngồi</div>
+            <div style="color: var(--dim);">Độ cuồng nhiệt: <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fbbf24; font-weight: 800;">Tier {{ ewc_host.atmosphere_tier if ewc_host else 'S' }}</span></div>
+          </div>
+
+          <p style="font-size: 0.8em; color: var(--dim); margin: 0 0 12px; line-height: 1.4; font-style: italic;">
+            "{{ ewc_host.description if ewc_host else 'Đấu trường thể thao điện tử hiện đại và quy mô bậc nhất toàn cầu.' }}"
+          </p>
+        </div>
+
+        <div style="font-size: 0.78em; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: #94a3b8; text-align: center;">
+          🌐 16 Đội Toàn Cầu • Đại Hội Thể Thao Đỉnh Cao
+        </div>
+      </div>
+
+      <!-- 4. VALORANT CHAMPIONS (Crown Jewel) -->
+      <div style="background: linear-gradient(145deg, rgba(30, 27, 75, 0.9), rgba(15, 23, 42, 0.95)); border: 2px solid #eab308; border-top: 5px solid #eab308; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 10px 30px rgba(234, 179, 8, 0.25);">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.75em; font-weight: 800; padding: 3px 8px; border-radius: 4px; background: rgba(234, 179, 8, 0.25); color: #fde047; text-transform: uppercase; letter-spacing: 0.5px;">
+              👑 Champions • Tháng 9
+            </span>
+            <span style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+              {{ champ_host.region_slug if champ_host else 'CHINA' }}
+            </span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span style="font-size: 2em; line-height: 1;">{{ champ_host.flag if champ_host else '🇰🇷' }}</span>
+            <div>
+              <h3 style="margin: 0; font-size: 1.3em; color: #fbbf24; font-weight: 900;">
+                {{ champ_host.city_name if champ_host else 'Seoul' }}
+              </h3>
+              <div style="font-size: 0.82em; color: #cbd5e1;">{{ champ_host.country if champ_host else 'South Korea' }}</div>
+            </div>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85em; line-height: 1.5;">
+            <div style="color: #fbbf24; font-weight: bold; margin-bottom: 4px;">🏟️ {{ champ_host.venue if champ_host else 'INSPIRE Arena' }}</div>
+            <div style="color: #cbd5e1;">Sức chứa: <strong style="color: #fff;">{{ "{:,}".format(champ_host.capacity) if champ_host else '15,000' }}</strong> chỗ ngồi</div>
+            <div style="color: #cbd5e1;">Độ cuồng nhiệt: <span class="badge" style="background: #eab308; color: #000; font-weight: 900;">Tier {{ champ_host.atmosphere_tier if champ_host else 'S+' }}</span></div>
+          </div>
+
+          <p style="font-size: 0.8em; color: #e2e8f0; margin: 0 0 12px; line-height: 1.4; font-style: italic;">
+            "{{ champ_host.description if champ_host else 'Thánh địa khai sinh thể thao điện tử hiện đại với niềm đam mê bất tận.' }}"
+          </p>
+        </div>
+
+        <div style="font-size: 0.78em; padding: 6px 10px; border-radius: 6px; background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.35); color: #fbbf24; font-weight: bold; text-align: center;">
+          🏆 Chung Kết Thế Giới • Tôn Vinh Tân Vương
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Rule & Cooldown Note -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px;">
+      <div style="font-size: 0.85em; color: var(--dim); line-height: 1.5;">
+        <span style="color: #fbbf24; font-weight: bold;">⚖️ Quy chế đăng cai VCT:</span>
+        Mỗi mùa giải 4 giải quốc tế luân phiên tổ chức tại 4 khu vực riêng biệt. Thành phố đã đăng cai một giải đấu sẽ bước vào thời gian hồi chiêu <strong>5 năm</strong> trước khi có thể đăng cai lại chính giải đấu đó.
+      </div>
+      <button type="button" onclick="closeSeasonPosterModal()" class="btn-start" style="padding: 11px 26px; font-weight: bold; font-size: 1em; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);">
+        <span>🚀</span> Bắt Đầu Mùa Giải {{ campaign.current_year }}
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+window.openSeasonPosterModal = function() {
+  const m = document.getElementById('season-reveal-poster-modal');
+  if (m) m.style.display = 'flex';
+};
+
+window.closeSeasonPosterModal = function() {
+  const m = document.getElementById('season-reveal-poster-modal');
+  if (m) m.style.display = 'none';
+};
+
+// Close on backdrop click
+document.addEventListener('DOMContentLoaded', function() {
+  const m = document.getElementById('season-reveal-poster-modal');
+  if (m) {
+    m.addEventListener('click', function(e) {
+      if (e.target === m) {
+        closeSeasonPosterModal();
+      }
+    });
+  }
+});
+</script>
