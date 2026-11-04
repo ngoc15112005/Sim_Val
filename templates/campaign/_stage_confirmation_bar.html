@@ -25,16 +25,34 @@
     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
       {% if is_regional %}
       {% set target_reg = r_slug or active_region or selected_region or region_slug or '' %}
-      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '{{ target_reg }}', '{{ review_target_name or target_reg|upper }}', false)" style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+      <button type="button" class="btn-start btn-trigger-confirm"
+        data-stage-key="{{ stage_key }}"
+        data-region-slug="{{ target_reg }}"
+        data-target-name="{{ review_target_name or target_reg|upper }}"
+        data-is-all="false"
+        onclick="handleStageConfirmClick(this)"
+        style="padding: 10px 18px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
         <span>🔒</span> Xác nhận & Khóa {{ target_reg|upper }}
       </button>
       {% if all_regions_ready %}
-      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', 'Tất cả 4 khu vực', true)" style="padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+      <button type="button" class="btn-start btn-trigger-confirm"
+        data-stage-key="{{ stage_key }}"
+        data-region-slug=""
+        data-target-name="Tất cả 4 khu vực"
+        data-is-all="true"
+        onclick="handleStageConfirmClick(this)"
+        style="padding: 10px 18px; font-weight: bold; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <span>🌟</span> Khóa cả 4 khu vực
       </button>
       {% endif %}
       {% else %}
-      <button type="button" class="btn-start" onclick="openStageConfirmModal('{{ stage_key }}', '', '{{ review_target_name or 'giải đấu' }}', false)" style="padding: 10px 22px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+      <button type="button" class="btn-start btn-trigger-confirm"
+        data-stage-key="{{ stage_key }}"
+        data-region-slug=""
+        data-target-name="{{ review_target_name or 'giải đấu' }}"
+        data-is-all="false"
+        onclick="handleStageConfirmClick(this)"
+        style="padding: 10px 22px; font-weight: bold; background: #f59e0b; color: #000; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
         <span>🔒</span> Xác nhận & Khóa kết quả
       </button>
       {% endif %}
@@ -122,10 +140,34 @@ if (typeof window.openStageConfirmModal !== 'function') {
     if (modal) modal.style.display = 'flex';
   };
 
+  window.handleStageConfirmClick = function(btn) {
+    if (!btn) return;
+    const stageKey = btn.getAttribute('data-stage-key');
+    const regionSlug = btn.getAttribute('data-region-slug') || '';
+    const targetName = btn.getAttribute('data-target-name') || '';
+    const isAll = btn.getAttribute('data-is-all') === 'true';
+    if (typeof window.openStageConfirmModal === 'function') {
+      window.openStageConfirmModal(stageKey, regionSlug, targetName, isAll);
+    }
+  };
+
   window.closeStageConfirmModal = function() {
     const modal = document.getElementById('stage-confirm-modal');
     if (modal) modal.style.display = 'none';
   };
+
+  document.addEventListener('click', function(e) {
+    const trigger = e.target.closest('.btn-trigger-confirm');
+    if (trigger) {
+      const sKey = trigger.getAttribute('data-stage-key');
+      const rSlug = trigger.getAttribute('data-region-slug') || '';
+      const tName = trigger.getAttribute('data-target-name') || '';
+      const isAll = trigger.getAttribute('data-is-all') === 'true';
+      if (typeof window.openStageConfirmModal === 'function') {
+        window.openStageConfirmModal(sKey, rSlug, tName, isAll);
+      }
+    }
+  });
 
   window.executeStageConfirmation = async function() {
     const btn = document.getElementById('btn-execute-stage-confirm');

@@ -159,6 +159,71 @@ class TestCampaignMajor(unittest.TestCase):
         db.session.delete(campaign)
         db.session.commit()
 
+    def test_major_xian_apostrophe_and_confirmation_flow(self):
+        """Regression test for Xi'an apostrophe in confirmation button & confirm endpoint."""
+        campaign = create_campaign(name="Xi'an Confirm Regression Test", start_year=2027)
+
+        # Force host city for Major to Xi'an
+        from engine.host_cities import get_city_by_id
+        xian = get_city_by_id('xian')
+        self.assertIsNotNone(xian)
+        self.assertEqual(xian['city_name'], "Xi'an")
+
+        # Set season hosts with 4 distinct regions
+        campaign.season_hosts = json.dumps({'2027': {
+            'major': xian,
+            'master': get_city_by_id('madrid'),
+            'ewc': get_city_by_id('los_angeles'),
+            'champion': get_city_by_id('tokyo'),
+        }})
+        db.session.commit()
+
+        # Run OQ and Kickoff
+        run_open_qualifier_stage(campaign.id)
+        for r_slug in ['pacific', 'americas', 'emea', 'china']:
+            run_kickoff_stage(campaign.id, region_slug=r_slug)
+
+        # Verify Major page loads with VCT Major Xi'an (HTML encoded as Xi&#39;an)
+        resp_pre = self.client.get(f'/campaign/{campaign.id}/stage/major')
+        self.assertEqual(resp_pre.status_code, 200)
+        html_pre = resp_pre.data.decode('utf-8')
+        self.assertTrue("VCT Major Xi&#39;an" in html_pre or "VCT Major Xi'an" in html_pre)
+
+        # Sim Major without auto-confirm so it enters Review mode
+        from services.campaign_service import sim_major_tournament_interactive
+        sim_res = sim_major_tournament_interactive(campaign.id, auto_confirm=False)
+
+        # GET Major in review mode: verify button HTML has clean onclick without quote syntax errors
+        resp_review = self.client.get(f'/campaign/{campaign.id}/stage/major')
+        self.assertEqual(resp_review.status_code, 200)
+        html_review = resp_review.data.decode('utf-8')
+
+        self.assertIn('btn-trigger-confirm', html_review)
+        self.assertIn('handleStageConfirmClick(this)', html_review)
+        self.assertTrue('data-target-name="VCT Major Xi&#39;an"' in html_review or 'data-target-name="VCT Major Xi\'an"' in html_review)
+
+        # Verify POST confirm succeeds without error
+        resp_confirm = self.client.post(f'/api/campaign/{campaign.id}/major/confirm', json={})
+        self.assertEqual(resp_confirm.status_code, 200)
+        data_confirm = resp_confirm.get_json()
+        self.assertTrue(data_confirm['success'])
+        self.assertEqual(data_confirm['result']['stage_key'], 'major')
+        self.assertTrue(data_confirm['result']['is_confirmed'])
+
+        # GET Major after confirm: should show locked banner
+        resp_locked = self.client.get(f'/campaign/{campaign.id}/stage/major')
+        self.assertEqual(resp_locked.status_code, 200)
+        html_locked = resp_locked.data.decode('utf-8')
+        self.assertIn('KẾT QUẢ ĐÃ ĐƯỢC XÁC NHẬN VÀ KHÓA VĨNH VIỄN', html_locked)
+
+        # Verify campaign advanced to oq_stage1
+        db.session.refresh(campaign)
+        self.assertEqual(campaign.current_stage, 'oq_stage1')
+
+        # Cleanup
+        db.session.delete(campaign)
+        db.session.commit()
+
 
 if __name__ == '__main__':
     unittest.main()
