@@ -758,6 +758,41 @@ def run_open_qualifier_stage(campaign_id: int, region_slug: Optional[str] = None
     return results_summary
 
 
+def _get_prev_champions_qualifiers_map(campaign_id: int, year: Optional[int]) -> Dict[str, Dict[int, Dict[str, Any]]]:
+    """Retrieve mapping of region_slug -> {club_id: {'champions_seed': int, 'slot_type': str}}
+    for the champions stage of year - 1.
+    """
+    result = {'pacific': {}, 'americas': {}, 'emea': {}, 'china': {}}
+    if not year or year <= 2026:
+        return result
+
+    clubs_by_id = {c.id: c for c in Club.query.all()}
+    prev_champ_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign_id, year=year - 1, stage_key='champion'
+    ).first()
+
+    if prev_champ_stage and prev_champ_stage.stage_data:
+        try:
+            champ_data = json.loads(prev_champ_stage.stage_data)
+            champ_roster = champ_data.get('roster', [])
+            for t in champ_roster:
+                cid = t.get('id') or t.get('club_id')
+                if not cid:
+                    continue
+                cid = int(cid)
+                reg = t.get('region_slug') or t.get('region')
+                if not reg and cid in clubs_by_id and clubs_by_id[cid].region:
+                    reg = clubs_by_id[cid].region.slug
+                if reg in result:
+                    result[reg][cid] = {
+                        'champions_seed': t.get('champions_seed') or t.get('regional_seed') or 4,
+                        'slot_type': t.get('slot_type', 'Champions Qualifier'),
+                    }
+        except Exception:
+            pass
+    return result
+
+
 def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
     """Assemble 12 Kickoff teams per region (8 Partners + 4 Open Qualifiers)."""
     kickoff_stage = CampaignStage.query.filter_by(
@@ -766,40 +801,54 @@ def _prepare_kickoff_stage(campaign: Campaign, oq_regions_data: Dict[str, Any]):
 
     kickoff_rosters = {}
     clubs_by_id = {c.id: c for c in Club.query.all()}
+    prev_champs_map = _get_prev_champions_qualifiers_map(campaign.id, campaign.current_year)
+
     for r_slug in ['pacific', 'americas', 'emea', 'china']:
+        reg_champs = prev_champs_map.get(r_slug, {})
+
         # 8 Partner teams
         partner_states = CampaignClubState.query.filter_by(
             campaign_id=campaign.id, is_partner=True
         ).join(Club).join(Region).filter(Region.slug == r_slug).all()
 
-        partner_teams = [
-            {
-                'id': cs.club.id,
+        partner_teams = []
+        for cs in partner_states:
+            cid = cs.club.id
+            is_prev_champ = cid in reg_champs
+            champ_info = reg_champs.get(cid, {})
+            partner_teams.append({
+                'id': cid,
                 'name': cs.club.name,
                 'short_code': cs.club.short_code,
-                'logo_url': cs.club.logo_url or (clubs_by_id.get(cs.club.id).logo_url if cs.club.id in clubs_by_id else ''),
+                'logo_url': cs.club.logo_url or (clubs_by_id.get(cid).logo_url if cid in clubs_by_id else ''),
                 'story_rating': cs.story_rating,
                 'effective_rating': cs.effective_rating,
                 'is_partner': True,
-                'entry_source': 'Partner Direct Entry',
-            }
-            for cs in partner_states
-        ]
+                'entry_source': f"Champions Seed #{champ_info.get('champions_seed')}" if is_prev_champ else 'Partner Direct Entry',
+                'prev_champions_qualified': is_prev_champ,
+                'prev_champions_seed': champ_info.get('champions_seed') if is_prev_champ else None,
+            })
 
         # 4 Qualified teams from Open Qualifier
         oq_qualifiers = oq_regions_data.get(r_slug, {}).get('qualified_teams', [])
-        qual_teams = [
-            {
-                'id': t['id'],
+        qual_teams = []
+        for idx, t in enumerate(oq_qualifiers):
+            cid = t.get('id') or t.get('club_id')
+            is_prev_champ = cid in reg_champs
+            champ_info = reg_champs.get(cid, {})
+            qual_teams.append({
+                'id': cid,
                 'name': t['name'],
                 'short_code': t['short_code'],
-                'logo_url': t.get('logo_url') or (clubs_by_id.get(t['id']).logo_url if t['id'] in clubs_by_id else ''),
+                'logo_url': t.get('logo_url') or (clubs_by_id.get(cid).logo_url if cid in clubs_by_id else ''),
                 'story_rating': t.get('story_rating', 80),
+                'effective_rating': t.get('effective_rating', t.get('story_rating', 80)),
                 'is_partner': False,
-                'entry_source': f'Open Qualifier Seed #{idx + 1}',
-            }
-            for idx, t in enumerate(oq_qualifiers)
-        ]
+                'oq_seed': idx + 1,
+                'entry_source': f"Open Qualifier Seed #{idx + 1} (Champions Seed #{champ_info.get('champions_seed')})" if is_prev_champ else f'Open Qualifier Seed #{idx + 1}',
+                'prev_champions_qualified': is_prev_champ,
+                'prev_champions_seed': champ_info.get('champions_seed') if is_prev_champ else None,
+            })
 
         kickoff_rosters[r_slug] = partner_teams + qual_teams
 
@@ -847,6 +896,25 @@ def get_kickoff_data(campaign_id: int, year: Optional[int] = None) -> Optional[D
         if r_slug in rosters and (r_slug not in data['regional_results'] or not data['regional_results'][r_slug].get('matches')):
             data['regional_results'][r_slug] = init_kickoff_region_state(r_slug, rosters[r_slug])
             updated = True
+        elif r_slug in rosters and r_slug in data['regional_results']:
+            # Reseed self-healing for pending/unplayed brackets that lack prev_champions_qualified flags
+            reg_res = data['regional_results'][r_slug]
+            comp_count = len(reg_res.get('completed_dict', {}))
+            if comp_count == 0 and stage.year and stage.year > 2026:
+                r_roster = rosters[r_slug]
+                has_champ_flag = any('prev_champions_qualified' in t for t in r_roster)
+                if not has_champ_flag:
+                    prev_champs = _get_prev_champions_qualifiers_map(campaign_id, stage.year).get(r_slug, {})
+                    if prev_champs:
+                        for t in r_roster:
+                            cid = t.get('id') or t.get('club_id')
+                            if cid in prev_champs:
+                                t['prev_champions_qualified'] = True
+                                t['prev_champions_seed'] = prev_champs[cid]['champions_seed']
+                            else:
+                                t['prev_champions_qualified'] = False
+                        data['regional_results'][r_slug] = init_kickoff_region_state(r_slug, r_roster)
+                        updated = True
 
     if updated:
         stage.stage_data = json.dumps(data)

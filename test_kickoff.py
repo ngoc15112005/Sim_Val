@@ -153,6 +153,87 @@ class TestKickoff(unittest.TestCase):
             self.assertEqual(res['total_matches_count'], 22)
             self.assertEqual(len(res['major_qualifiers']), 2)
 
+    def test_seeding_with_champions_partners(self):
+        """Year 2+: 4 Partner teams that qualified for Champions receive Byes (Seeds 1..4)."""
+        participants = [dict(p) for p in self.participants]
+        # Suppose P03, P04, P07, P08 went to Champions (even though P01, P02 have higher story rating)
+        participants[2]['prev_champions_qualified'] = True
+        participants[2]['prev_champions_seed'] = 1  # P03
+        participants[3]['prev_champions_qualified'] = True
+        participants[3]['prev_champions_seed'] = 2  # P04
+        participants[6]['prev_champions_qualified'] = True
+        participants[6]['prev_champions_seed'] = 3  # P07
+        participants[7]['prev_champions_qualified'] = True
+        participants[7]['prev_champions_seed'] = 4  # P08
+
+        seeding = seed_kickoff_participants(participants)
+        seeds = seeding['seeds']
+
+        # Byes must be the 4 Champions teams, sorted by their seed
+        self.assertEqual(seeds[1]['short_code'], 'P03')
+        self.assertEqual(seeds[2]['short_code'], 'P04')
+        self.assertEqual(seeds[3]['short_code'], 'P07')
+        self.assertEqual(seeds[4]['short_code'], 'P08')
+
+        # Remaining partners (P01, P02, P05, P06) must be Seeds 5..8
+        rem_partner_codes = {seeds[5]['short_code'], seeds[6]['short_code'], seeds[7]['short_code'], seeds[8]['short_code']}
+        self.assertEqual(rem_partner_codes, {'P01', 'P02', 'P05', 'P06'})
+
+        # Open Qualifiers must be Seeds 9..12
+        oq_codes = {seeds[9]['short_code'], seeds[10]['short_code'], seeds[11]['short_code'], seeds[12]['short_code']}
+        self.assertEqual(oq_codes, {'OQ1', 'OQ2', 'OQ3', 'OQ4'})
+
+    def test_seeding_with_non_partner_champions_team(self):
+        """Year 2+: A Non-Partner team (OQ1) qualified for Champions and won OQ -> receives Bye!"""
+        participants = [dict(p) for p in self.participants]
+        # P01 (seed 1), P02 (seed 2), P03 (seed 3), and OQ1 (seed 4 - Non-Partner!) went to Champions
+        participants[0]['prev_champions_qualified'] = True
+        participants[0]['prev_champions_seed'] = 1  # P01
+        participants[1]['prev_champions_qualified'] = True
+        participants[1]['prev_champions_seed'] = 2  # P02
+        participants[2]['prev_champions_qualified'] = True
+        participants[2]['prev_champions_seed'] = 3  # P03
+        participants[8]['prev_champions_qualified'] = True
+        participants[8]['prev_champions_seed'] = 4  # OQ1 (Non-Partner)
+
+        seeding = seed_kickoff_participants(participants)
+        seeds = seeding['seeds']
+
+        # The 4 Byes must include the non-partner team OQ1!
+        bye_codes = [seeds[1]['short_code'], seeds[2]['short_code'], seeds[3]['short_code'], seeds[4]['short_code']]
+        self.assertEqual(bye_codes, ['P01', 'P02', 'P03', 'OQ1'])
+
+        # Verify full tournament simulation succeeds without error
+        res = simulate_kickoff_tournament('pacific', participants)
+        self.assertEqual(res['total_matches_count'], 22)
+        self.assertEqual(len(res['standings']), 12)
+        self.assertEqual(len(res['major_qualifiers']), 2)
+
+    def test_seeding_fallback_when_non_partner_champions_fails_oq(self):
+        """Year 2+: A Non-Partner team was at Champions but failed OQ.
+        Kickoff only has 3 Champions teams -> 4th Bye falls back to top remaining Partner.
+        """
+        participants = [dict(p) for p in self.participants]
+        # Only 3 Champions teams present in Kickoff: P01, P02, P03
+        participants[0]['prev_champions_qualified'] = True
+        participants[0]['prev_champions_seed'] = 1
+        participants[1]['prev_champions_qualified'] = True
+        participants[1]['prev_champions_seed'] = 2
+        participants[2]['prev_champions_qualified'] = True
+        participants[2]['prev_champions_seed'] = 3
+        # OQ1..OQ4 were not at Champions
+
+        seeding = seed_kickoff_participants(participants)
+        seeds = seeding['seeds']
+
+        # Byes: 3 Champions partners + top remaining partner by rating (P04 with rating 86)
+        bye_codes = [seeds[1]['short_code'], seeds[2]['short_code'], seeds[3]['short_code'], seeds[4]['short_code']]
+        self.assertEqual(bye_codes, ['P01', 'P02', 'P03', 'P04'])
+
+        res = simulate_kickoff_tournament('pacific', participants)
+        self.assertEqual(res['total_matches_count'], 22)
+        self.assertEqual(len(res['major_qualifiers']), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

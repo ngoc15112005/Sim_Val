@@ -100,6 +100,93 @@ class TestCampaignKickoff(unittest.TestCase):
         db.session.delete(campaign)
         db.session.commit()
 
+    def test_year2_kickoff_seeds_from_champions_including_non_partner(self):
+        """Verify that in Year 2, Kickoff byes are awarded to the previous year Champions qualifiers,
+        even if one of them is a Non-Partner team!
+        """
+        campaign = create_campaign(name="Kickoff Multi-Year Test", start_year=2027)
+
+        # Find Pacific clubs from CampaignClubState
+        from models import Region, Club
+        pac_region = Region.query.filter_by(slug='pacific').first()
+        pac_partner_states = CampaignClubState.query.filter_by(campaign_id=campaign.id, is_partner=True).join(Club).filter(Club.region_id == pac_region.id).all()
+        pac_non_partner_states = CampaignClubState.query.filter_by(campaign_id=campaign.id, is_partner=False).join(Club).filter(Club.region_id == pac_region.id).all()
+
+        pac_partners = [s.club for s in pac_partner_states]
+        pac_non_partners = [s.club for s in pac_non_partner_states]
+
+        # Suppose in 2027 Champions, the 4 Pacific qualifiers were:
+        # 3 partners: pac_partners[0], pac_partners[1], pac_partners[2]
+        # 1 non-partner: pac_non_partners[0] (e.g. DRX)
+        selected_partner_ids = [p.id for p in pac_partners[:3]]
+        selected_np = pac_non_partners[0]
+
+        # Mock Year 2027 Champions stage
+        champ_roster = [
+            {'id': pac_partners[0].id, 'club_id': pac_partners[0].id, 'name': pac_partners[0].name, 'region_slug': 'pacific', 'champions_seed': 1, 'is_partner': True},
+            {'id': pac_partners[1].id, 'club_id': pac_partners[1].id, 'name': pac_partners[1].name, 'region_slug': 'pacific', 'champions_seed': 2, 'is_partner': True},
+            {'id': pac_partners[2].id, 'club_id': pac_partners[2].id, 'name': pac_partners[2].name, 'region_slug': 'pacific', 'champions_seed': 3, 'is_partner': True},
+            {'id': selected_np.id, 'club_id': selected_np.id, 'name': selected_np.name, 'region_slug': 'pacific', 'champions_seed': 4, 'is_partner': False},
+        ]
+        champ_stage = CampaignStage(
+            campaign_id=campaign.id,
+            year=2027,
+            stage_key='champion',
+            stage_name='VALORANT Champions Paris 2027',
+            status='completed',
+            stage_data=json.dumps({'roster': champ_roster}),
+        )
+        db.session.add(champ_stage)
+        db.session.commit()
+
+        # Advance to Year 2028 Kickoff
+        campaign.current_year = 2028
+        campaign.current_stage = 'kickoff'
+        db.session.commit()
+
+        # Provide 4 qualified teams for each region so all 4 regions have 12 teams
+        mock_oq_data = {
+            'pacific': {
+                'qualified_teams': [
+                    {'id': selected_np.id, 'name': selected_np.name, 'short_code': selected_np.short_code, 'story_rating': 88},
+                    {'id': pac_non_partners[1].id, 'name': pac_non_partners[1].name, 'short_code': pac_non_partners[1].short_code, 'story_rating': 75},
+                    {'id': pac_non_partners[2].id, 'name': pac_non_partners[2].name, 'short_code': pac_non_partners[2].short_code, 'story_rating': 74},
+                    {'id': pac_non_partners[3].id, 'name': pac_non_partners[3].name, 'short_code': pac_non_partners[3].short_code, 'story_rating': 73},
+                ]
+            },
+        }
+        for r_slug in ['americas', 'emea', 'china']:
+            reg_obj = Region.query.filter_by(slug=r_slug).first()
+            np_states = CampaignClubState.query.filter_by(campaign_id=campaign.id, is_partner=False).join(Club).filter(Club.region_id == reg_obj.id).limit(4).all()
+            mock_oq_data[r_slug] = {
+                'qualified_teams': [{'id': s.club_id, 'name': s.club.name, 'short_code': s.club.short_code, 'story_rating': 75} for s in np_states]
+            }
+
+        from services.campaign_service import _prepare_kickoff_stage
+        _prepare_kickoff_stage(campaign, mock_oq_data)
+
+        # Retrieve Kickoff data for Year 2028
+        k_data = get_kickoff_data(campaign.id, year=2028)
+        self.assertIsNotNone(k_data)
+        pac_seeds = k_data['regional_results']['pacific']['seeds']
+
+        # Byes (seeds 1..4) MUST contain the 3 partners and the 1 non-partner (selected_np)
+        bye_1 = pac_seeds.get('1') or pac_seeds.get(1)
+        bye_2 = pac_seeds.get('2') or pac_seeds.get(2)
+        bye_3 = pac_seeds.get('3') or pac_seeds.get(3)
+        bye_4 = pac_seeds.get('4') or pac_seeds.get(4)
+        bye_ids = {bye_1['id'], bye_2['id'], bye_3['id'], bye_4['id']}
+        self.assertIn(selected_np.id, bye_ids, "Non-Partner Champions qualifier must receive a Bye in Kickoff!")
+        for pid in selected_partner_ids:
+            self.assertIn(pid, bye_ids, f"Partner {pid} from Champions must receive a Bye in Kickoff!")
+
+        # Verify selected_np gets Seed 4 because their champions_seed was 4
+        self.assertEqual(bye_4['id'], selected_np.id)
+
+        # Cleanup
+        db.session.delete(campaign)
+        db.session.commit()
+
 
 if __name__ == '__main__':
     unittest.main()

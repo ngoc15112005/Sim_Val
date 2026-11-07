@@ -50,47 +50,93 @@ def kickoff_config() -> Dict[str, Any]:
 
 def seed_kickoff_participants(participants: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Seed the 12 participants into:
-    - 4 Bye teams (Seeds 1..4): Top 4 partners (by Champions qualification or story_rating)
-    - 4 Upper R1 Partner teams (Seeds 5..8): remaining 4 partners
-    - 4 Upper R1 Open Qualifier teams (Seeds 9..12): 4 qualifiers from Open Qualifier
+    - 4 Bye teams (Seeds 1..4):
+      * Priority 1: Teams that qualified for Champions the previous year (prev_champions_qualified == True).
+        Can be Partner or Non-Partner (who qualified via Open Qualifier).
+        Sorted by prev_champions_seed ascending (1..4) or rating descending.
+      * Priority 2 (Fallback / Year 1): If fewer than 4 Champions qualifiers are present (e.g. Year 1 save,
+        or a non-partner Champions team failed in Open Qualifier), the remaining Bye slots
+        are awarded to the Partner teams with highest Story/Current Rating.
+    - 4 Upper R1 High Seeds (Seeds 5..8):
+      * The top 4 of the remaining 8 teams (prioritizing Partner teams, then rating).
+    - 4 Upper R1 Low Seeds (Seeds 9..12):
+      * The remaining 4 teams (sorted by oq_seed or rating).
     
     Each participant is expected to have:
     - 'id' or 'club_id'
     - 'name', 'short_code'
     - 'is_partner': bool
     - 'story_rating': int
+    - Optional: 'prev_champions_qualified': bool, 'prev_champions_seed': int, 'oq_seed': int
     """
-    partners = [p for p in participants if p.get('is_partner')]
-    non_partners = [p for p in participants if not p.get('is_partner')]
-
-    # Sort partners: by prior champions seed if present, else by rating desc
-    partners.sort(key=lambda x: (
-        -(1 if x.get('prev_champions_qualified') else 0),
+    # 1. Identify teams that qualified for Champions the previous year
+    champions_qualifiers = [p for p in participants if p.get('prev_champions_qualified')]
+    champions_qualifiers.sort(key=lambda x: (
+        x.get('prev_champions_seed') if x.get('prev_champions_seed') is not None else 99,
         -(x.get('story_rating') or x.get('current_rating') or 80)
     ))
 
-    # Top 4 partners get Byes
-    byes = partners[:4]
-    ub_partners = partners[4:]
+    byes = list(champions_qualifiers[:4])
+    bye_ids = {b.get('id') or b.get('club_id') for b in byes}
 
-    # Open qualifiers (sorted by their Open Qualifier seed 1..4)
-    non_partners.sort(key=lambda x: x.get('oq_seed', 99))
+    # If fewer than 4 Byes (Year 1 or missing qualifiers), fill with top partner teams
+    if len(byes) < 4:
+        eligible_partners = [
+            p for p in participants
+            if p.get('is_partner') and (p.get('id') or p.get('club_id')) not in bye_ids
+        ]
+        eligible_partners.sort(key=lambda x: -(x.get('story_rating') or x.get('current_rating') or 80))
+        needed = 4 - len(byes)
+        for p in eligible_partners[:needed]:
+            byes.append(p)
+            bye_ids.add(p.get('id') or p.get('club_id'))
+
+    # 2. The remaining 8 teams play in Upper Round 1 (Seeds 5..12)
+    remaining_teams = [
+        p for p in participants
+        if (p.get('id') or p.get('club_id')) not in bye_ids
+    ]
+
+    rem_partners = [p for p in remaining_teams if p.get('is_partner')]
+    rem_non_partners = [p for p in remaining_teams if not p.get('is_partner')]
+
+    rem_partners.sort(key=lambda x: -(x.get('story_rating') or x.get('current_rating') or 80))
+    rem_non_partners.sort(key=lambda x: x.get('oq_seed', 99))
+
+    # Standard distribution:
+    # If 4 partners and 4 non-partners remain:
+    # Seeds 5..8 are rem_partners[:4], Seeds 9..12 are rem_non_partners[:4]
+    # If a non-partner made it to Byes, then rem_partners has 5 teams, rem_non_partners has 3 teams.
+    # Top 4 partners get Seeds 5..8.
+    # The 5th partner + 3 non-partners get Seeds 9..12.
+    if len(rem_partners) >= 4:
+        ub_teams = rem_partners[:4]
+        lower_teams = rem_partners[4:] + rem_non_partners
+        lower_teams.sort(key=lambda x: (
+            0 if x.get('is_partner') else 1,
+            x.get('oq_seed', 99) if not x.get('is_partner') else -(x.get('story_rating') or 80)
+        ))
+    else:
+        ub_teams = list(rem_partners)
+        needed_ub = 4 - len(ub_teams)
+        ub_teams.extend(rem_non_partners[:needed_ub])
+        lower_teams = rem_non_partners[needed_ub:]
 
     seeded_dict = {}
     for idx, team in enumerate(byes):
-        seeded_dict[idx + 1] = team  # Seeds 1..4
+        seeded_dict[idx + 1] = team  # Seeds 1..4 (Byes)
 
-    for idx, team in enumerate(ub_partners):
-        seeded_dict[idx + 5] = team  # Seeds 5..8
+    for idx, team in enumerate(ub_teams):
+        seeded_dict[idx + 5] = team  # Seeds 5..8 (Upper R1 Team A)
 
-    for idx, team in enumerate(non_partners):
-        seeded_dict[idx + 9] = team  # Seeds 9..12 (Open Qualifiers 1..4)
+    for idx, team in enumerate(lower_teams):
+        seeded_dict[idx + 9] = team  # Seeds 9..12 (Upper R1 Team B)
 
     return {
         'seeds': seeded_dict,
         'byes': byes,
-        'upper_partners': ub_partners,
-        'open_qualifiers': non_partners,
+        'upper_partners': ub_teams,
+        'open_qualifiers': lower_teams,
     }
 
 
