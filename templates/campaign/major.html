@@ -382,7 +382,7 @@
 
         <!-- Lower Final -->
         <div class="bracket-column">
-          <div class="round-header"><span>Lower Final</span></div>
+          <div class="round-header"><span>Lower Final (BO5)</span></div>
           <div class="round-matches">
             {% for m in res.playoff_matches %}
             {% if m.round_name == 'lower_final' %}
@@ -569,7 +569,8 @@ function openMajorManualModal(matchId, matchLabel, teamAId, teamACode, teamAName
   currentModalTeamBName = teamBName;
   currentModalBo = bo || 3;
 
-  document.getElementById('major-modal-match-title').textContent = `${matchLabel} (BO${currentModalBo})`;
+  const cleanLabel = matchLabel.replace(/\s*\(BO\d+\)$/i, '');
+  document.getElementById('major-modal-match-title').textContent = `${cleanLabel} (BO${currentModalBo})`;
   document.getElementById('major-modal-team-a-code').textContent = teamACode;
   document.getElementById('major-modal-team-a-name').textContent = teamAName;
   document.getElementById('major-modal-team-b-code').textContent = teamBCode;

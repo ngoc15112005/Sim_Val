@@ -99,6 +99,14 @@ class TestMajorInteractive(unittest.TestCase):
             self.assertEqual(s['rank'], 5)
             self.assertEqual(s['championship_points'], 0)  # Eliminated: 0 CP
 
+        # Verify BO5 for both Lower Final and Grand Final
+        lf = next(m for m in self.state['playoff_matches'] if m['round_name'] == 'lower_final')
+        gf = next(m for m in self.state['playoff_matches'] if m['round_name'] == 'grand_final')
+        self.assertEqual(lf['bo'], 5)
+        self.assertEqual(gf['bo'], 5)
+        self.assertEqual(max(lf['team_a_score'], lf['team_b_score']), 3)
+        self.assertEqual(max(gf['team_a_score'], gf['team_b_score']), 3)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -703,6 +703,7 @@ def resolve_oq_match(campaign_id: int, region_slug: str, match_id: str,
     data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
     if region_slug not in data.get('regions', {}):
         init_campaign_open_qualifier(campaign_id)
+        db.session.refresh(stage)
         data = json.loads(stage.stage_data)
 
     reg_data = data['regions'][region_slug]
@@ -736,6 +737,7 @@ def sim_oq_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) 
     data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
     if region_slug not in data.get('regions', {}):
         init_campaign_open_qualifier(campaign_id)
+        db.session.refresh(stage)
         data = json.loads(stage.stage_data)
 
     reg_data = data['regions'][region_slug]
@@ -763,6 +765,7 @@ def sim_oq_region(campaign_id: int, region_slug: str, auto_confirm: bool = True)
     data = json.loads(stage.stage_data) if stage.stage_data else {'regions': {}}
     if region_slug not in data.get('regions', {}):
         init_campaign_open_qualifier(campaign_id)
+        db.session.refresh(stage)
         data = json.loads(stage.stage_data)
 
     reg_data = data['regions'][region_slug]
@@ -1324,6 +1327,18 @@ def get_major_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dic
     campaign = get_campaign(campaign_id)
     if campaign:
         heal_stage_tournament_state(campaign, stage, 'major', data)
+
+    res = data.get('result')
+    if res and res.get('playoff_matches'):
+        healed_matches = False
+        for m in res['playoff_matches']:
+            if m.get('round_name') == 'lower_final' and m.get('bo') != 5:
+                m['bo'] = 5
+                m['label'] = 'Chung kết Nhánh thua (BO5)'
+                healed_matches = True
+        if healed_matches:
+            stage.stage_data = json.dumps(data)
+            db.session.commit()
 
     return data
 

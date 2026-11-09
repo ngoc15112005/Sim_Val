@@ -14,7 +14,7 @@ Specifications:
   * Upper Semifinal 2: Seed 2 vs Seed 3 (BO3)
   * Upper Final: Winner SF1 vs Winner SF2 (BO3)
   * Lower Round 1: Loser SF1 vs Loser SF2 (BO3)
-  * Lower Final: Winner LB R1 vs Loser Upper Final (BO3/BO5)
+  * Lower Final: Winner LB R1 vs Loser Upper Final (BO5)
   * Grand Final: Winner Upper Final vs Winner Lower Final (BO5)
 - Championship Points:
   * 1st: 5 CP (Major Champion)
@@ -194,7 +194,7 @@ def _get_playoff_label(round_name: str) -> str:
         'upper_semifinal_2': 'Bán kết Nhánh thắng 2',
         'upper_final': 'Chung kết Nhánh thắng',
         'lower_round1': 'Vòng 1 Nhánh thua',
-        'lower_final': 'Chung kết Nhánh thua',
+        'lower_final': 'Chung kết Nhánh thua (BO5)',
         'grand_final': 'Chung kết Tổng (BO5)',
     }
     return labels.get(round_name, round_name)
@@ -270,7 +270,7 @@ def _init_major_playoffs(major_data: Dict[str, Any]):
     playoff_matches = []
     for idx, tpl in enumerate(templates):
         r_name = tpl['round_name']
-        bo = 5 if r_name == 'grand_final' else 3
+        bo = 5 if r_name in ('lower_final', 'grand_final') else 3
         playoff_matches.append({
             'id': f"major_{r_name}",
             'round_name': r_name,
