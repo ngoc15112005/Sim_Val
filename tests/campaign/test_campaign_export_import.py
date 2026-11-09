@@ -23,11 +23,20 @@ class TestCampaignExportImport(unittest.TestCase):
         self.cleanup_campaign_ids = []
 
     def tearDown(self):
+        import os
+        import glob
         for cid in self.cleanup_campaign_ids:
-            camp = Campaign.query.get(cid)
+            camp = db.session.get(Campaign, cid)
             if camp:
                 db.session.delete(camp)
         db.session.commit()
+        # Dọn dẹp các file save do test xuất ra
+        for p in ['saves/campaign/*API_Export*.json', 'saves/campaign/*test*.json', 'saves/campaign/*Test*.json']:
+            for f in glob.glob(p):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
         self.app_context.pop()
 
     def test_export_and_import_service(self):

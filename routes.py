@@ -405,6 +405,15 @@ def register_routes(app):
     def campaign_delete(campaign_id):
         campaign = get_campaign(campaign_id)
         if campaign:
+            try:
+                import os
+                safe_name = "".join(c for c in campaign.name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+                filename = f"vct_save_{safe_name}_{campaign.current_year}.json"
+                filepath = os.path.join(os.getcwd(), 'saves', 'campaign', filename)
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception:
+                pass
             db.session.delete(campaign)
             db.session.commit()
         return redirect(url_for('campaigns_list'))
