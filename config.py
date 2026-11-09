@@ -11,6 +11,11 @@ def _clean_database_url(url: str | None) -> str:
         return f'sqlite:///{os.path.join(INSTANCE_DIR, "val.db")}'
     if url.startswith('postgres://'):
         url = url.replace('postgres://', 'postgresql://', 1)
+    if url.startswith('libsql://'):
+        url = url.replace('libsql://', 'sqlite+libsql://', 1)
+        if 'secure=true' not in url:
+            sep = '&' if '?' in url else '?'
+            url = f"{url}{sep}secure=true"
 
     try:
         parsed = urllib.parse.urlsplit(url)
@@ -31,12 +36,17 @@ def _clean_database_url(url: str | None) -> str:
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'val-sim-dev-key')
-    SQLALCHEMY_DATABASE_URI = _clean_database_url(os.environ.get('DATABASE_URL'))
+    SQLALCHEMY_DATABASE_URI = _clean_database_url(
+        os.environ.get('TURSO_DATABASE_URL') or os.environ.get('DATABASE_URL')
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'pool_recycle': 300,
     }
+    _turso_token = os.environ.get('TURSO_AUTH_TOKEN')
+    if _turso_token:
+        SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {'auth_token': _turso_token}
 
     TOURNAMENT_TYPES = {
         'major': {
