@@ -13,9 +13,22 @@ def _clean_database_url(url: str | None) -> str:
         url = url.replace('postgres://', 'postgresql://', 1)
     if url.startswith('libsql://'):
         url = url.replace('libsql://', 'sqlite+libsql://', 1)
+        # Ensure trailing slash before query parameters (required by libsql HTTP endpoint parser)
+        if '?' in url:
+            base, qs = url.split('?', 1)
+            if not base.endswith('/'):
+                base += '/'
+            url = f"{base}?{qs}"
+        else:
+            if not url.endswith('/'):
+                url += '/'
+            url = f"{url}?secure=true"
         if 'secure=true' not in url:
-            sep = '&' if '?' in url else '?'
-            url = f"{url}{sep}secure=true"
+            url += '&secure=true'
+
+        turso_token = os.environ.get('TURSO_AUTH_TOKEN')
+        if turso_token and 'authToken=' not in url:
+            url += f"&authToken={turso_token}"
 
     try:
         parsed = urllib.parse.urlsplit(url)
@@ -46,7 +59,10 @@ class Config:
     }
     _turso_token = os.environ.get('TURSO_AUTH_TOKEN')
     if _turso_token:
-        SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {'auth_token': _turso_token}
+        SQLALCHEMY_ENGINE_OPTIONS['connect_args'] = {
+            'auth_token': _turso_token,
+            'timeout': 15.0,
+        }
 
     TOURNAMENT_TYPES = {
         'major': {
