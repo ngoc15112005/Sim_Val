@@ -147,14 +147,15 @@ def simulate_master_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any],
     wins_a = 0
     wins_b = 0
     maps = []
+    map_idx = 1
 
-    for map_idx in range(max_maps):
+    while wins_a < target_wins and wins_b < target_wins:
         roll = random.random()
         if roll < prob_a:
             sc_win, sc_lose = _gen_map_score(r_a, r_b, is_bo5=(bo == 5))
             wins_a += 1
             maps.append({
-                'map_number': map_idx + 1,
+                'map_number': map_idx,
                 'team_a_score': sc_win,
                 'team_b_score': sc_lose,
                 'winner_id': id_a,
@@ -163,32 +164,25 @@ def simulate_master_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any],
             sc_win, sc_lose = _gen_map_score(r_b, r_a, is_bo5=(bo == 5))
             wins_b += 1
             maps.append({
-                'map_number': map_idx + 1,
+                'map_number': map_idx,
                 'team_a_score': sc_lose,
                 'team_b_score': sc_win,
                 'winner_id': id_b,
             })
-            wins_b += 1
-            maps.append({
-                'map_number': map_idx + 1,
-                'team_a_score': sc_lose,
-                'team_b_score': sc_win,
-                'winner_id': id_b,
-            })
+        map_idx += 1
 
-        if wins_a == target_wins or wins_b == target_wins:
-            break
-
-    winner = team_a if wins_a > wins_b else team_b
-    loser = team_b if wins_a > wins_b else team_a
+    winner = team_a if wins_a >= target_wins else team_b
+    loser = team_b if winner == team_a else team_a
+    winner_id = id_a if winner == team_a else id_b
+    loser_id = id_b if winner == team_a else id_a
 
     return {
         'team_a': team_a, 'team_b': team_b,
         'team_a_id': id_a, 'team_b_id': id_b,
         'team_a_score': wins_a, 'team_b_score': wins_b,
         'winner': winner, 'loser': loser,
-        'winner_id': winner.get('id') or winner.get('club_id'),
-        'loser_id': loser.get('id') or loser.get('club_id'),
+        'winner_id': winner_id,
+        'loser_id': loser_id,
         'maps': maps,
         'bo': bo,
         'is_manual': False,

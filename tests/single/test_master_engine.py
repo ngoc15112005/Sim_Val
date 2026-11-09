@@ -5,6 +5,7 @@ from engine.format.master_sim import (
     sim_master_round,
     sim_master_remaining,
     simulate_master_tournament,
+    simulate_master_single_match,
 )
 
 
@@ -82,6 +83,40 @@ class TestMasterEngine(unittest.TestCase):
         resolve_master_match(state, m1['id'], winner_id=team_a_id)
         self.assertEqual(m1['winner_id'], team_a_id)
         self.assertTrue(m1['is_manual'])
+
+    def test_simulate_master_single_match_bo5_no_overshoot(self):
+        """Verify BO5 simulation never produces impossible scores like 2-6, 1-8, 3-4."""
+        t_a = self.teams[0]
+        t_b = self.teams[1]
+        for _ in range(200):
+            res = simulate_master_single_match(t_a, t_b, bo=5)
+            sa = res['team_a_score']
+            sb = res['team_b_score']
+            self.assertTrue(
+                (sa == 3 and sb in (0, 1, 2)) or (sb == 3 and sa in (0, 1, 2)),
+                f"BO5 score invalid: {sa} - {sb}"
+            )
+            maps = res['maps']
+            self.assertEqual(len(maps), sa + sb)
+            map_nums = [m['map_number'] for m in maps]
+            self.assertEqual(map_nums, list(range(1, sa + sb + 1)))
+
+    def test_simulate_master_single_match_bo3_valid(self):
+        """Verify BO3 simulation produces 2-0 or 2-1 and no duplicate maps."""
+        t_a = self.teams[0]
+        t_b = self.teams[1]
+        for _ in range(200):
+            res = simulate_master_single_match(t_a, t_b, bo=3)
+            sa = res['team_a_score']
+            sb = res['team_b_score']
+            self.assertTrue(
+                (sa == 2 and sb in (0, 1)) or (sb == 2 and sa in (0, 1)),
+                f"BO3 score invalid: {sa} - {sb}"
+            )
+            maps = res['maps']
+            self.assertEqual(len(maps), sa + sb)
+            map_nums = [m['map_number'] for m in maps]
+            self.assertEqual(map_nums, list(range(1, sa + sb + 1)))
 
 
 if __name__ == '__main__':
