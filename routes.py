@@ -219,6 +219,14 @@ def register_routes(app):
         json_str = json.dumps(data, indent=2, ensure_ascii=False)
         safe_name = "".join(c for c in tour.name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
         filename = f"tournament_{tour_id}_{safe_name or 'val'}.json"
+        try:
+            import os
+            save_dir = os.path.join(os.getcwd(), 'saves', 'single')
+            os.makedirs(save_dir, exist_ok=True)
+            with open(os.path.join(save_dir, filename), 'w', encoding='utf-8') as f:
+                f.write(json_str)
+        except Exception:
+            pass
         return Response(
             json_str,
             mimetype='application/json',
@@ -2032,6 +2040,14 @@ def register_routes(app):
             data = export_campaign_save(campaign_id)
             safe_name = "".join(c for c in data['campaign']['name'] if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
             filename = f"vct_save_{safe_name or 'campaign'}_{data['campaign']['current_year']}.json"
+            try:
+                import os
+                save_dir = os.path.join(os.getcwd(), 'saves', 'campaign')
+                os.makedirs(save_dir, exist_ok=True)
+                with open(os.path.join(save_dir, filename), 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
             return Response(
                 json.dumps(data, indent=2, ensure_ascii=False),
                 mimetype='application/json',
@@ -2066,6 +2082,49 @@ def register_routes(app):
             })
         except Exception as e:
             db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/saves/<mode>', methods=['GET'])
+    def api_list_saves(mode):
+        if mode not in ('single', 'campaign'):
+            return jsonify({'error': 'Invalid mode'}), 400
+        import os
+        save_dir = os.path.join(os.getcwd(), 'saves', mode)
+        os.makedirs(save_dir, exist_ok=True)
+        files = []
+        for fname in os.listdir(save_dir):
+            if fname.endswith('.json'):
+                fpath = os.path.join(save_dir, fname)
+                st = os.stat(fpath)
+                files.append({
+                    'filename': fname,
+                    'size': st.st_size,
+                    'modified_at': datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+                })
+        files.sort(key=lambda x: x['modified_at'], reverse=True)
+        return jsonify({'success': True, 'mode': mode, 'files': files})
+
+    @app.route('/api/saves/<mode>/load/<path:filename>', methods=['POST'])
+    def api_load_save_file(mode, filename):
+        if mode not in ('single', 'campaign'):
+            return jsonify({'error': 'Invalid mode'}), 400
+        import os
+        safe_fname = os.path.basename(filename)
+        save_path = os.path.join(os.getcwd(), 'saves', mode, safe_fname)
+        if not os.path.exists(save_path):
+            return jsonify({'error': 'File not found'}), 404
+
+        try:
+            with open(save_path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+
+            if mode == 'campaign':
+                campaign = import_campaign_save(payload)
+                return jsonify({'success': True, 'redirect_url': f'/campaign/{campaign.id}'})
+            else:
+                tour = import_payload(payload)
+                return jsonify({'success': True, 'redirect_url': f'/tournament/{tour.id}'})
+        except Exception as e:
             return jsonify({'error': str(e)}), 400
 
 
