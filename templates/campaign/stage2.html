@@ -455,28 +455,24 @@
   {% endif %}
 </div>
 
-<!-- MANUAL SCORE MODAL (BO3 / BO5) -->
-<div id="stage2-manual-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); z-index: 9999; align-items: center; justify-content: center;">
-  <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 520px; width: 90%; max-height: 90vh; overflow-y: auto;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h3 id="stage2-modal-match-title" style="margin: 0; color: #fff; font-size: 1.15em;">
-        Nhập tỷ số trận đấu
-      </h3>
-      <button type="button" onclick="closeStage2ManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">
-        &times;
-      </button>
+<!-- Modal Nhập tay kết quả trận đấu Stage 2 -->
+<div id="stage2-manual-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="modal-card card" style="max-width: 520px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 id="stage2-modal-match-title" style="margin: 0; color: #fff; font-size: 1.2em;">Nhập tỉ số trận đấu</h3>
+      <button type="button" onclick="closeStage2ManualModal()" style="background: transparent; border: none; color: var(--dim); font-size: 1.4em; cursor: pointer;">&times;</button>
     </div>
 
-    <!-- Matchup Display -->
-    <div style="display: flex; justify-content: space-around; align-items: center; background: var(--bg); padding: 12px; border-radius: 8px; margin-bottom: 16px;">
-      <div style="text-align: center;">
-        <div id="stage2-modal-team-a-code" style="font-size: 1.3em; font-weight: 800; color: #60a5fa;">TBD</div>
-        <div id="stage2-modal-team-a-name" style="font-size: 0.8em; color: var(--dim);">Team A</div>
+    <!-- VS Banner -->
+    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+      <div style="text-align: left; flex: 1;">
+        <div id="stage2-modal-team-a-code" style="font-size: 0.8em; color: var(--dim);">TEAM A</div>
+        <div id="stage2-modal-team-a-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team A</div>
       </div>
-      <span style="font-weight: 800; font-size: 1.1em; color: var(--dim);">VS</span>
-      <div style="text-align: center;">
-        <div id="stage2-modal-team-b-code" style="font-size: 1.3em; font-weight: 800; color: #f87171;">TBD</div>
-        <div id="stage2-modal-team-b-name" style="font-size: 0.8em; color: var(--dim);">Team B</div>
+      <div style="font-weight: bold; color: var(--accent); padding: 0 12px; font-size: 1.1em;">VS</div>
+      <div style="text-align: right; flex: 1;">
+        <div id="stage2-modal-team-b-code" style="font-size: 0.8em; color: var(--dim);">TEAM B</div>
+        <div id="stage2-modal-team-b-name" style="font-weight: bold; font-size: 1.05em; color: #fff;">Team B</div>
       </div>
     </div>
 
@@ -488,30 +484,31 @@
       </button>
     </div>
 
-    <!-- Quick Score Buttons -->
+    <!-- Quick Score Selection -->
     <div style="margin-bottom: 16px;">
-      <label style="font-size: 0.85em; color: var(--dim); display: block; margin-bottom: 6px; font-weight: bold;">
-        ⚡ Chọn nhanh tỷ số series:
-      </label>
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">CHỌN NHANH TỈ SỐ:</div>
       <div id="stage2-modal-quick-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
         <!-- Filled dynamically based on BO3 / BO5 -->
       </div>
     </div>
 
-    <!-- Custom Map Scores Section -->
-    <details style="margin-top: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px;">
-      <summary style="cursor: pointer; font-size: 0.85em; color: #fbbf24; font-weight: bold;">
-        ✏️ Tùy chỉnh chi tiết từng Map (Round Score):
-      </summary>
-      <div id="stage2-modal-maps-container" style="margin-top: 10px;">
+    <!-- Detailed Map Inputs -->
+    <div style="margin-bottom: 16px; border-top: 1px dashed var(--border); padding-top: 12px;">
+      <div style="font-size: 0.85em; color: var(--dim); margin-bottom: 8px; font-weight: bold;">HOẶC TỰ NHẬP ĐIỂM SỐ CHI TIẾT TỪNG MAP:</div>
+      <div id="stage2-modal-maps-container" style="display: flex; flex-direction: column; gap: 8px;">
         <!-- Filled dynamically -->
       </div>
-      <div style="margin-top: 10px; text-align: right;">
-        <button type="button" class="btn-start" onclick="submitStage2CustomMaps()" style="padding: 6px 14px; font-size: 0.85em; background: #22c55e; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">
-          Lưu tỷ số chi tiết
-        </button>
-      </div>
-    </details>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+      <button type="button" onclick="closeStage2ManualModal()" class="btn-sm btn-manual" style="padding: 8px 16px; border-radius: 6px;">
+        Hủy
+      </button>
+      <button type="button" id="btn-save-stage2-manual-score" onclick="submitStage2CustomMaps()" class="btn-start" style="padding: 8px 20px; font-weight: bold; background: var(--green); color: #000; border-radius: 6px;">
+        💾 Lưu kết quả trận đấu
+      </button>
+    </div>
   </div>
 </div>
 
@@ -645,7 +642,8 @@ function openStage2ManualModal(matchId, matchLabel, teamAId, teamACode, teamANam
   currentModalTeamBName = teamBName;
   currentModalBo = bo || 3;
 
-  document.getElementById('stage2-modal-match-title').textContent = `${matchLabel} (BO${currentModalBo})`;
+  const cleanLabel = matchLabel.replace(/\s*\(BO\d+\)$/i, '');
+  document.getElementById('stage2-modal-match-title').textContent = `${cleanLabel} (BO${currentModalBo})`;
   document.getElementById('stage2-modal-team-a-code').textContent = teamACode;
   document.getElementById('stage2-modal-team-a-name').textContent = teamAName;
   document.getElementById('stage2-modal-team-b-code').textContent = teamBCode;
@@ -695,12 +693,12 @@ function openStage2ManualModal(matchId, matchLabel, teamAId, teamACode, teamANam
   let mapsHtml = '';
   for (let i = 1; i <= maxMaps; i++) {
     mapsHtml += `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.85em;">
-        <span>Map ${i}:</span>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="number" id="stage2-map-score-a-${i}" value="13" min="0" max="30" style="width: 55px; padding: 4px; text-align: center; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 4px;">
-          <span>-</span>
-          <input type="number" id="stage2-map-score-b-${i}" value="8" min="0" max="30" style="width: 55px; padding: 4px; text-align: center; background: var(--surface); color: #fff; border: 1px solid var(--border); border-radius: 4px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface); padding: 6px 12px; border-radius: 6px;">
+        <span style="font-weight: bold; font-size: 0.9em; color: var(--dim);">Ván ${i}:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="number" id="inp-stage2-map-${i}-a" min="0" max="99" placeholder="13" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
+          <span style="color: var(--dim);">-</span>
+          <input type="number" id="inp-stage2-map-${i}-b" min="0" max="99" placeholder="9" style="width: 55px; text-align: center; padding: 4px; border: 1px solid var(--border); background: var(--bg); color: #fff; border-radius: 4px; font-size: 1em; font-weight: bold;">
         </div>
       </div>
     `;
@@ -713,62 +711,32 @@ function openStage2ManualModal(matchId, matchLabel, teamAId, teamACode, teamANam
 
 function closeStage2ManualModal() {
   document.getElementById('stage2-manual-modal').style.display = 'none';
+  currentModalMatchId = null;
 }
 
-async function submitStage2QuickScore(winnerId, scoreA, scoreB) {
-  try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/match/manual`, {
-      region: activeStage2Region,
-      match_id: currentModalMatchId,
-      winner_id: winnerId,
-      maps: []
-    });
-    if (res.success) {
-      reloadStage2CurrentRegion();
-    } else {
-      alert("Lỗi: " + (res.error || "Không thể cập nhật tỷ số"));
-    }
-  } catch (err) {
-    alert("Lỗi kết nối: " + err.message);
-  }
-}
-
-async function submitStage2CustomMaps() {
+async function submitStage2QuickScore(winnerId, winsA, winsB) {
   const maps = [];
-  let winsA = 0;
-  let winsB = 0;
-  const targetWins = currentModalBo === 5 ? 3 : 2;
-
-  for (let i = 1; i <= currentModalBo; i++) {
-    const scA = parseInt(document.getElementById(`stage2-map-score-a-${i}`).value, 10);
-    const scB = parseInt(document.getElementById(`stage2-map-score-b-${i}`).value, 10);
-
-    if (isNaN(scA) || isNaN(scB)) continue;
-    if (scA === scB) {
-      alert(`Map ${i} không thể hòa (${scA}-${scB})!`);
-      return;
-    }
-
-    if (scA > scB) winsA++;
-    else winsB++;
-
+  let mapNum = 1;
+  for (let i = 0; i < winsA; i++) {
     maps.push({
-      map_number: i,
-      team_a_score: scA,
-      team_b_score: scB,
-      winner_id: scA > scB ? currentModalTeamAId : currentModalTeamBId
+      map_number: mapNum++,
+      team_a_score: 13,
+      team_b_score: 9,
+      winner_id: currentModalTeamAId
     });
-
-    if (winsA === targetWins || winsB === targetWins) break;
   }
-
-  if (winsA < targetWins && winsB < targetWins) {
-    alert(`Chưa đủ số map thắng cho thể thức BO${currentModalBo}!`);
-    return;
+  for (let i = 0; i < winsB; i++) {
+    maps.push({
+      map_number: mapNum++,
+      team_a_score: 9,
+      team_b_score: 13,
+      winner_id: currentModalTeamBId
+    });
   }
+  await sendStage2ManualRequest(winnerId, maps);
+}
 
-  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
-
+async function sendStage2ManualRequest(winnerId, maps) {
   try {
     const res = await API.post(`/api/campaign/{{ campaign.id }}/stage2/match/manual`, {
       region: activeStage2Region,
@@ -783,6 +751,76 @@ async function submitStage2CustomMaps() {
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+async function submitStage2CustomMaps() {
+  const maxMaps = currentModalBo;
+  const targetWins = currentModalBo === 5 ? 3 : 2;
+  const maps = [];
+  let winsA = 0;
+  let winsB = 0;
+
+  for (let i = 1; i <= maxMaps; i++) {
+    const valA = (document.getElementById(`inp-stage2-map-${i}-a`)?.value || '').trim();
+    const valB = (document.getElementById(`inp-stage2-map-${i}-b`)?.value || '').trim();
+
+    if (valA === '' || valB === '') {
+      if (maps.length >= targetWins && (winsA >= targetWins || winsB >= targetWins)) {
+        break;
+      }
+      if (maps.length === 0) {
+        alert("Vui lòng nhập điểm số hoặc chọn nhanh đội thắng.");
+        return;
+      }
+      break;
+    }
+
+    const a = parseInt(valA, 10);
+    const b = parseInt(valB, 10);
+
+    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
+      alert(`Điểm số Ván ${i} không hợp lệ.`);
+      return;
+    }
+    if (a === b) {
+      alert(`Ván ${i} không được có điểm hòa (${a}-${b}). Valorant phải có đội thắng!`);
+      return;
+    }
+
+    const wId = a > b ? currentModalTeamAId : currentModalTeamBId;
+    if (a > b) winsA++; else winsB++;
+
+    maps.push({
+      map_number: i,
+      team_a_score: a,
+      team_b_score: b,
+      winner_id: wId
+    });
+
+    if (winsA >= targetWins || winsB >= targetWins) {
+      break;
+    }
+  }
+
+  if (winsA === winsB || (winsA < targetWins && winsB < targetWins)) {
+    alert(`Chưa đủ số ván thắng (Cần ${targetWins} ván thắng để phân định trận BO${currentModalBo})!`);
+    return;
+  }
+
+  const winnerId = winsA > winsB ? currentModalTeamAId : currentModalTeamBId;
+
+  const btn = document.getElementById('btn-save-stage2-manual-score');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+  }
+
+  await sendStage2ManualRequest(winnerId, maps);
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '💾 Lưu kết quả trận đấu';
   }
 }
 </script>
