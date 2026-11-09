@@ -28,6 +28,9 @@
     <button type="button" class="btn-sm" onclick="openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.2)); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);">
       <span>🎬</span> Phòng Đạo Diễn Kịch Bản
     </button>
+    <button type="button" class="btn-sm" onclick="openPartnershipReviewModal({{ campaign.id }}, {{ campaign.current_year }})" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(234, 179, 8, 0.28), rgba(245, 158, 11, 0.18)); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.55); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(234, 179, 8, 0.2);" title="Đánh giá lại hệ thống Partner 24 tháng (Tối đa 2 đội mỗi Quốc gia/Tiểu khu vực)">
+      <span>🏛️</span> Hội Đồng Partner (24 Tháng)
+    </button>
     <a href="/api/campaign/{{ campaign.id }}/export" class="btn-sm" style="text-decoration: none; padding: 10px 16px; font-weight: bold; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: flex; align-items: center; gap: 6px;" title="Tải file lưu (.json) của chiến dịch này về máy để dự phòng">
       <span>📥</span> Xuất Save Game
     </a>
@@ -660,6 +663,9 @@
                 {% endif %}
                 <strong class="team-profile-trigger" style="color: #fff;">{{ cs.club.name }}</strong>
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ cs.club.short_code }})</span>
+                <span style="font-size: 0.72rem; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: rgba(15, 23, 42, 0.8); color: #cbd5e1; border: 1px solid #334155; white-space: nowrap;" title="Quốc gia / Tiểu khu vực: {{ cs.club.country_name }} (Giới hạn tối đa 2 Partner)">
+                  {{ cs.club.country_flag }} {{ cs.club.country_short_name }}
+                </span>
                 {% if club_storylines and cs.club_id in club_storylines %}
                   {% for st in club_storylines[cs.club_id] %}
                   <span class="dr-badge-{{ st.badge_color or 'amber' }}" style="font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; cursor: pointer; white-space: nowrap;" title="{{ st.headline }}" onclick="event.stopPropagation(); openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})">
@@ -1088,5 +1094,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </style>
 
 {% include "campaign/_director_room_modal.html" %}
+{% include "campaign/_partnership_review_modal.html" %}
 
 {% endblock %}

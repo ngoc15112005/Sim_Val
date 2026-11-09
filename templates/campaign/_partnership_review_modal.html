@@ -1,0 +1,703 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     VALORANT PARTNERSHIP EVALUATION & 2-YEAR RESTRUCTURING MODAL
+     (5 Pillars - 100 Points | 19 Indicators | 8-Quarter Dashboard | Hard Country Cap <= 2)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="partnership-review-modal" style="display: none; position: fixed; inset: 0; z-index: 10050; background: rgba(2, 6, 23, 0.90); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 16px; overflow-y: auto;">
+  <div style="width: 100%; max-width: 1320px; background: linear-gradient(165deg, #0f172a 0%, #090d16 100%); border: 1px solid rgba(251, 191, 36, 0.45); border-radius: 14px; box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85); overflow: hidden; display: flex; flex-direction: column; max-height: 94vh;">
+
+    <!-- Modal Header -->
+    <div style="padding: 18px 24px; background: linear-gradient(90deg, rgba(234, 179, 8, 0.16) 0%, rgba(15, 23, 42, 0.95) 60%); border-bottom: 1px solid rgba(251, 191, 36, 0.3); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="background: #fbbf24; color: #000; font-weight: 900; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.6px; text-transform: uppercase;">
+            VCT PARTNERSHIP EVALUATION SYSTEM v1.0
+          </span>
+          <span id="pr-cycle-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">
+            Chu kỳ 24 Tháng
+          </span>
+        </div>
+        <h2 style="margin: 6px 0 2px 0; font-size: 1.45rem; color: #fff; display: flex; align-items: center; gap: 10px;">
+          <span>🏛️</span> Hội Đồng Thẩm Định & Tái Cấu Trúc Đội Partner (2 Năm / Lần)
+        </h2>
+        <div style="font-size: 0.84rem; color: #94a3b8;">
+          Máy tính chấm điểm độc lập trên thang <strong>100 điểm (5 trụ cột, 19 chỉ số, 8 quý)</strong> để đề xuất 8 đội/khu vực. <strong>Quyền chốt cuối cùng thuộc về bạn</strong> (Bắt buộc: <strong>Không quá 2 đội / Quốc gia hoặc Tiểu khu vực</strong>).
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button type="button" onclick="resetPartnershipToAiRecommendation()" style="padding: 8px 14px; background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 8px; font-weight: 700; font-size: 0.82rem; cursor: pointer;">
+          🤖 Khôi phục Đề xuất của Máy
+        </button>
+        <button type="button" onclick="closePartnershipReviewModal()" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; width: 36px; height: 36px; border-radius: 8px; font-size: 1.2rem; cursor: pointer;">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Warning / Violation Banner (Hidden unless triggered) -->
+    <div id="pr-violation-banner" style="display: none; padding: 12px 24px; background: linear-gradient(90deg, rgba(239, 68, 68, 0.25) 0%, rgba(153, 27, 27, 0.35) 100%); border-bottom: 1px solid #ef4444; color: #fca5a5; font-weight: 700; font-size: 0.9rem; align-items: center; justify-content: space-between; gap: 12px;">
+      <div id="pr-violation-text">🚫 Cảnh báo vi phạm quy tắc Country Cap!</div>
+      <button type="button" onclick="document.getElementById('pr-violation-banner').style.display='none'" style="background: transparent; border: none; color: #fca5a5; cursor: pointer; font-weight: bold;">✕</button>
+    </div>
+
+    <!-- Top Region Tabs & Global Summary Bar -->
+    <div style="padding: 12px 24px; background: rgba(15, 23, 42, 0.85); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="pr-region-tabs">
+        <button type="button" class="pr-reg-tab active" data-region="pacific" onclick="switchPartnershipRegion('pacific')">
+          🌏 PACIFIC <span id="pr-tab-count-pacific" class="pr-count-pill">8/8</span>
+        </button>
+        <button type="button" class="pr-reg-tab" data-region="americas" onclick="switchPartnershipRegion('americas')">
+          🌎 AMERICAS <span id="pr-tab-count-americas" class="pr-count-pill">8/8</span>
+        </button>
+        <button type="button" class="pr-reg-tab" data-region="emea" onclick="switchPartnershipRegion('emea')">
+          🌍 EMEA <span id="pr-tab-count-emea" class="pr-count-pill">8/8</span>
+        </button>
+        <button type="button" class="pr-reg-tab" data-region="china" onclick="switchPartnershipRegion('china')">
+          🐉 CHINA <span id="pr-tab-count-china" class="pr-count-pill">8/8</span>
+        </button>
+      </div>
+
+      <!-- Summary Counters -->
+      <div style="display: flex; gap: 14px; align-items: center; font-size: 0.83rem; flex-wrap: wrap;">
+        <span style="color: #4ade80; font-weight: 700;">🟢 Giữ vé: <strong id="pr-sum-retained">0</strong></span>
+        <span style="color: #38bdf8; font-weight: 700;">🚀 Tân Partner: <strong id="pr-sum-promoted">0</strong></span>
+        <span style="color: #f87171; font-weight: 700;">🔻 Mất vé: <strong id="pr-sum-demoted">0</strong></span>
+      </div>
+    </div>
+
+    <!-- Live Country / Sub-region Cap Bar -->
+    <div style="padding: 12px 24px; background: rgba(9, 13, 22, 0.9); border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 0.78rem; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.5px;">
+          🛡️ KIỂM SOÁT HẠN NGẠCH QUỐC GIA / TIỂU KHU VỰC (BẮT BUỘC TỐI ĐA 2 ĐỘI / NHÓM):
+        </span>
+        <span id="pr-region-rule-note" style="font-size: 0.76rem; color: #94a3b8;">
+          Mỗi quốc gia hoặc tiểu khu vực chỉ được phép tối đa 2 đội Partner.
+        </span>
+      </div>
+      <div id="pr-subregions-bar" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <!-- Rendered dynamically by JS -->
+      </div>
+    </div>
+
+    <!-- Main Scrollable Table Body -->
+    <div style="flex: 1; overflow-y: auto; padding: 16px 24px;" id="pr-table-container">
+      <div style="text-align: center; padding: 40px; color: #94a3b8;">⏳ Đang tải dữ liệu thẩm định 24 tháng...</div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div style="padding: 14px 24px; background: #090d16; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="font-size: 0.82rem; color: #94a3b8;">
+        💡 <em>Mẹo: Bấm vào nút <strong>"🔍 19 Chỉ số & 8 Quý"</strong> ở từng đội để xem bảng kiểm toán chi tiết A1–E3 và biểu đồ 8 quý.</em>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button type="button" onclick="closePartnershipReviewModal()" style="padding: 10px 18px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); color: #cbd5e1; border-radius: 8px; font-weight: 700; cursor: pointer;">
+          Đóng
+        </button>
+        <button type="button" id="btn-commit-partnership" onclick="commitPartnershipDecisions()" style="padding: 10px 22px; background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%); border: none; color: #000; border-radius: 8px; font-weight: 900; font-size: 0.92rem; cursor: pointer; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.35);">
+          ✅ Xác Nhận & Chốt Danh Sách 32 Đội Partner
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SUB-MODAL: 19 INDICATORS (A1..E3) & 8-QUARTER AUDIT INSPECTOR
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="pr-club-detail-modal" style="display: none; position: fixed; inset: 0; z-index: 10060; background: rgba(2, 6, 23, 0.88); align-items: center; justify-content: center; padding: 16px;">
+  <div style="width: 100%; max-width: 960px; background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 12px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); overflow: hidden; display: flex; flex-direction: column; max-height: 90vh;">
+    <div style="padding: 16px 22px; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+      <div id="pr-detail-header" style="display: flex; align-items: center; gap: 12px;">
+        <!-- Club logo & title -->
+      </div>
+      <button type="button" onclick="document.getElementById('pr-club-detail-modal').style.display='none'" style="background: rgba(255,255,255,0.08); border: none; color: #fff; width: 32px; height: 32px; border-radius: 6px; cursor: pointer;">✕</button>
+    </div>
+    <div id="pr-detail-body" style="padding: 18px 22px; overflow-y: auto; flex: 1;">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+
+<style>
+.pr-reg-tab {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+}
+.pr-reg-tab:hover {
+  border-color: #fbbf24;
+  color: #fff;
+}
+.pr-reg-tab.active {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.25) 0%, rgba(202, 138, 4, 0.15) 100%);
+  border-color: #fbbf24;
+  color: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
+}
+.pr-count-pill {
+  background: rgba(16, 185, 129, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+}
+.pr-count-pill.invalid {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.pr-eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+.pr-eval-table th {
+  text-align: left;
+  padding: 10px 10px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #94a3b8;
+  font-size: 0.73rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.pr-eval-table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: middle;
+}
+.pr-eval-table tr.pr-row-selected {
+  background: rgba(16, 185, 129, 0.07);
+}
+.pr-eval-table tr.pr-row-cap-blocked {
+  background: rgba(239, 68, 68, 0.05);
+}
+.pr-eval-table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+</style>
+
+<script>
+const PR_STATE = {
+  campaignId: null,
+  year: null,
+  isAdvanceFlow: false,
+  currentRegion: 'pacific',
+  reviewData: null,
+  selections: {
+    pacific: [],
+    americas: [],
+    emea: [],
+    china: [],
+  }
+};
+
+async function openPartnershipReviewModal(campaignId, year, isAdvanceFlow = false) {
+  PR_STATE.campaignId = campaignId;
+  PR_STATE.year = year;
+  PR_STATE.isAdvanceFlow = isAdvanceFlow;
+  PR_STATE.currentRegion = 'pacific';
+
+  const modal = document.getElementById('partnership-review-modal');
+  if (modal) modal.style.display = 'flex';
+  document.getElementById('pr-violation-banner').style.display = 'none';
+
+  const commitBtn = document.getElementById('btn-commit-partnership');
+  if (commitBtn) {
+    commitBtn.textContent = isAdvanceFlow
+      ? '✅ Chốt 32 Đội Partner & Tiếp Tục Sang Mùa Giải Mới ➔'
+      : '✅ Xác Nhận & Lưu Danh Sách 32 Đội Partner';
+  }
+
+  try {
+    const res = await API.get(`/api/campaign/${campaignId}/partnership/review?year=${year}`);
+    if (!res.success || !res.review) {
+      throw new Error(res.error || 'Không thể tải dữ liệu đánh giá Partner');
+    }
+    PR_STATE.reviewData = res.review;
+    document.getElementById('pr-cycle-badge').textContent = `Chu kỳ 24 Tháng: ${res.review.cycle_label}`;
+
+    // Khởi tạo selections từ trạng thái đã lưu hoặc đề xuất của AI
+    ['pacific', 'americas', 'emea', 'china'].forEach(reg => {
+      const rData = res.review.regions[reg];
+      if (rData) {
+        if (rData.committed_club_ids && rData.committed_club_ids.length === 8) {
+          PR_STATE.selections[reg] = [...rData.committed_club_ids];
+        } else {
+          PR_STATE.selections[reg] = [...rData.recommended_club_ids];
+        }
+      }
+    });
+
+    renderPartnershipModal();
+  } catch (err) {
+    document.getElementById('pr-table-container').innerHTML = `
+      <div style="padding: 30px; text-align: center; color: #f87171;">
+        ❌ Lỗi tải dữ liệu Hội đồng Partner: ${err.message}
+      </div>
+    `;
+  }
+}
+
+function closePartnershipReviewModal() {
+  const modal = document.getElementById('partnership-review-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function switchPartnershipRegion(regionSlug) {
+  PR_STATE.currentRegion = regionSlug;
+  document.querySelectorAll('.pr-reg-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-region') === regionSlug);
+  });
+  document.getElementById('pr-violation-banner').style.display = 'none';
+  renderPartnershipModal();
+}
+
+function resetPartnershipToAiRecommendation() {
+  if (!PR_STATE.reviewData) return;
+  ['pacific', 'americas', 'emea', 'china'].forEach(reg => {
+    const rData = PR_STATE.reviewData.regions[reg];
+    if (rData) {
+      PR_STATE.selections[reg] = [...rData.recommended_club_ids];
+    }
+  });
+  document.getElementById('pr-violation-banner').style.display = 'none';
+  renderPartnershipModal();
+}
+
+function showPartnershipViolation(msg) {
+  const banner = document.getElementById('pr-violation-banner');
+  const textEl = document.getElementById('pr-violation-text');
+  if (banner && textEl) {
+    textEl.textContent = msg;
+    banner.style.display = 'flex';
+  }
+}
+
+function togglePartnerClubSelection(regionSlug, clubId) {
+  if (!PR_STATE.reviewData) return;
+  const rData = PR_STATE.reviewData.regions[regionSlug];
+  if (!rData) return;
+
+  const selList = PR_STATE.selections[regionSlug] || [];
+  const idx = selList.indexOf(clubId);
+  const clubObj = rData.clubs.find(c => c.club_id === clubId);
+  if (!clubObj) return;
+
+  // Nếu đang được chọn -> Bỏ chọn
+  if (idx !== -1) {
+    selList.splice(idx, 1);
+    document.getElementById('pr-violation-banner').style.display = 'none';
+    renderPartnershipModal();
+    return;
+  }
+
+  // Nếu chưa chọn -> Kiểm tra RÀNG BUỘC CỨNG:
+  // 1. Kiểm tra Country / Sub-region Cap (Tối đa 2 đội / nhóm)
+  const maxPerCountry = rData.max_partners_per_country || 2;
+  const sameCountrySelected = rData.clubs.filter(
+    c => selList.includes(c.club_id) && c.country_code === clubObj.country_code
+  );
+  if (sameCountrySelected.length >= maxPerCountry) {
+    const existingNames = sameCountrySelected.map(c => `${c.name} (${c.short_code})`).join(', ');
+    showPartnershipViolation(
+      `🚫 CẤM CHỌN QUÁ ${maxPerCountry} ĐỘI CÙNG QUỐC GIA / TIỂU KHU VỰC: ${clubObj.country_flag} ${clubObj.country_name} đã đạt giới hạn tối đa ${sameCountrySelected.length}/${maxPerCountry} đội Partner (${existingNames}). Hãy bỏ chọn 1 đội cùng nhóm trước nếu muốn chọn ${clubObj.name}!`
+    );
+    return;
+  }
+
+  // 2. Kiểm tra số lượng tối đa của khu vực (8 đội)
+  const capacity = rData.regional_capacity || 8;
+  if (selList.length >= capacity) {
+    showPartnershipViolation(
+      `⚠️ Khu vực ${regionSlug.toUpperCase()} đã chọn đủ ${selList.length}/${capacity} đội Partner. Vui lòng bỏ chọn 1 đội đang có trong danh sách trước khi thêm ${clubObj.name} (${clubObj.short_code})!`
+    );
+    return;
+  }
+
+  selList.push(clubId);
+  document.getElementById('pr-violation-banner').style.display = 'none';
+  renderPartnershipModal();
+}
+
+function renderPartnershipModal() {
+  if (!PR_STATE.reviewData) return;
+  const reg = PR_STATE.currentRegion;
+  const rData = PR_STATE.reviewData.regions[reg];
+  if (!rData) return;
+
+  // 1. Cập nhật số lượng trên 4 tab khu vực và tổng kết toàn cầu
+  let totalRetained = 0;
+  let totalPromoted = 0;
+  let totalDemoted = 0;
+  let allRegionsValid = true;
+
+  ['pacific', 'americas', 'emea', 'china'].forEach(rKey => {
+    const regObj = PR_STATE.reviewData.regions[rKey];
+    const sIds = PR_STATE.selections[rKey] || [];
+    const cap = regObj ? regObj.regional_capacity : 8;
+    const pill = document.getElementById(`pr-tab-count-${rKey}`);
+    if (pill) {
+      pill.textContent = `${sIds.length}/${cap}`;
+      pill.classList.toggle('invalid', sIds.length !== cap);
+    }
+    if (sIds.length !== cap) allRegionsValid = false;
+
+    if (regObj && regObj.clubs) {
+      regObj.clubs.forEach(c => {
+        const isNowSelected = sIds.includes(c.club_id);
+        if (isNowSelected && c.was_partner) totalRetained++;
+        if (isNowSelected && !c.was_partner) totalPromoted++;
+        if (!isNowSelected && c.was_partner) totalDemoted++;
+      });
+    }
+  });
+
+  document.getElementById('pr-sum-retained').textContent = totalRetained;
+  document.getElementById('pr-sum-promoted').textContent = totalPromoted;
+  document.getElementById('pr-sum-demoted').textContent = totalDemoted;
+
+  const commitBtn = document.getElementById('btn-commit-partnership');
+  if (commitBtn) {
+    commitBtn.disabled = !allRegionsValid;
+    commitBtn.style.opacity = allRegionsValid ? '1' : '0.5';
+  }
+
+  // Ghi chú quy tắc cho China vs các khu vực khác
+  const noteEl = document.getElementById('pr-region-rule-note');
+  if (noteEl) {
+    if (reg === 'china') {
+      noteEl.innerHTML = `🐉 <strong>Đặc thù VCT China (1 Quốc gia):</strong> Phân theo <strong>6 Tiểu khu vực Đô thị Sân nhà (Home Venue Hubs)</strong> — tối đa <strong>2 đội Partner / Đô thị</strong>.`;
+    } else {
+      noteEl.innerHTML = `🌍 <strong>Quy tắc Đa quốc gia:</strong> Mỗi Quốc gia / Tiểu khu vực chỉ được phép tối đa <strong>2 đội Partner</strong> (Ví dụ: Hàn Quốc tối đa 2 đội).`;
+    }
+  }
+
+  // 2. Render thanh hạn ngạch Quốc gia / Tiểu khu vực (Live Country Cap Bar)
+  const selSet = new Set(PR_STATE.selections[reg] || []);
+  const subBar = document.getElementById('pr-subregions-bar');
+  const countryCountMap = {};
+
+  if (subBar && rData.subregions) {
+    subBar.innerHTML = rData.subregions.map(sub => {
+      const selectedInSub = rData.clubs.filter(c => c.country_code === sub.code && selSet.has(c.club_id));
+      const cnt = selectedInSub.length;
+      const maxCap = sub.max_cap || 2;
+      countryCountMap[sub.code] = cnt;
+      const isFull = cnt >= maxCap;
+      const codesStr = selectedInSub.length > 0 ? selectedInSub.map(c => c.short_code).join(', ') : 'Trống';
+
+      return `
+        <div style="padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; display: flex; align-items: center; gap: 6px;
+                    background: ${isFull ? 'rgba(234, 179, 8, 0.16)' : 'rgba(30, 41, 59, 0.65)'};
+                    border: 1px solid ${isFull ? 'rgba(251, 191, 36, 0.55)' : 'rgba(255, 255, 255, 0.1)'};">
+          <span>${sub.flag}</span>
+          <strong style="color: #fff;">${sub.short_name}:</strong>
+          <span style="font-weight: 900; color: ${isFull ? '#fbbf24' : '#38bdf8'};">${cnt}/${maxCap}</span>
+          <span style="color: #94a3b8; font-size: 0.73rem;">[${codesStr}]</span>
+          ${isFull ? '<span title="Đã đạt trần tối đa 2 đội" style="color: #fbbf24; font-size: 0.72rem; font-weight: 800;">🔒 MAX</span>' : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 3. Render bảng 24 đội của khu vực
+  const maxPerCountry = rData.max_partners_per_country || 2;
+  const rowsHtml = rData.clubs.map(c => {
+    const isSelected = selSet.has(c.club_id);
+    const curSubCount = countryCountMap[c.country_code] || 0;
+    const isCountryFullForUnselected = !isSelected && (curSubCount >= maxPerCountry);
+
+    const catA = c.categories.community_growth;
+    const catB = c.categories.fandom_content;
+    const catC = c.categories.business_sustainability;
+    const catD = c.categories.operational_excellence;
+    const catE = c.categories.competitive_success;
+
+    const bandColorMap = {
+      gold: '#fbbf24',
+      green: '#4ade80',
+      amber: '#fb923c',
+      red: '#f87171',
+    };
+    const scoreColor = bandColorMap[c.score_band_color] || '#fff';
+
+    // Trạng thái biến động thực tế theo lựa chọn hiện tại của người chơi
+    let liveStatusHtml = '';
+    if (isSelected && c.was_partner) {
+      liveStatusHtml = `<span style="background: rgba(34,197,94,0.18); color: #4ade80; border: 1px solid rgba(34,197,94,0.4); padding: 3px 8px; border-radius: 5px; font-weight: 700; font-size: 0.74rem;">🟢 Giữ ghế Partner</span>`;
+    } else if (isSelected && !c.was_partner) {
+      liveStatusHtml = `<span style="background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid rgba(56,189,248,0.45); padding: 3px 8px; border-radius: 5px; font-weight: 800; font-size: 0.74rem;">🚀 Tân Partner (Thăng hạng)</span>`;
+    } else if (!isSelected && c.was_partner) {
+      liveStatusHtml = `<span style="background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.45); padding: 3px 8px; border-radius: 5px; font-weight: 800; font-size: 0.74rem;">🔻 Mất ghế Partner</span>`;
+    } else {
+      liveStatusHtml = `<span style="color: #64748b; font-size: 0.74rem;">⚪ Non-Partner</span>`;
+    }
+
+    // Nút hành động Chọn / Bỏ chọn / Khóa Country Cap
+    let actionBtnHtml = '';
+    if (isSelected) {
+      actionBtnHtml = `
+        <button type="button" onclick="togglePartnerClubSelection('${reg}', ${c.club_id})"
+                style="width: 100%; padding: 7px 10px; background: rgba(16, 185, 129, 0.22); border: 1px solid #10b981; color: #4ade80; border-radius: 6px; font-weight: 800; font-size: 0.78rem; cursor: pointer;">
+          ✅ Đang chọn (Bấm để gỡ)
+        </button>
+      `;
+    } else if (isCountryFullForUnselected) {
+      actionBtnHtml = `
+        <button type="button" onclick="togglePartnerClubSelection('${reg}', ${c.club_id})"
+                title="Quốc gia/Tiểu khu vực này đã đạt trần 2/2 đội Partner"
+                style="width: 100%; padding: 7px 10px; background: rgba(239, 68, 68, 0.12); border: 1px dashed rgba(239, 68, 68, 0.45); color: #f87171; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: not-allowed;">
+          🔒 Khóa (${c.country_short_name} ${curSubCount}/${maxPerCountry})
+        </button>
+      `;
+    } else {
+      actionBtnHtml = `
+        <button type="button" onclick="togglePartnerClubSelection('${reg}', ${c.club_id})"
+                style="width: 100%; padding: 7px 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.2); color: #e2e8f0; border-radius: 6px; font-weight: 700; font-size: 0.78rem; cursor: pointer;">
+          ➕ Chọn làm Partner
+        </button>
+      `;
+    }
+
+    const renderPillarCell = (catObj) => {
+      const pct = Math.round((catObj.score / catObj.weight) * 100);
+      const barCol = catObj.passed_floor ? '#38bdf8' : '#ef4444';
+      return `
+        <div style="min-width: 66px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.73rem;">
+            <strong style="color: ${catObj.passed_floor ? '#e2e8f0' : '#f87171'};">${catObj.score.toFixed(1)}</strong>
+            <span style="color: #64748b;">/${catObj.weight}</span>
+          </div>
+          <div style="height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 3px; overflow: hidden;">
+            <div style="width: ${pct}%; height: 100%; background: ${barCol};"></div>
+          </div>
+        </div>
+      `;
+    };
+
+    return `
+      <tr class="${isSelected ? 'pr-row-selected' : (c.recommendation_status === 'cap_blocked' ? 'pr-row-cap-blocked' : '')}">
+        <td style="font-weight: 900; color: #94a3b8;">#${c.region_rank}</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            ${c.logo_url ? `<img src="${c.logo_url}" alt="" style="width: 28px; height: 28px; object-fit: contain;">` : ''}
+            <div>
+              <div style="font-weight: 800; color: #fff; display: flex; align-items: center; gap: 6px;">
+                <span>${c.name}</span>
+                <span style="color: #94a3b8; font-size: 0.76rem;">(${c.short_code})</span>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
+                ${c.was_partner
+                  ? `<span style="font-size: 0.68rem; background: rgba(234,179,8,0.15); color: #fbbf24; padding: 1px 6px; border-radius: 3px; font-weight: 700;">★ PARTNER CŨ</span>`
+                  : `<span style="font-size: 0.68rem; background: rgba(148,163,184,0.12); color: #94a3b8; padding: 1px 6px; border-radius: 3px;">CHALLENGER</span>`
+                }
+                <span style="font-size: 0.7rem; color: #64748b;">GPR: ${c.power_score} • ${c.stats_24m.total_cp} CP</span>
+              </div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: #e2e8f0; font-size: 0.8rem;">
+            ${c.country_flag} ${c.country_short_name}
+          </div>
+          <div style="font-size: 0.7rem; color: ${curSubCount >= maxPerCountry ? '#fbbf24' : '#64748b'};">
+            Slot nhóm: ${curSubCount}/${maxPerCountry}
+          </div>
+        </td>
+        <td>
+          <div style="font-size: 1.08rem; font-weight: 900; color: ${scoreColor};">
+            ${c.total_score.toFixed(2)} <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">/100</span>
+          </div>
+          <div style="font-size: 0.68rem; color: ${scoreColor};">${c.score_band_label}</div>
+        </td>
+        <td>${renderPillarCell(catA)}</td>
+        <td>${renderPillarCell(catB)}</td>
+        <td>${renderPillarCell(catC)}</td>
+        <td>${renderPillarCell(catD)}</td>
+        <td>${renderPillarCell(catE)}</td>
+        <td>
+          <div style="font-size: 0.76rem; font-weight: 700; margin-bottom: 4px;">${c.recommendation_label}</div>
+          <div>${liveStatusHtml}</div>
+        </td>
+        <td>
+          <button type="button" onclick="openClubPartnershipAudit(${c.club_id})"
+                  style="padding: 6px 10px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer; white-space: nowrap;">
+            🔍 19 Chỉ số & 8 Quý
+          </button>
+        </td>
+        <td style="min-width: 155px;">
+          ${actionBtnHtml}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('pr-table-container').innerHTML = `
+    <table class="pr-eval-table">
+      <thead>
+        <tr>
+          <th>Hạng</th>
+          <th>Đội Tuyển</th>
+          <th>Quốc Gia / Tiểu KV</th>
+          <th>Tổng Điểm</th>
+          <th title="A. Community Growth (Sàn: 12.5/25)">A. Cộng Đồng</th>
+          <th title="B. Fandom & Content (Sàn: 12.5/25)">B. Fan & Media</th>
+          <th title="C. Business Sustainability (Sàn: 12.0/20)">C. Tài Chính</th>
+          <th title="D. Operational Excellence (Sàn: 9.0/15)">D. Vận Hành</th>
+          <th title="E. Competitive Success (Sàn: 5.0/15)">E. Thi Đấu</th>
+          <th>Đề Xuất AI & Trạng Thái</th>
+          <th>Kiểm Toán</th>
+          <th>Quyết Định Của Bạn</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+  `;
+}
+
+function openClubPartnershipAudit(clubId) {
+  if (!PR_STATE.reviewData) return;
+  const rData = PR_STATE.reviewData.regions[PR_STATE.currentRegion];
+  if (!rData) return;
+  const club = rData.clubs.find(c => c.club_id === clubId);
+  if (!club) return;
+
+  const headerEl = document.getElementById('pr-detail-header');
+  headerEl.innerHTML = `
+    ${club.logo_url ? `<img src="${club.logo_url}" style="width: 38px; height: 38px; object-fit: contain;">` : ''}
+    <div>
+      <div style="font-size: 1.15rem; font-weight: 900; color: #fff;">
+        ${club.name} (${club.short_code}) — ${club.country_flag} ${club.country_name}
+      </div>
+      <div style="font-size: 0.8rem; color: #94a3b8;">
+        Tổng điểm 24 tháng: <strong style="color: #fbbf24;">${club.total_score.toFixed(2)} / 100</strong> •
+        ${club.recommendation_label}
+      </div>
+    </div>
+  `;
+
+  // Render 8-Quarter Trend Bar Chart
+  const qHtml = club.quarterly_trend.map(q => {
+    const hPct = Math.max(15, Math.min(100, Math.round(q.total_score)));
+    return `
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+        <div style="font-size: 0.72rem; font-weight: 800; color: #38bdf8;">${q.total_score.toFixed(1)}</div>
+        <div style="width: 100%; max-width: 42px; height: 70px; background: rgba(255,255,255,0.06); border-radius: 6px; display: flex; align-items: flex-end; overflow: hidden;">
+          <div style="width: 100%; height: ${hPct}%; background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);"></div>
+        </div>
+        <div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700;">${q.label}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Render 5 Categories & 19 Indicators
+  const catsHtml = Object.values(club.categories).map(cat => {
+    const indsHtml = Object.values(cat.indicators).map(ind => `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 6px 8px; font-weight: 800; color: #fbbf24; width: 42px;">${ind.code}</td>
+        <td style="padding: 6px 8px; color: #e2e8f0;">${ind.name_vi}</td>
+        <td style="padding: 6px 8px; color: #94a3b8; font-size: 0.75rem;">${ind.data_source}</td>
+        <td style="padding: 6px 8px; text-align: right; color: #cbd5e1; font-size: 0.78rem;">
+          ${ind.actual_value} <span style="color:#64748b;">(Sàn ${ind.floor_value} → Đích ${ind.target_value})</span>
+        </td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: 800; color: #38bdf8; width: 90px;">
+          ${ind.score.toFixed(2)} / ${ind.max_points}
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="margin-bottom: 14px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden;">
+        <div style="padding: 8px 12px; background: rgba(30, 41, 59, 0.8); display: flex; justify-content: space-between; align-items: center;">
+          <strong style="color: #fff; font-size: 0.86rem;">${cat.code}. ${cat.name_vi} (${cat.name_en})</strong>
+          <span style="font-size: 0.82rem; font-weight: 800; color: ${cat.passed_floor ? '#4ade80' : '#f87171'};">
+            ${cat.score.toFixed(2)} / ${cat.weight} điểm (Điểm sàn: ${cat.minimum_score}) ${cat.passed_floor ? '✓ Đạt sàn' : '✕ Rớt sàn'}
+          </span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+          <tbody>${indsHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('pr-detail-body').innerHTML = `
+    <div style="margin-bottom: 16px; padding: 12px 16px; background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+      <div style="font-size: 0.78rem; font-weight: 800; color: #fbbf24; text-transform: uppercase; margin-bottom: 10px;">
+        📈 BIỂU ĐỒ GIÁM SÁT 8 QUÝ TRONG CHU KỲ 24 THÁNG (QUARTERLY DASHBOARD Q1–Q8)
+      </div>
+      <div style="display: flex; gap: 10px; align-items: flex-end;">
+        ${qHtml}
+      </div>
+    </div>
+    ${catsHtml}
+  `;
+
+  document.getElementById('pr-club-detail-modal').style.display = 'flex';
+}
+
+async function commitPartnershipDecisions() {
+  const btn = document.getElementById('btn-commit-partnership');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang kiểm tra & lưu danh sách Partner...';
+  }
+
+  try {
+    const res = await API.post(`/api/campaign/${PR_STATE.campaignId}/partnership/commit`, {
+      year: PR_STATE.year,
+      selections_by_region: PR_STATE.selections,
+    });
+
+    if (!res.success) {
+      showPartnershipViolation(`🚫 ${res.error || 'Không thể lưu danh sách Partner'}`);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = PR_STATE.isAdvanceFlow
+          ? '✅ Chốt 32 Đội Partner & Tiếp Tục Sang Mùa Giải Mới ➔'
+          : '✅ Xác Nhận & Lưu Danh Sách 32 Đội Partner';
+      }
+      return;
+    }
+
+    closePartnershipReviewModal();
+
+    if (PR_STATE.isAdvanceFlow) {
+      // Sau khi chốt Partner 2 năm xong -> Chuyển sang Phòng Đạo Diễn Kịch Bản năm mới (hoặc chuyển mùa)
+      if (typeof openDirectorRoom === 'function') {
+        openDirectorRoom(PR_STATE.campaignId, PR_STATE.year + 1, true);
+      } else {
+        const advRes = await API.post(`/api/campaign/${PR_STATE.campaignId}/advance-year`, {});
+        if (advRes.success) {
+          window.location.href = `/campaign/${PR_STATE.campaignId}?reveal=1`;
+        }
+      }
+    } else {
+      window.location.reload();
+    }
+  } catch (err) {
+    showPartnershipViolation(`🚫 Lỗi: ${err.message}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✅ Xác Nhận & Lưu Danh Sách 32 Đội Partner';
+    }
+  }
+}
+</script>

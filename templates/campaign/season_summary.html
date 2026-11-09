@@ -26,9 +26,17 @@
     </div>
   </div>
   <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+    <button type="button" onclick="openPartnershipReviewModal({{ campaign.id }}, {{ summary_data.year }}, false)"
+            style="padding: 10px 16px; font-weight: bold; background: rgba(234, 179, 8, 0.16); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+      <span>🏛️</span> Hội Đồng Partner (24 Tháng)
+    </button>
     {% if summary_data.year == campaign.current_year and campaign.current_stage == 'season_summary' %}
     <button type="button" class="btn-start" onclick="confirmAdvanceYear()" style="padding: 10px 20px; font-weight: bold; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+      {% if partnership_cycle and partnership_cycle.is_review_cycle and not partnership_cycle.is_committed %}
+      <span>🏛️</span> Đánh Giá Partner (Chu Kỳ 2 Năm) & Sang Năm {{ summary_data.year + 1 }} ➔
+      {% else %}
       <span>🚀</span> Bắt Đầu Mùa Giải Mới (Năm {{ summary_data.year + 1 }}) ➔
+      {% endif %}
     </button>
     {% else %}
     <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); padding: 8px 14px; font-weight: bold;">
@@ -734,10 +742,21 @@
 
 {% include "campaign/_tournament_history_modal.html" %}
 {% include "campaign/_director_room_modal.html" %}
+{% include "campaign/_partnership_review_modal.html" %}
 
 <script>
+const IS_PARTNERSHIP_REVIEW_DUE = {{ 'true' if (partnership_cycle and partnership_cycle.is_review_cycle and not partnership_cycle.is_committed) else 'false' }};
+
 function confirmAdvanceYear() {
-  openDirectorRoom({{ campaign.id }}, {{ summary_data.year + 1 }}, true);
+  if (IS_PARTNERSHIP_REVIEW_DUE && typeof openPartnershipReviewModal === 'function') {
+    openPartnershipReviewModal({{ campaign.id }}, {{ summary_data.year }}, true);
+    return;
+  }
+  if (typeof openDirectorRoom === 'function') {
+    openDirectorRoom({{ campaign.id }}, {{ summary_data.year + 1 }}, true);
+  } else {
+    document.getElementById('advance-year-modal').style.display = 'flex';
+  }
 }
 function switchHofMainTab(tabKey) {
   document.querySelectorAll('.hof-main-tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -808,10 +827,6 @@ async function recalculateGpr() {
       btn.innerHTML = '<span>🔄</span> Cập nhật & Đồng bộ GPR';
     }
   }
-}
-
-function confirmAdvanceYear() {
-  document.getElementById('advance-year-modal').style.display = 'flex';
 }
 
 function closeAdvanceYearModal() {

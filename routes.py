@@ -372,6 +372,11 @@ def register_routes(app):
         get_active_campaign_storylines,
         delete_campaign_storyline,
     )
+    from services.partnership_service import (
+        get_partnership_cycle_status,
+        generate_partnership_evaluation,
+        commit_partnership_selection,
+    )
 
     @app.route('/campaigns')
     def campaigns_list():
@@ -449,12 +454,15 @@ def register_routes(app):
             if st.get('club_id'):
                 club_storylines.setdefault(st['club_id'], []).append(st)
 
+        partnership_cycle = get_partnership_cycle_status(campaign_id, campaign.current_year)
+
         return render_template(
             'campaign/detail.html',
             campaign=campaign,
             club_states=club_states,
             active_storylines=active_storylines,
             club_storylines=club_storylines,
+            partnership_cycle=partnership_cycle,
             stages_info=stages_info,
             oq_data=oq_data,
             kickoff_data=kickoff_data,
@@ -693,6 +701,49 @@ def register_routes(app):
     def api_campaign_storylines_delete(campaign_id, storyline_id):
         success = delete_campaign_storyline(storyline_id)
         return jsonify({'success': success})
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Partnership Evaluation & 2-Year Partner Restructuring APIs
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @app.route('/api/campaign/<int:campaign_id>/partnership/status')
+    def api_campaign_partnership_status(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        year = request.args.get('year', type=int) or campaign.current_year
+        try:
+            st = get_partnership_cycle_status(campaign_id, year=year)
+            return jsonify({'success': True, 'status': st})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/partnership/review')
+    def api_campaign_partnership_review(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        year = request.args.get('year', type=int) or campaign.current_year
+        force = request.args.get('force') in ('1', 'true', 'yes')
+        try:
+            review_data = generate_partnership_evaluation(campaign_id, year=year, force_recalculate=force)
+            return jsonify({'success': True, 'review': review_data})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/partnership/commit', methods=['POST'])
+    def api_campaign_partnership_commit(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        data = request.get_json(silent=True) or {}
+        selections = data.get('selections_by_region') or data.get('selections')
+        year = data.get('year') or campaign.current_year
+        try:
+            res = commit_partnership_selection(campaign_id, selections, year=int(year))
+            return jsonify(res)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/campaign/<int:campaign_id>/stage/kickoff')
     def campaign_kickoff_view(campaign_id):
@@ -1847,10 +1898,12 @@ def register_routes(app):
 
         req_year = request.args.get('year', type=int)
         summary_data = get_season_summary_data(campaign_id, year=req_year)
+        partnership_cycle = get_partnership_cycle_status(campaign_id, year=summary_data.get('year', campaign.current_year))
         return render_template(
             'campaign/season_summary.html',
             campaign=campaign,
             summary_data=summary_data,
+            partnership_cycle=partnership_cycle,
             cfg=Config,
         )
 
@@ -1944,6 +1997,9 @@ def register_routes(app):
         try:
             data = request.get_json(silent=True) or {}
             storylines_payload = data.get('storylines')
+            partnership_selections = data.get('partnership_selections')
+            if partnership_selections and isinstance(partnership_selections, dict):
+                commit_partnership_selection(campaign_id, partnership_selections, year=campaign.current_year)
             res = advance_campaign_to_next_year(campaign_id)
             if storylines_payload and isinstance(storylines_payload, list):
                 commit_season_storylines(campaign_id, storylines_payload, year=campaign.current_year)

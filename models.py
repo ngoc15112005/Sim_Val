@@ -30,11 +30,18 @@ class Club(db.Model):
                                      order_by='ClubRating.id.desc()')
 
     def to_dict(self):
+        from engine.partnership import get_club_country_info
+        reg_slug = self.region.slug if self.region else 'pacific'
+        c_info = get_club_country_info(self.short_code, reg_slug)
         return {
             'id': self.id, 'name': self.name, 'short_code': self.short_code,
-            'region_id': self.region_id, 'region_slug': self.region.slug if self.region else None,
+            'region_id': self.region_id, 'region_slug': reg_slug,
             'base_rating': self.base_rating, 'current_rating': self.current_rating,
-            'logo_url': self.logo_url, 'is_active': self.is_active
+            'logo_url': self.logo_url, 'is_active': self.is_active,
+            'country_code': c_info['country_code'],
+            'country_name': c_info['country_name'],
+            'country_short_name': c_info['short_name'],
+            'country_flag': c_info['flag'],
         }
 
 
@@ -216,6 +223,8 @@ class Campaign(db.Model):
                                  cascade='all, delete-orphan')
     storylines = db.relationship('CampaignStoryline', backref='campaign', lazy=True,
                                  cascade='all, delete-orphan')
+    partnership_reviews = db.relationship('CampaignPartnershipReview', backref='campaign', lazy=True,
+                                          cascade='all, delete-orphan')
 
     def to_dict(self):
         import json
@@ -470,6 +479,39 @@ class CampaignStoryline(db.Model):
             'metadata': meta,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class CampaignPartnershipReview(db.Model):
+    """Stores 24-month Partnership Evaluation cycles (every 2 years), AI recommendations, and user final decisions."""
+    __tablename__ = 'campaign_partnership_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)          # End year of the 2-year cycle (e.g., 2028 for 2027-2028)
+    cycle_label = db.Column(db.String(30), nullable=False)  # e.g., "2027-2028"
+    status = db.Column(db.String(20), default='pending_review')  # 'pending_review', 'committed'
+    evaluation_data = db.Column(db.Text, default='{}')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    committed_at = db.Column(db.DateTime, nullable=True)
+
+    def to_dict(self):
+        import json
+        eval_dict = {}
+        try:
+            if self.evaluation_data:
+                eval_dict = json.loads(self.evaluation_data)
+        except Exception:
+            pass
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'year': self.year,
+            'cycle_label': self.cycle_label,
+            'status': self.status,
+            'evaluation_data': eval_dict,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'committed_at': self.committed_at.isoformat() if self.committed_at else None,
+        }
+
 
 
 

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from models import (
     db, Club, Campaign, CampaignClubState, CampaignStage,
-    CampaignSeason, CampaignStagePlacement
+    CampaignSeason, CampaignStagePlacement, CampaignPartnershipReview
 )
 
 
@@ -105,6 +105,18 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
             'completed_at': s.completed_at.isoformat() if s.completed_at else None,
         })
 
+    # 6. Partnership Reviews (2-year evaluation history)
+    partnership_reviews_data = []
+    for pr in getattr(campaign, 'partnership_reviews', []):
+        partnership_reviews_data.append({
+            'year': pr.year,
+            'cycle_label': pr.cycle_label,
+            'status': pr.status,
+            'evaluation_data': pr.evaluation_data or '{}',
+            'created_at': pr.created_at.isoformat() if pr.created_at else None,
+            'committed_at': pr.committed_at.isoformat() if pr.committed_at else None,
+        })
+
     return {
         'format_version': '1.0',
         'export_type': 'vct_campaign_save',
@@ -114,6 +126,7 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
         'stages': stages_data,
         'placements': placements_data,
         'seasons': seasons_data,
+        'partnership_reviews': partnership_reviews_data,
     }
 
 
@@ -271,6 +284,24 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
             completed_at=c_at or datetime.now(timezone.utc),
         )
         db.session.add(new_s)
+
+    # 6. Reconstruct Partnership Reviews
+    for pr_data in payload.get('partnership_reviews', []):
+        cm_at = None
+        if pr_data.get('committed_at'):
+            try:
+                cm_at = datetime.fromisoformat(pr_data['committed_at'])
+            except Exception:
+                cm_at = None
+        new_pr = CampaignPartnershipReview(
+            campaign_id=new_campaign.id,
+            year=pr_data.get('year', new_campaign.current_year),
+            cycle_label=pr_data.get('cycle_label', ''),
+            status=pr_data.get('status', 'committed'),
+            evaluation_data=pr_data.get('evaluation_data', '{}'),
+            committed_at=cm_at,
+        )
+        db.session.add(new_pr)
 
     db.session.commit()
     return new_campaign
