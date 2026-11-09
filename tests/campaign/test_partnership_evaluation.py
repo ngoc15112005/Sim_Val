@@ -166,6 +166,11 @@ class TestPartnershipEvaluationSystem(unittest.TestCase):
 
     def test_manual_selection_validation_blocks_over_2_and_allows_valid_swap(self):
         """Kiểm tra hàm chốt danh sách Partner chặn cứng nếu người chơi chọn > 2 đội cùng nước hoặc != 8 đội."""
+        # Đưa chiến dịch đến đúng thời điểm kết thúc chu kỳ 2 năm (Cuối mùa 2028 - season_summary)
+        self.campaign.current_year = 2028
+        self.campaign.current_stage = 'season_summary'
+        db.session.commit()
+
         eval_data = generate_partnership_evaluation(self.campaign.id, year=2028, force_recalculate=True)
         self.assertIn('regions', eval_data)
 
@@ -234,17 +239,46 @@ class TestPartnershipEvaluationSystem(unittest.TestCase):
         self.assertFalse(demoted_state.is_partner)
 
     def test_2_year_cycle_detection_and_api_routes(self):
-        """Kiểm tra chu kỳ 2 năm (2027 = Năm 1/2, 2028 = Năm 2/2 cần đánh giá lại) và các API endpoints."""
-        # Năm 2027 (Năm 1 của chu kỳ): chưa bắt buộc tái xét duyệt cuối năm
+        """Kiểm tra chu kỳ 2 năm: khóa cứng ở Năm 1 (2027) và giữa mùa Năm 2 (2028), chỉ mở khi kết thúc Năm 2 (season_summary 2028)."""
+        # 1. Năm 2027 (Năm 1 của chu kỳ, kể cả khi ở season_summary): KHÓA CỨNG
+        self.campaign.current_year = 2027
+        self.campaign.current_stage = 'season_summary'
+        db.session.commit()
+
         status_2027 = get_partnership_cycle_status(self.campaign.id, year=2027)
         self.assertEqual(status_2027['seasons_elapsed'], 1)
         self.assertFalse(status_2027['is_review_cycle'])
+        self.assertFalse(status_2027['can_open_review'])
+        self.assertFalse(status_2027['can_commit'])
         self.assertFalse(status_2027['is_due'])
 
-        # Năm 2028 (Năm 2 của chu kỳ): bắt buộc tái xét duyệt cuối năm
+        resp_locked_2027 = self.client.get(f'/api/campaign/{self.campaign.id}/partnership/review?year=2027')
+        self.assertEqual(resp_locked_2027.status_code, 400)
+
+        # 2. Năm 2028 nhưng đang giữa mùa giải (ví dụ stage1): KHÓA CỨNG (chưa kết thúc mùa thứ 2)
+        self.campaign.current_year = 2028
+        self.campaign.current_stage = 'stage1'
+        db.session.commit()
+
+        status_mid_2028 = get_partnership_cycle_status(self.campaign.id, year=2028)
+        self.assertTrue(status_mid_2028['is_review_cycle'])
+        self.assertFalse(status_mid_2028['can_open_review'])
+        self.assertFalse(status_mid_2028['can_commit'])
+        self.assertFalse(status_mid_2028['is_due'])
+
+        resp_locked_mid = self.client.get(f'/api/campaign/{self.campaign.id}/partnership/review?year=2028')
+        self.assertEqual(resp_locked_mid.status_code, 400)
+
+        # 3. Kết thúc Năm 2028 (season_summary trước khi sang mùa 2029): MỞ XÉT DUYỆT
+        self.campaign.current_year = 2028
+        self.campaign.current_stage = 'season_summary'
+        db.session.commit()
+
         status_2028 = get_partnership_cycle_status(self.campaign.id, year=2028)
         self.assertEqual(status_2028['seasons_elapsed'], 2)
         self.assertTrue(status_2028['is_review_cycle'])
+        self.assertTrue(status_2028['can_open_review'])
+        self.assertTrue(status_2028['can_commit'])
         self.assertTrue(status_2028['is_due'])
 
         # Test GET /api/campaign/<id>/partnership/review

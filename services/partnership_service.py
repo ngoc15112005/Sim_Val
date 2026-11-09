@@ -49,30 +49,101 @@ def get_campaign_start_year(campaign_id: int) -> int:
     return int(camp.current_year) if camp else 2027
 
 
+def _has_open_qualifier_started(campaign_id: int, year: int) -> bool:
+    """Kiểm tra xem Vòng loại Open Qualifier của năm `year` đã có trận đấu nào hoàn tất chưa."""
+    oq_stage = CampaignStage.query.filter_by(
+        campaign_id=campaign_id, year=year, stage_key="open_qualifier"
+    ).first()
+    if not oq_stage or not oq_stage.stage_data:
+        return False
+    try:
+        oq_data = json.loads(oq_stage.stage_data or "{}")
+        for r_data in oq_data.get("regions", {}).values():
+            for m in r_data.get("swiss_matches", []):
+                if m.get("status") == "completed":
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 def get_partnership_cycle_status(campaign_id: int, year: Optional[int] = None) -> Dict[str, Any]:
-    """Kiểm tra trạng thái chu kỳ đánh giá Partner 2 năm/lần tại năm `year`."""
+    """Kiểm tra trạng thái chu kỳ đánh giá Partner 2 năm/lần tại năm `year`.
+    Chỉ được phép mở và chốt danh sách Partner:
+    1. Khi KẾT THÚC năm thứ 2 của chu kỳ 2 năm (ví dụ kết thúc mùa 2028, 2030... ở giai đoạn 'season_summary'), HOẶC
+    2. Ngay đầu mùa giải mới (năm thứ 3, 5... ở giai đoạn 'open_qualifier' khi CHƯA đá trận nào) nếu chu kỳ 2 năm vừa qua chưa được chốt.
+    Còn lại trong suốt mùa giải hoặc ở năm lẻ (năm 1, 3, 5...) sẽ bị khóa hoàn toàn.
+    """
     camp = db.session.get(Campaign, campaign_id)
     if not camp:
         raise ValueError(f"Campaign {campaign_id} not found")
 
-    eval_year = int(year if year is not None else camp.current_year)
     start_year = get_campaign_start_year(campaign_id)
+    raw_year = int(year if year is not None else camp.current_year)
+
+    # Kiểm tra trường hợp đang ở đầu năm thứ 3, 5... (open_qualifier chưa đá trận nào)
+    completed_before_current = camp.current_year - start_year
+    is_pre_oq_grace_window = (
+        raw_year == camp.current_year
+        and camp.current_stage == "open_qualifier"
+        and completed_before_current >= 2
+        and completed_before_current % 2 == 0
+        and not _has_open_qualifier_started(campaign_id, camp.current_year)
+    )
+
+    if is_pre_oq_grace_window:
+        eval_year = camp.current_year - 1
+    else:
+        eval_year = raw_year
+
     seasons_elapsed = max(1, eval_year - start_year + 1)
 
     # Chu kỳ 2 năm/lần: kết thúc mùa 2 (ví dụ 2028), mùa 4 (2030), mùa 6 (2032)...
     is_review_cycle = (seasons_elapsed >= 2) and (seasons_elapsed % 2 == 0)
-    cycle_start = eval_year - 1 if eval_year > start_year else start_year
-    cycle_label = f"{cycle_start}-{eval_year}"
-
     if is_review_cycle:
+        cycle_start = eval_year - 1
+        cycle_end = eval_year
         next_review_year = eval_year
     else:
+        cycle_start = eval_year
+        cycle_end = eval_year + 1
         next_review_year = eval_year + 1
+
+    cycle_label = f"{cycle_start}-{cycle_end}"
 
     review_rec = CampaignPartnershipReview.query.filter_by(
         campaign_id=campaign_id, year=eval_year
     ).first()
     is_committed = bool(review_rec and review_rec.status == "committed")
+
+    # Điều kiện mở cửa sổ xét duyệt:
+    # - Đúng năm chẵn của chu kỳ 2 năm VÀ mùa giải đó đã kết thúc ('season_summary'), HOẶC
+    # - Đang ở đầu 'open_qualifier' của năm kế tiếp khi chưa đá trận nào
+    is_end_of_cycle_window = bool(
+        is_review_cycle
+        and (
+            (eval_year == camp.current_year and camp.current_stage == "season_summary")
+            or is_pre_oq_grace_window
+        )
+    )
+
+    can_commit = is_end_of_cycle_window
+    can_open_review = bool(is_end_of_cycle_window or (is_review_cycle and is_committed))
+
+    lock_reason = ""
+    if not can_open_review:
+        if not is_review_cycle:
+            lock_reason = (
+                f"Hội Đồng Thẩm Định Partner chỉ mở định kỳ 2 năm/lần! "
+                f"Hiện tại mới ở năm thứ {seasons_elapsed} (Chu kỳ {cycle_label}). "
+                f"Hệ thống sẽ mở xét duyệt khi kết thúc mùa giải năm {next_review_year} (trước khi bước vào Vòng loại mùa {next_review_year + 1})."
+            )
+        else:
+            lock_reason = (
+                f"Mùa giải {eval_year} vẫn đang diễn ra (Giai đoạn: {camp.current_stage.upper()}). "
+                f"Hội Đồng Thẩm Định Partner chu kỳ {cycle_label} chỉ được mở sau khi kết thúc toàn bộ mùa giải {eval_year} "
+                f"(tại màn Tổng Kết Mùa Giải, trước khi vào Vòng loại Open Qualifier mùa {eval_year + 1})!"
+            )
 
     return {
         "campaign_id": campaign_id,
@@ -81,9 +152,13 @@ def get_partnership_cycle_status(campaign_id: int, year: Optional[int] = None) -
         "seasons_elapsed": seasons_elapsed,
         "cycle_label": cycle_label,
         "is_review_cycle": is_review_cycle,
+        "is_end_of_cycle_window": is_end_of_cycle_window,
+        "can_open_review": can_open_review,
+        "can_commit": can_commit,
         "is_committed": is_committed,
-        "is_due": bool(is_review_cycle and not is_committed),
+        "is_due": bool(is_end_of_cycle_window and not is_committed),
         "next_review_year": next_review_year,
+        "lock_reason": lock_reason,
     }
 
 
@@ -99,8 +174,11 @@ def generate_partnership_evaluation(
     if not camp:
         raise ValueError(f"Campaign {campaign_id} not found")
 
-    eval_year = int(year if year is not None else camp.current_year)
-    cycle_status = get_partnership_cycle_status(campaign_id, eval_year)
+    cycle_status = get_partnership_cycle_status(campaign_id, year)
+    if not cycle_status["can_open_review"]:
+        raise ValueError(cycle_status["lock_reason"])
+
+    eval_year = cycle_status["evaluation_year"]
     cycle_label = cycle_status["cycle_label"]
 
     existing_rec = CampaignPartnershipReview.query.filter_by(
@@ -233,7 +311,14 @@ def commit_partnership_selection(
     if not camp:
         raise ValueError(f"Campaign {campaign_id} not found")
 
-    eval_year = int(year if year is not None else camp.current_year)
+    cycle_status = get_partnership_cycle_status(campaign_id, year)
+    if not cycle_status["can_commit"]:
+        raise ValueError(
+            cycle_status["lock_reason"]
+            or "Chỉ được phép chốt danh sách Partner khi kết thúc chu kỳ 2 năm (trước khi bước vào Vòng loại mùa giải mới)!"
+        )
+
+    eval_year = cycle_status["evaluation_year"]
     if not selections_by_region or not isinstance(selections_by_region, dict):
         raise ValueError("Dữ liệu danh sách đội Partner (selections_by_region) không hợp lệ.")
 
