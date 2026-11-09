@@ -629,31 +629,31 @@
       <table class="swiss-standings-table">
         <thead>
           <tr>
-            <th>Phân loại</th>
-            <th class="team-col">Đội tuyển</th>
-            <th>Khu vực</th>
-            <th style="text-align: center; width: 140px;">Sức mạnh gốc (50-99)</th>
-            <th style="text-align: center; width: 220px;">Phong độ (-30 đến +30)</th>
-            <th style="text-align: center; width: 130px;">Sức mạnh thực tế</th>
-            <th>Điểm CP</th>
+            <th style="width: 100px; text-align: left;">Phân loại</th>
+            <th class="team-col" style="min-width: 220px; text-align: left;">Đội tuyển</th>
+            <th style="width: 90px; text-align: center;">Khu vực</th>
+            <th style="text-align: center; width: 160px; white-space: nowrap;">Sức mạnh gốc (50-99)</th>
+            <th style="text-align: center; width: 210px; white-space: nowrap;">Phong độ (-30 đến +30)</th>
+            <th style="text-align: center; width: 140px; white-space: nowrap;">Sức mạnh thực tế</th>
+            <th style="text-align: center; width: 90px; white-space: nowrap;">Điểm CP</th>
           </tr>
         </thead>
         <tbody>
           {% for cs in club_states %}
           {% if cs.club.region.slug == r_slug %}
           <tr id="club-row-{{ cs.club_id }}" style="{% if cs.is_partner %}background: rgba(234, 179, 8, 0.05);{% endif %} transition: background-color 0.2s, box-shadow 0.2s;">
-            <td>
+            <td style="vertical-align: middle;">
               {% if cs.is_partner %}
-              <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold;">
+              <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold; white-space: nowrap;">
                 ★ Partner
               </span>
               {% else %}
-              <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">
+              <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); white-space: nowrap;">
                 Non-Partner
               </span>
               {% endif %}
             </td>
-            <td>
+            <td style="vertical-align: middle;">
               <div class="swiss-team" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex-wrap: wrap;" onclick="openTeamProfileModal({{ cs.club_id }})" title="Xem hồ sơ đội tuyển {{ cs.club.name }}">
                 {% if cs.club.logo_url %}
                 <img class="team-logo-sm" src="{{ cs.club.logo_url }}" alt="" onerror="this.style.display='none'">
@@ -662,44 +662,44 @@
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ cs.club.short_code }})</span>
                 {% if club_storylines and cs.club_id in club_storylines %}
                   {% for st in club_storylines[cs.club_id] %}
-                  <span class="dr-badge-{{ st.badge_color or 'amber' }}" style="font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; cursor: pointer;" title="{{ st.headline }}" onclick="event.stopPropagation(); openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})">
+                  <span class="dr-badge-{{ st.badge_color or 'amber' }}" style="font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; cursor: pointer; white-space: nowrap;" title="{{ st.headline }}" onclick="event.stopPropagation(); openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})">
                     {{ st.badge }}
                   </span>
                   {% endfor %}
                 {% endif %}
               </div>
             </td>
-            <td>{{ r_slug|upper }}</td>
+            <td style="text-align: center; font-weight: 600; color: #94a3b8; font-size: 0.85em; vertical-align: middle;">{{ r_slug|upper }}</td>
             <!-- Sức mạnh gốc (Story Rating) -->
-            <td style="text-align: center;">
-              <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;">
-                <button type="button" onclick="adjustRating({{ cs.club_id }}, -1)" title="Giảm 1 điểm" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">−</button>
-                <input type="number" id="rating-input-{{ cs.club_id }}" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.story_rating }}" min="50" max="99" value="{{ cs.story_rating }}" oninput="updateClubState({{ cs.club_id }})" style="width: 44px; text-align: center; font-weight: bold; font-size: 1em; background: transparent; border: none; color: #fff;">
-                <button type="button" onclick="adjustRating({{ cs.club_id }}, 1)" title="Tăng 1 điểm" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">+</button>
+            <td style="text-align: center; vertical-align: middle;">
+              <div class="stepper-box" style="display: inline-flex; align-items: center; background: #0b1120; border: 1px solid #334155; border-radius: 6px; overflow: hidden; height: 32px;">
+                <button type="button" onclick="adjustRating({{ cs.club_id }}, -1)" class="stepper-btn" title="Giảm 1 điểm" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">−</button>
+                <input type="number" id="rating-input-{{ cs.club_id }}" class="stepper-num-input" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.story_rating }}" min="50" max="99" value="{{ cs.story_rating }}" oninput="updateClubState({{ cs.club_id }})" style="width: 48px; height: 100%; text-align: center; font-weight: 800; font-size: 1rem; background: transparent; border: none; color: #fff; padding: 0 !important; margin: 0; outline: none;">
+                <button type="button" onclick="adjustRating({{ cs.club_id }}, 1)" class="stepper-btn" title="Tăng 1 điểm" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">+</button>
               </div>
             </td>
             <!-- Phong độ (Form Modifier: -30 to +30) -->
-            <td style="text-align: center;">
+            <td style="text-align: center; vertical-align: middle;">
               <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 4px;">
-                <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;">
-                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -1)" title="Giảm 1 điểm phong độ" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">−</button>
-                  <input type="number" id="form-input-{{ cs.club_id }}" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.form_modifier }}" min="-30" max="30" value="{{ cs.form_modifier }}" oninput="updateClubState({{ cs.club_id }})" style="width: 48px; text-align: center; font-weight: bold; font-size: 1em; background: transparent; border: none; color: {% if cs.form_modifier > 0 %}#4ade80{% elif cs.form_modifier < 0 %}#f87171{% else %}var(--dim){% endif %};">
-                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 1)" title="Tăng 1 điểm phong độ" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">+</button>
+                <div class="stepper-box" style="display: inline-flex; align-items: center; background: #0b1120; border: 1px solid #334155; border-radius: 6px; overflow: hidden; height: 32px;">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -1)" class="stepper-btn" title="Giảm 1 điểm phong độ" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">−</button>
+                  <input type="number" id="form-input-{{ cs.club_id }}" class="stepper-num-input" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.form_modifier }}" min="-30" max="30" value="{{ cs.form_modifier }}" oninput="updateClubState({{ cs.club_id }})" style="width: 52px; height: 100%; text-align: center; font-weight: 800; font-size: 1rem; background: transparent; border: none; color: {% if cs.form_modifier > 0 %}#4ade80{% elif cs.form_modifier < 0 %}#f87171{% else %}var(--dim){% endif %}; padding: 0 !important; margin: 0; outline: none;">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 1)" class="stepper-btn" title="Tăng 1 điểm phong độ" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">+</button>
                 </div>
-                <div style="display: flex; gap: 2px;">
-                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -5)" title="Sa sút nhanh (-5)" style="padding: 1px 5px; font-size: 0.72em; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 3px; cursor: pointer;">-5</button>
-                  <button type="button" onclick="setClubForm({{ cs.club_id }}, 0)" title="Về 0" style="padding: 1px 6px; font-size: 0.72em; background: var(--surface); color: var(--dim); border: 1px solid var(--border); border-radius: 3px; cursor: pointer;">0</button>
-                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 5)" title="Thăng hoa nhanh (+5)" style="padding: 1px 5px; font-size: 0.72em; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 3px; cursor: pointer;">+5</button>
+                <div style="display: flex; gap: 3px;">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -5)" title="Sa sút nhanh (-5)" style="padding: 2px 7px; font-size: 0.72em; font-weight: 700; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; cursor: pointer;">-5</button>
+                  <button type="button" onclick="setClubForm({{ cs.club_id }}, 0)" title="Về 0" style="padding: 2px 8px; font-size: 0.72em; font-weight: 700; background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 4px; cursor: pointer;">0</button>
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 5)" title="Thăng hoa nhanh (+5)" style="padding: 2px 7px; font-size: 0.72em; font-weight: 700; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 4px; cursor: pointer;">+5</button>
                 </div>
               </div>
             </td>
             <!-- Sức mạnh thực tế (Effective Rating = Gốc + Phong độ) -->
-            <td style="text-align: center;">
-              <span id="effective-display-{{ cs.club_id }}" style="font-size: 1.15em; font-weight: bold; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% elif cs.effective_rating >= 70 %}#60a5fa{% else %}#f87171{% endif %};">
+            <td style="text-align: center; vertical-align: middle;">
+              <span id="effective-display-{{ cs.club_id }}" style="font-size: 1.25em; font-weight: 800; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% elif cs.effective_rating >= 70 %}#60a5fa{% else %}#f87171{% endif %};">
                 {{ cs.effective_rating }}
               </span>
             </td>
-            <td style="text-align: center; font-weight: bold; color: var(--yellow);">{{ cs.championship_points }}</td>
+            <td style="text-align: center; vertical-align: middle; font-weight: 800; color: #fbbf24; font-size: 1.05em;">{{ cs.championship_points }}</td>
           </tr>
           {% endif %}
           {% endfor %}
@@ -1062,6 +1062,28 @@ document.addEventListener('DOMContentLoaded', function() {
   color: var(--dim);
   font-size: 1.1em;
   flex-shrink: 0;
+}
+
+/* Custom Stepper Input Styles & Table Alignment */
+.stepper-num-input::-webkit-outer-spin-button,
+.stepper-num-input::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.stepper-num-input {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+#clubs-inspector-section table.swiss-standings-table th,
+#clubs-inspector-section table.swiss-standings-table td {
+  vertical-align: middle !important;
+}
+
+#clubs-inspector-section table.swiss-standings-table th {
+  white-space: nowrap !important;
 }
 </style>
 
