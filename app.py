@@ -70,8 +70,7 @@ def create_app():
                     from seed import sync_club_logos_internal
                     sync_club_logos_internal()
             except Exception as e:
-                pass
-            app.logger.warning(f"Database initialization deferred or failed: {e}")
+                app.logger.warning(f"Database initialization deferred or failed: {e}")
 
     from routes import register_routes
     register_routes(app)
