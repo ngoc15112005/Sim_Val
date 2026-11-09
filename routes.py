@@ -382,6 +382,17 @@ def register_routes(app):
         name = request.form.get('name', 'VCT 2027 Circuit Journey').strip()
         year = int(request.form.get('year', 2027))
         campaign = create_campaign(name=name, start_year=year)
+        try:
+            import os
+            data = export_campaign_save(campaign.id)
+            safe_name = "".join(c for c in campaign.name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+            filename = f"vct_save_{safe_name}_{campaign.current_year}.json"
+            save_dir = os.path.join(os.getcwd(), 'saves', 'campaign')
+            os.makedirs(save_dir, exist_ok=True)
+            with open(os.path.join(save_dir, filename), 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
         return redirect(url_for('campaign_detail', campaign_id=campaign.id, reveal='1'))
 
     @app.route('/campaign/<int:campaign_id>/delete', methods=['POST'])
