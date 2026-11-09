@@ -222,7 +222,7 @@ class TestMatrixPhase1Core(unittest.TestCase):
     # ─────────────────────────────────────────────────────────────────────────
 
     def test_tc_c01_clamp_form_modifier_bounds(self):
-        """TC-C01: Form modifier must be strictly clamped in [-15, +15]."""
+        """TC-C01: Form modifier must be strictly clamped in [-30, +30]."""
         camp = create_campaign("Form Clamp Test", 2027)
         cstate = CampaignClubState.query.filter_by(campaign_id=camp.id).first()
         self.assertIsNotNone(cstate)
@@ -230,12 +230,12 @@ class TestMatrixPhase1Core(unittest.TestCase):
         # Extreme positive
         update_club_form(camp.id, cstate.club_id, 999)
         cstate = db.session.get(CampaignClubState, cstate.id)
-        self.assertEqual(cstate.form_modifier, 15)
+        self.assertEqual(cstate.form_modifier, 30)
 
         # Extreme negative
         update_club_form(camp.id, cstate.club_id, -999)
         cstate = db.session.get(CampaignClubState, cstate.id)
-        self.assertEqual(cstate.form_modifier, -15)
+        self.assertEqual(cstate.form_modifier, -30)
 
     def test_tc_c02_effective_rating_math(self):
         """TC-C02: effective_rating = story_rating + form_modifier."""
@@ -258,7 +258,7 @@ class TestMatrixPhase1Core(unittest.TestCase):
         updates = {
             states[0].club_id: 8,
             states[1].club_id: -5,
-            states[2].club_id: 20  # should clamp to 15
+            states[2].club_id: 50  # should clamp to 30
         }
         updated_count = bulk_update_form(camp.id, updates)
         self.assertEqual(updated_count, 3)
@@ -268,7 +268,7 @@ class TestMatrixPhase1Core(unittest.TestCase):
         s2 = db.session.get(CampaignClubState, states[2].id)
         self.assertEqual(s0.form_modifier, 8)
         self.assertEqual(s1.form_modifier, -5)
-        self.assertEqual(s2.form_modifier, 15)
+        self.assertEqual(s2.form_modifier, 30)
 
     def test_tc_c04_form_modifier_impacts_effective_rating_for_seeding(self):
         """TC-C04: Form modifier genuinely shifts effective rating."""

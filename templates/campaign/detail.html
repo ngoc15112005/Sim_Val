@@ -31,8 +31,8 @@
     <a href="/campaign/{{ campaign.id }}/hall-of-fame" class="btn-sm" style="text-decoration: none; padding: 10px 16px; font-weight: bold; background: rgba(234, 179, 8, 0.2); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 6px; display: flex; align-items: center; gap: 6px;">
       <span>🏛️</span> Bảng Vàng Hall of Fame
     </a>
-    <button type="button" class="btn-sm btn-edit" onclick="openFormModal()" style="padding: 10px 16px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
-      ⚙️ Tùy chỉnh phong độ đội
+    <button type="button" class="btn-sm btn-edit" onclick="scrollToClubsSection()" style="padding: 10px 16px; font-weight: bold; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+      ⚙️ Tùy chỉnh phong độ & sức mạnh đội
     </button>
     <a href="/campaigns" class="btn-sm btn-manual" style="text-decoration: none; padding: 10px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
       Danh sách mùa
@@ -570,12 +570,12 @@
 
 
 <!-- Regional Clubs & Power Ratings Inspector -->
-<div class="card">
+<div id="clubs-inspector-section" class="card">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
     <div>
       <h2 style="margin: 0; font-size: 1.2em;">Lực lượng các đội tuyển (96 Đội VCT)</h2>
       <p style="font-size: 0.85em; color: var(--dim); margin-top: 2px;">
-        Đánh giá sức mạnh (Story Rating) và phong độ động (Form Modifier). Được cách ly hoàn toàn với chế độ đơn lẻ!
+        Chỉnh sửa nhanh Sức mạnh gốc (50-99) và Phong độ động (-30 đến +30). Tự động cập nhật trực tiếp trên bảng, lưu 1 chạm không tải lại trang!
       </p>
     </div>
     <div class="region-tabs" style="display: flex; gap: 6px;">
@@ -588,9 +588,16 @@
 
   {% for r_slug in ['pacific', 'americas', 'emea', 'china'] %}
   <div id="region-panel-{{ r_slug }}" class="region-content-panel {% if loop.first %}active{% endif %}">
-    <div style="margin-bottom: 12px; display: flex; gap: 16px; font-size: 0.85em;">
-      <span style="color: #fbbf24;">★ 8 Đội Partner chính thức (Đặc cách Kickoff)</span>
-      <span style="color: #60a5fa;">⚔️ 16 Đội Non-Partner (Vòng loại Open Qualifier)</span>
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; gap: 16px; font-size: 0.85em;">
+        <span style="color: #fbbf24;">★ 8 Đội Partner chính thức (Đặc cách Kickoff)</span>
+        <span style="color: #60a5fa;">⚔️ 16 Đội Non-Partner (Vòng loại Open Qualifier)</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn-sm" onclick="resetRegionForm('{{ r_slug }}')" style="background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.82em; display: flex; align-items: center; gap: 5px; font-weight: 500;">
+          <span>🔄</span> Đặt lại phong độ khu vực về 0
+        </button>
+      </div>
     </div>
     <div class="table-scroll">
       <table class="swiss-standings-table">
@@ -599,17 +606,16 @@
             <th>Phân loại</th>
             <th class="team-col">Đội tuyển</th>
             <th>Khu vực</th>
-            <th>Sức mạnh gốc</th>
-            <th>Phong độ (Form)</th>
-            <th>Sức mạnh thực tế</th>
+            <th style="text-align: center; width: 140px;">Sức mạnh gốc (50-99)</th>
+            <th style="text-align: center; width: 220px;">Phong độ (-30 đến +30)</th>
+            <th style="text-align: center; width: 130px;">Sức mạnh thực tế</th>
             <th>Điểm CP</th>
-            <th>Hành động</th>
           </tr>
         </thead>
         <tbody>
           {% for cs in club_states %}
           {% if cs.club.region.slug == r_slug %}
-          <tr style="{% if cs.is_partner %}background: rgba(234, 179, 8, 0.05);{% endif %}">
+          <tr id="club-row-{{ cs.club_id }}" style="{% if cs.is_partner %}background: rgba(234, 179, 8, 0.05);{% endif %} transition: background-color 0.2s, box-shadow 0.2s;">
             <td>
               {% if cs.is_partner %}
               <span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #f59e0b; border: 1px solid rgba(234, 179, 8, 0.4); font-weight: bold;">
@@ -631,25 +637,36 @@
               </div>
             </td>
             <td>{{ r_slug|upper }}</td>
-            <td style="text-align: center; font-weight: bold;">{{ cs.story_rating }}</td>
+            <!-- Sức mạnh gốc (Story Rating) -->
             <td style="text-align: center;">
-              {% if cs.form_modifier > 0 %}
-                <span style="color: #4ade80; font-weight: bold;">+{{ cs.form_modifier }}</span>
-              {% elif cs.form_modifier < 0 %}
-                <span style="color: #f87171; font-weight: bold;">{{ cs.form_modifier }}</span>
-              {% else %}
-                <span style="color: var(--dim);">0</span>
-              {% endif %}
+              <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;">
+                <button type="button" onclick="adjustRating({{ cs.club_id }}, -1)" title="Giảm 1 điểm" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">−</button>
+                <input type="number" id="rating-input-{{ cs.club_id }}" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.story_rating }}" min="50" max="99" value="{{ cs.story_rating }}" oninput="updateClubState({{ cs.club_id }})" style="width: 44px; text-align: center; font-weight: bold; font-size: 1em; background: transparent; border: none; color: #fff;">
+                <button type="button" onclick="adjustRating({{ cs.club_id }}, 1)" title="Tăng 1 điểm" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">+</button>
+              </div>
             </td>
-            <td style="text-align: center; font-size: 1.1em; font-weight: bold; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% else %}#94a3b8{% endif %};">
-              {{ cs.effective_rating }}
+            <!-- Phong độ (Form Modifier: -30 to +30) -->
+            <td style="text-align: center;">
+              <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -1)" title="Giảm 1 điểm phong độ" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">−</button>
+                  <input type="number" id="form-input-{{ cs.club_id }}" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.form_modifier }}" min="-30" max="30" value="{{ cs.form_modifier }}" oninput="updateClubState({{ cs.club_id }})" style="width: 48px; text-align: center; font-weight: bold; font-size: 1em; background: transparent; border: none; color: {% if cs.form_modifier > 0 %}#4ade80{% elif cs.form_modifier < 0 %}#f87171{% else %}var(--dim){% endif %};">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 1)" title="Tăng 1 điểm phong độ" style="border: none; background: transparent; color: var(--dim); cursor: pointer; font-weight: bold; padding: 2px 6px; font-size: 0.9em;">+</button>
+                </div>
+                <div style="display: flex; gap: 2px;">
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, -5)" title="Sa sút nhanh (-5)" style="padding: 1px 5px; font-size: 0.72em; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 3px; cursor: pointer;">-5</button>
+                  <button type="button" onclick="setClubForm({{ cs.club_id }}, 0)" title="Về 0" style="padding: 1px 6px; font-size: 0.72em; background: var(--surface); color: var(--dim); border: 1px solid var(--border); border-radius: 3px; cursor: pointer;">0</button>
+                  <button type="button" onclick="adjustForm({{ cs.club_id }}, 5)" title="Thăng hoa nhanh (+5)" style="padding: 1px 5px; font-size: 0.72em; background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 3px; cursor: pointer;">+5</button>
+                </div>
+              </div>
+            </td>
+            <!-- Sức mạnh thực tế (Effective Rating = Gốc + Phong độ) -->
+            <td style="text-align: center;">
+              <span id="effective-display-{{ cs.club_id }}" style="font-size: 1.15em; font-weight: bold; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% elif cs.effective_rating >= 70 %}#60a5fa{% else %}#f87171{% endif %};">
+                {{ cs.effective_rating }}
+              </span>
             </td>
             <td style="text-align: center; font-weight: bold; color: var(--yellow);">{{ cs.championship_points }}</td>
-            <td style="text-align: center;">
-              <button type="button" class="btn-sm" onclick="editSingleClubForm({{ cs.club_id }}, '{{ cs.club.short_code }}', {{ cs.form_modifier }})" style="padding: 4px 8px; font-size: 0.8em; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">
-                Chỉnh phong độ
-              </button>
-            </td>
           </tr>
           {% endif %}
           {% endfor %}
@@ -660,34 +677,26 @@
   {% endfor %}
 </div>
 
-<!-- Modal Tùy chỉnh phong độ -->
-<div id="form-modifier-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 9999; justify-content: center; align-items: center;">
-  <div class="modal-card card" style="max-width: 500px; width: 90%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-    <h3 id="modal-title" style="margin-bottom: 8px; color: #fff;">Chỉnh phong độ đội</h3>
-    <p style="font-size: 0.85em; color: var(--dim); margin-bottom: 16px;">
-      Tùy chỉnh phong độ từ -10 đến +10 trước khi vào giải đấu. Giá trị này tác động trực tiếp lên sức mạnh khi thi đấu khu vực!
-    </p>
-
-    <div style="margin-bottom: 16px;">
-      <label>Mức điều chỉnh phong độ (-10 đến +10):</label>
-      <input type="number" id="modal-form-input" min="-10" max="10" value="0" style="font-size: 1.2em; font-weight: bold; text-align: center;">
-    </div>
-
-    <div style="display: flex; gap: 8px; margin-bottom: 20px; justify-content: center;">
-      <button type="button" class="btn-sm" onclick="setPresetForm(3)" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #4ade80; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Thăng hoa (+3)</button>
-      <button type="button" class="btn-sm" onclick="setPresetForm(0)" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; cursor: pointer;">Bình thường (0)</button>
-      <button type="button" class="btn-sm" onclick="setPresetForm(-3)" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #f87171; padding: 4px 10px; border-radius: 4px; cursor: pointer;">Sa sút (-3)</button>
-    </div>
-
-    <div style="display: flex; justify-content: flex-end; gap: 10px;">
-      <button type="button" onclick="closeFormModal()" style="padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer;">
-        Hủy
-      </button>
-      <button type="button" onclick="saveSingleClubForm()" style="padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-        Lưu thay đổi
-      </button>
-    </div>
+<!-- Floating Sticky Save Bar -->
+<div id="bulk-save-bar" style="display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #0f172a; border: 1px solid #3b82f6; box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 15px rgba(59,130,246,0.3); padding: 12px 24px; border-radius: 50px; z-index: 10000; align-items: center; gap: 16px;">
+  <span style="display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 500; font-size: 0.95em;">
+    <span style="font-size: 1.2em;">⚡</span>
+    <span>Đang có <strong id="changed-clubs-count" style="color: #60a5fa; font-size: 1.1em;">0</strong> đội có thay đổi</span>
+  </span>
+  <div style="display: flex; gap: 8px;">
+    <button type="button" onclick="cancelAllChanges()" style="padding: 6px 14px; background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--dim); border-radius: 20px; cursor: pointer; font-size: 0.85em;">
+      Hủy thay đổi
+    </button>
+    <button type="button" id="bulk-save-btn" onclick="saveAllBulkChanges()" style="padding: 7px 22px; background: #3b82f6; border: none; color: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(59,130,246,0.4);">
+      <span>💾</span> Lưu tất cả thay đổi
+    </button>
   </div>
+</div>
+
+<!-- Floating Toast Notification -->
+<div id="bulk-toast" style="display: none; position: fixed; top: 24px; right: 24px; background: #065f46; border: 1px solid #10b981; color: #ecfdf5; padding: 12px 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 10001; font-weight: bold; font-size: 0.9em; align-items: center; gap: 8px;">
+  <span>✅</span>
+  <span id="bulk-toast-msg">Đã lưu thay đổi thành công!</span>
 </div>
 
 {% include "campaign/_season_reveal_poster.html" %}
@@ -696,13 +705,26 @@
 
 {% block scripts %}
 <script>
-let currentEditingClubId = null;
+// State manager for bulk editing
+let pendingChanges = {};
+
+function scrollToClubsSection() {
+  const el = document.getElementById('clubs-inspector-section');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.style.transition = 'box-shadow 0.3s ease';
+    el.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.4)';
+    setTimeout(() => { el.style.boxShadow = 'none'; }, 1500);
+  }
+}
 
 function switchRegionTab(region) {
   document.querySelectorAll('.region-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.region-content-panel').forEach(p => p.classList.remove('active'));
   
-  event.target.classList.add('active');
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
   const panel = document.getElementById(`region-panel-${region}`);
   if (panel) panel.classList.add('active');
 }
@@ -711,50 +733,207 @@ function switchCpTab(region) {
   document.querySelectorAll('.cp-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.cp-content-panel').forEach(p => p.classList.remove('active'));
   
-  event.target.classList.add('active');
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
   const panel = document.getElementById(`cp-panel-${region}`);
   if (panel) panel.classList.add('active');
 }
 
+function updateClubState(clubId) {
+  const rInput = document.getElementById(`rating-input-${clubId}`);
+  const fInput = document.getElementById(`form-input-${clubId}`);
+  const effSpan = document.getElementById(`effective-display-${clubId}`);
+  const row = document.getElementById(`club-row-${clubId}`);
+  if (!rInput || !fInput || !effSpan) return;
 
-function editSingleClubForm(clubId, shortCode, currentForm) {
-  currentEditingClubId = clubId;
-  document.getElementById('modal-title').textContent = `Tùy chỉnh phong độ: ${shortCode}`;
-  document.getElementById('modal-form-input').value = currentForm || 0;
-  document.getElementById('form-modifier-modal').style.display = 'flex';
+  let rVal = parseInt(rInput.value, 10);
+  if (isNaN(rVal)) rVal = 80;
+  rVal = Math.max(50, Math.min(99, rVal));
+  rInput.value = rVal;
+
+  let fVal = parseInt(fInput.value, 10);
+  if (isNaN(fVal)) fVal = 0;
+  fVal = Math.max(-30, Math.min(30, fVal));
+  fInput.value = fVal;
+
+  // Update form color
+  if (fVal > 0) {
+    fInput.style.color = '#4ade80';
+  } else if (fVal < 0) {
+    fInput.style.color = '#f87171';
+  } else {
+    fInput.style.color = 'var(--dim)';
+  }
+
+  // Live preview effective rating
+  const eff = rVal + fVal;
+  effSpan.textContent = eff;
+  if (eff >= 90) effSpan.style.color = '#fbbf24';
+  else if (eff >= 80) effSpan.style.color = '#4ade80';
+  else if (eff >= 70) effSpan.style.color = '#60a5fa';
+  else effSpan.style.color = '#f87171';
+
+  // Compare with initial state
+  const initR = parseInt(rInput.dataset.initial, 10);
+  const initF = parseInt(fInput.dataset.initial, 10);
+
+  if (rVal !== initR || fVal !== initF) {
+    pendingChanges[clubId] = { story_rating: rVal, form_modifier: fVal };
+    if (row) {
+      row.style.background = 'rgba(59, 130, 246, 0.12)';
+      row.style.boxShadow = 'inset 3px 0 0 #3b82f6';
+    }
+  } else {
+    delete pendingChanges[clubId];
+    if (row) {
+      row.style.background = '';
+      row.style.boxShadow = 'none';
+    }
+  }
+
+  updateSaveBar();
 }
 
-function openFormModal() {
-  // Shortcut to tweak
-  alert("Bạn có thể bấm nút 'Chỉnh phong độ' ở từng đội tuyển trong bảng bên dưới để tinh chỉnh riêng cho từng đội trước khi sim giải!");
+function adjustRating(clubId, delta) {
+  const rInput = document.getElementById(`rating-input-${clubId}`);
+  if (!rInput) return;
+  let cur = parseInt(rInput.value, 10) || 80;
+  rInput.value = cur + delta;
+  updateClubState(clubId);
 }
 
-function closeFormModal() {
-  document.getElementById('form-modifier-modal').style.display = 'none';
-  currentEditingClubId = null;
+function adjustForm(clubId, delta) {
+  const fInput = document.getElementById(`form-input-${clubId}`);
+  if (!fInput) return;
+  let cur = parseInt(fInput.value, 10) || 0;
+  fInput.value = cur + delta;
+  updateClubState(clubId);
 }
 
-function setPresetForm(val) {
-  document.getElementById('modal-form-input').value = val;
+function setClubForm(clubId, val) {
+  const fInput = document.getElementById(`form-input-${clubId}`);
+  if (!fInput) return;
+  fInput.value = val;
+  updateClubState(clubId);
 }
 
-async function saveSingleClubForm() {
-  if (!currentEditingClubId) return;
-  const val = parseInt(document.getElementById('modal-form-input').value, 10) || 0;
-  
+function resetRegionForm(regionSlug) {
+  const panel = document.getElementById(`region-panel-${regionSlug}`);
+  if (!panel) return;
+  const formInputs = panel.querySelectorAll(`input[id^="form-input-"]`);
+  formInputs.forEach(input => {
+    const clubId = input.dataset.clubId;
+    input.value = 0;
+    updateClubState(clubId);
+  });
+}
+
+function updateSaveBar() {
+  const bar = document.getElementById('bulk-save-bar');
+  const countEl = document.getElementById('changed-clubs-count');
+  if (!bar || !countEl) return;
+
+  const count = Object.keys(pendingChanges).length;
+  countEl.textContent = count;
+  if (count > 0) {
+    bar.style.display = 'flex';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function cancelAllChanges() {
+  for (const clubId in pendingChanges) {
+    const rInput = document.getElementById(`rating-input-${clubId}`);
+    const fInput = document.getElementById(`form-input-${clubId}`);
+    const row = document.getElementById(`club-row-${clubId}`);
+    if (rInput) rInput.value = rInput.dataset.initial;
+    if (fInput) fInput.value = fInput.dataset.initial;
+    if (row) {
+      row.style.background = '';
+      row.style.boxShadow = 'none';
+    }
+    // Refresh display
+    const rVal = parseInt(rInput ? rInput.value : 80, 10);
+    const fVal = parseInt(fInput ? fInput.value : 0, 10);
+    const effSpan = document.getElementById(`effective-display-${clubId}`);
+    if (effSpan) {
+      const eff = rVal + fVal;
+      effSpan.textContent = eff;
+      if (eff >= 90) effSpan.style.color = '#fbbf24';
+      else if (eff >= 80) effSpan.style.color = '#4ade80';
+      else if (eff >= 70) effSpan.style.color = '#60a5fa';
+      else effSpan.style.color = '#f87171';
+    }
+    if (fInput) {
+      if (fVal > 0) fInput.style.color = '#4ade80';
+      else if (fVal < 0) fInput.style.color = '#f87171';
+      else fInput.style.color = 'var(--dim)';
+    }
+  }
+  pendingChanges = {};
+  updateSaveBar();
+}
+
+async function saveAllBulkChanges() {
+  const count = Object.keys(pendingChanges).length;
+  if (count === 0) return;
+
+  const saveBtn = document.getElementById('bulk-save-btn');
+  const originalText = saveBtn.innerHTML;
+  saveBtn.innerHTML = '<span>⏳</span> Đang lưu...';
+  saveBtn.disabled = true;
+
   try {
-    const res = await API.post(`/api/campaign/{{ campaign.id }}/form/update`, {
-      club_id: currentEditingClubId,
-      form_modifier: val
+    const res = await API.post(`/api/campaign/{{ campaign.id }}/clubs/bulk-update`, {
+      updates: pendingChanges
     });
-    if (res.success) {
-      window.location.reload();
+
+    if (res && res.success) {
+      // Update baseline dataset.initial
+      for (const clubId in pendingChanges) {
+        const rInput = document.getElementById(`rating-input-${clubId}`);
+        const fInput = document.getElementById(`form-input-${clubId}`);
+        const row = document.getElementById(`club-row-${clubId}`);
+        if (rInput) rInput.dataset.initial = rInput.value;
+        if (fInput) fInput.dataset.initial = fInput.value;
+        if (row) {
+          row.style.background = '';
+          row.style.boxShadow = 'none';
+        }
+      }
+
+      pendingChanges = {};
+      updateSaveBar();
+      showToast(`Đã lưu thay đổi cho ${res.updated_count || count} đội thành công!`);
     } else {
-      alert("Lỗi: " + (res.error || "Không thể cập nhật"));
+      alert("Lỗi khi lưu: " + (res.error || "Không thể cập nhật"));
     }
   } catch (err) {
     alert("Lỗi kết nối: " + err.message);
+  } finally {
+    saveBtn.innerHTML = originalText;
+    saveBtn.disabled = false;
   }
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('bulk-toast');
+  const toastMsg = document.getElementById('bulk-toast-msg');
+  if (!toast || !toastMsg) return;
+
+  toastMsg.textContent = msg;
+  toast.style.display = 'flex';
+  toast.style.opacity = '1';
+
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.4s ease';
+    toast.style.opacity = '0';
+    setTimeout(() => {
+      toast.style.display = 'none';
+    }, 400);
+  }, 3000);
 }
 </script>
 

@@ -12,7 +12,7 @@ Manages:
 
 import json
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Union
 from models import (
     db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
 )
@@ -183,24 +183,59 @@ def get_campaign_club_states(campaign_id: int, region_slug: Optional[str] = None
 
 
 def update_club_form(campaign_id: int, club_id: int, form_modifier: int) -> bool:
-    """Tweak a club's form modifier (-10 to +10) before a stage."""
+    """Tweak a club's form modifier (-30 to +30) before a stage."""
     state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=club_id).first()
     if not state:
         return False
-    state.form_modifier = max(-15, min(15, form_modifier))
+    state.form_modifier = max(-30, min(30, form_modifier))
     db.session.commit()
     return True
 
 
 def bulk_update_form(campaign_id: int, updates: Dict[int, int]) -> int:
-    """Batch update form modifiers for clubs."""
+    """Batch update form modifiers for clubs (-30 to +30)."""
     count = 0
     for club_id, form_val in updates.items():
         state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=club_id).first()
         if state:
-            state.form_modifier = max(-15, min(15, int(form_val)))
+            state.form_modifier = max(-30, min(30, int(form_val)))
             count += 1
     db.session.commit()
+    return count
+
+
+def bulk_update_campaign_clubs(campaign_id: int, updates: Dict[Union[int, str], Dict[str, Any]]) -> int:
+    """
+    Batch update story_rating (50-99) and form_modifier (-30 to +30) for campaign clubs.
+    updates format:
+    {
+        club_id: {
+            'story_rating': int (optional, 50-99),
+            'form_modifier': int (optional, -30 to 30)
+        }
+    }
+    """
+    count = 0
+    for club_id, fields in updates.items():
+        try:
+            cid = int(club_id)
+        except (ValueError, TypeError):
+            continue
+        state = CampaignClubState.query.filter_by(campaign_id=campaign_id, club_id=cid).first()
+        if not state:
+            continue
+        changed = False
+        if isinstance(fields, dict):
+            if 'form_modifier' in fields and fields['form_modifier'] is not None:
+                state.form_modifier = max(-30, min(30, int(fields['form_modifier'])))
+                changed = True
+            if 'story_rating' in fields and fields['story_rating'] is not None:
+                state.story_rating = max(50, min(99, int(fields['story_rating'])))
+                changed = True
+        if changed:
+            count += 1
+    if count > 0:
+        db.session.commit()
     return count
 
 

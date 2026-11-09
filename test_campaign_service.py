@@ -64,10 +64,14 @@ class TestCampaignService(unittest.TestCase):
         self.assertEqual(state.form_modifier, 5)
         self.assertEqual(state.effective_rating, state.story_rating + 5)
 
-        # Test clamp (-15 to +15)
-        update_club_form(campaign.id, state.club_id, 25)
+        # Test clamp (-30 to +30)
+        update_club_form(campaign.id, state.club_id, 45)
         db.session.refresh(state)
-        self.assertEqual(state.form_modifier, 15)
+        self.assertEqual(state.form_modifier, 30)
+
+        update_club_form(campaign.id, state.club_id, -50)
+        db.session.refresh(state)
+        self.assertEqual(state.form_modifier, -30)
 
         # Bulk update
         bulk_update_form(campaign.id, {state.club_id: -4})

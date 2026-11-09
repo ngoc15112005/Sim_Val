@@ -317,7 +317,7 @@ def register_routes(app):
 
     from services.campaign_service import (
         create_campaign, get_campaign, list_campaigns, get_stage_record,
-        get_campaign_club_states, update_club_form, bulk_update_form,
+        get_campaign_club_states, update_club_form, bulk_update_form, bulk_update_campaign_clubs,
         run_open_qualifier_stage, get_open_qualifier_data,
         resolve_oq_match, sim_oq_round, sim_oq_region,
         get_championship_leaderboard, get_champions_paris_qualifiers,
@@ -579,6 +579,19 @@ def register_routes(app):
 
         success = update_club_form(campaign_id, club_id, form_modifier)
         return jsonify({'success': success})
+
+    @app.route('/api/campaign/<int:campaign_id>/clubs/bulk-update', methods=['POST'])
+    def api_campaign_clubs_bulk_update(campaign_id):
+        data = request.get_json(silent=True) or {}
+        updates = data.get('updates', {})
+        if not updates or not isinstance(updates, dict):
+            return jsonify({'error': 'updates dictionary is required'}), 400
+
+        try:
+            count = bulk_update_campaign_clubs(campaign_id, updates)
+            return jsonify({'success': True, 'updated_count': count})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/campaign/<int:campaign_id>/stage/kickoff')
     def campaign_kickoff_view(campaign_id):
