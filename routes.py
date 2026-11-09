@@ -356,6 +356,13 @@ def register_routes(app):
         export_campaign_save,
         import_campaign_save,
     )
+    from services.storyline_engine import (
+        get_scenario_catalog,
+        generate_season_storylines_draft,
+        commit_season_storylines,
+        get_active_campaign_storylines,
+        delete_campaign_storyline,
+    )
 
     @app.route('/campaigns')
     def campaigns_list():
@@ -416,10 +423,18 @@ def register_routes(app):
         season_hosts = get_season_hosts(campaign.id, campaign.current_year)
         show_season_reveal = bool(request.args.get('reveal') == '1')
 
+        active_storylines = get_active_campaign_storylines(campaign_id, campaign.current_year)
+        club_storylines = {}
+        for st in active_storylines:
+            if st.get('club_id'):
+                club_storylines.setdefault(st['club_id'], []).append(st)
+
         return render_template(
             'campaign/detail.html',
             campaign=campaign,
             club_states=club_states,
+            active_storylines=active_storylines,
+            club_storylines=club_storylines,
             stages_info=stages_info,
             oq_data=oq_data,
             kickoff_data=kickoff_data,
@@ -592,6 +607,72 @@ def register_routes(app):
             return jsonify({'success': True, 'updated_count': count})
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/clubs')
+    def api_campaign_clubs_list(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        cstates = get_campaign_club_states(campaign_id)
+        clubs_list = []
+        for cs in cstates:
+            c = cs.club
+            clubs_list.append({
+                'id': c.id,
+                'name': c.name,
+                'short_code': c.short_code,
+                'region_id': c.region_id,
+                'region_name': c.region.name if c.region else '',
+                'region_slug': c.region.slug if c.region else '',
+                'base_rating': c.base_rating,
+                'story_rating': cs.story_rating,
+                'form_modifier': cs.form_modifier,
+            })
+        return jsonify({'success': True, 'clubs': clubs_list})
+
+    @app.route('/api/campaign/<int:campaign_id>/storylines/catalog')
+    def api_campaign_storylines_catalog(campaign_id):
+        return jsonify({'success': True, 'catalog': get_scenario_catalog()})
+
+    @app.route('/api/campaign/<int:campaign_id>/storylines/draft')
+    def api_campaign_storylines_draft(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        year = request.args.get('year', type=int) or campaign.current_year
+        try:
+            draft = generate_season_storylines_draft(campaign_id, target_year=year)
+            return jsonify({'success': True, 'draft': draft, 'year': year})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/storylines')
+    def api_campaign_storylines_list(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        year = request.args.get('year', type=int) or campaign.current_year
+        storylines = get_active_campaign_storylines(campaign_id, year=year)
+        return jsonify({'success': True, 'storylines': storylines, 'year': year})
+
+    @app.route('/api/campaign/<int:campaign_id>/storylines/commit', methods=['POST'])
+    def api_campaign_storylines_commit(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        data = request.get_json(silent=True) or {}
+        storylines = data.get('storylines', [])
+        year = data.get('year') or campaign.current_year
+        try:
+            res = commit_season_storylines(campaign_id, storylines, year=year)
+            return jsonify(res)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/storylines/<int:storyline_id>', methods=['DELETE'])
+    def api_campaign_storylines_delete(campaign_id, storyline_id):
+        success = delete_campaign_storyline(storyline_id)
+        return jsonify({'success': success})
 
     @app.route('/campaign/<int:campaign_id>/stage/kickoff')
     def campaign_kickoff_view(campaign_id):
@@ -1841,7 +1922,11 @@ def register_routes(app):
             return jsonify({'error': 'Campaign not found'}), 404
 
         try:
+            data = request.get_json(silent=True) or {}
+            storylines_payload = data.get('storylines')
             res = advance_campaign_to_next_year(campaign_id)
+            if storylines_payload and isinstance(storylines_payload, list):
+                commit_season_storylines(campaign_id, storylines_payload, year=campaign.current_year)
             return jsonify({'success': True, 'result': res})
         except Exception as e:
             return jsonify({'error': str(e)}), 400

@@ -25,6 +25,9 @@
     <button type="button" class="btn-sm" onclick="openSeasonPosterModal()" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(245, 158, 11, 0.15)); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);">
       <span>📜</span> Áp Phích Đăng Cai Mùa Giải
     </button>
+    <button type="button" class="btn-sm" onclick="openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.2)); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);">
+      <span>🎬</span> Phòng Đạo Diễn Kịch Bản
+    </button>
     <a href="/api/campaign/{{ campaign.id }}/export" class="btn-sm" style="text-decoration: none; padding: 10px 16px; font-weight: bold; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; display: flex; align-items: center; gap: 6px;" title="Tải file lưu (.json) của chiến dịch này về máy để dự phòng">
       <span>📥</span> Xuất Save Game
     </a>
@@ -38,6 +41,29 @@
       Danh sách mùa
     </a>
   </div>
+</div>
+
+<!-- VLR.GG Breaking News / Storyline Banner -->
+<div class="card" style="margin-bottom: 20px; padding: 12px 18px; background: linear-gradient(90deg, #1e1b4b 0%, #0f172a 100%); border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+  <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 280px;">
+    <span style="background: #ef4444; color: #fff; font-weight: 800; font-size: 0.72rem; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;">
+      <span style="width: 6px; height: 6px; background: #fff; border-radius: 50%; display: inline-block;"></span>
+      VLR.GG TIÊU ĐIỂM {{ campaign.current_year }}
+    </span>
+    <div style="font-size: 0.88rem; color: #f1f5f9; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+      {% if active_storylines and active_storylines|length > 0 %}
+        🔥 {{ active_storylines[0].headline }}
+        {% if active_storylines|length > 1 %}
+          <span style="color: #94a3b8; font-weight: normal; font-size: 0.8rem; margin-left: 8px;">(+{{ active_storylines|length - 1 }} kịch bản khác)</span>
+        {% endif %}
+      {% else %}
+        Chưa có kịch bản tiêu điểm nào cho mùa giải này. Bấm vào "Phòng Đạo Diễn" để máy tự động biên kịch ngay!
+      {% endif %}
+    </div>
+  </div>
+  <button type="button" onclick="openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})" style="padding: 7px 16px; font-size: 0.82rem; font-weight: 700; background: #3b82f6; color: #fff; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: background 0.15s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
+    <span>🎬</span> Xem & Biên Tập Kịch Bản ➔
+  </button>
 </div>
 
 <!-- Circuit Roadmap Timeline -->
@@ -628,12 +654,19 @@
               {% endif %}
             </td>
             <td>
-              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openTeamProfileModal({{ cs.club_id }})" title="Xem hồ sơ đội tuyển {{ cs.club.name }}">
+              <div class="swiss-team" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex-wrap: wrap;" onclick="openTeamProfileModal({{ cs.club_id }})" title="Xem hồ sơ đội tuyển {{ cs.club.name }}">
                 {% if cs.club.logo_url %}
                 <img class="team-logo-sm" src="{{ cs.club.logo_url }}" alt="" onerror="this.style.display='none'">
                 {% endif %}
                 <strong class="team-profile-trigger" style="color: #fff;">{{ cs.club.name }}</strong>
                 <span class="club-code" style="color: var(--dim); font-size: 0.85em;">({{ cs.club.short_code }})</span>
+                {% if club_storylines and cs.club_id in club_storylines %}
+                  {% for st in club_storylines[cs.club_id] %}
+                  <span class="dr-badge-{{ st.badge_color or 'amber' }}" style="font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; cursor: pointer;" title="{{ st.headline }}" onclick="event.stopPropagation(); openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})">
+                    {{ st.badge }}
+                  </span>
+                  {% endfor %}
+                {% endif %}
               </div>
             </td>
             <td>{{ r_slug|upper }}</td>
@@ -1031,4 +1064,7 @@ document.addEventListener('DOMContentLoaded', function() {
   flex-shrink: 0;
 }
 </style>
+
+{% include "campaign/_director_room_modal.html" %}
+
 {% endblock %}

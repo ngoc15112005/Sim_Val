@@ -30,7 +30,7 @@ def create_app():
             try:
                 from models import Region, Club, Role, Player, Tournament
                 from models import TournamentParticipant, Match, MatchMap, ClubRating
-                from models import Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
+                from models import Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement, CampaignStoryline
                 db.create_all()
 
                 # Graceful SQLite Schema Migration for GPR & History columns (SQLite only)

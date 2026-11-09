@@ -214,6 +214,8 @@ class Campaign(db.Model):
                               cascade='all, delete-orphan')
     placements = db.relationship('CampaignStagePlacement', backref='campaign', lazy=True,
                                  cascade='all, delete-orphan')
+    storylines = db.relationship('CampaignStoryline', backref='campaign', lazy=True,
+                                 cascade='all, delete-orphan')
 
     def to_dict(self):
         import json
@@ -419,5 +421,55 @@ class CampaignStagePlacement(db.Model):
             'club': self.club.to_dict() if self.club else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class CampaignStoryline(db.Model):
+    """Stores active and historical narrative storylines generated or committed for each campaign year."""
+    __tablename__ = 'campaign_storylines'
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    scenario_key = db.Column(db.String(50), nullable=False)
+    title = db.Column(db.String(150), nullable=False)
+    headline = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    badge = db.Column(db.String(50), nullable=True)
+    badge_color = db.Column(db.String(30), default='amber')
+    club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    target_type = db.Column(db.String(20), nullable=False)  # 'rating' or 'form'
+    impact_value = db.Column(db.Integer, default=0)
+    is_global = db.Column(db.Boolean, default=False)
+    metadata_json = db.Column(db.Text, default='{}')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    club = db.relationship('Club', backref='storylines')
+
+    def to_dict(self):
+        import json
+        meta = {}
+        try:
+            if self.metadata_json:
+                meta = json.loads(self.metadata_json)
+        except Exception:
+            pass
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'year': self.year,
+            'scenario_key': self.scenario_key,
+            'title': self.title,
+            'headline': self.headline,
+            'description': self.description,
+            'badge': self.badge,
+            'badge_color': self.badge_color,
+            'club_id': self.club_id,
+            'club': self.club.to_dict() if self.club else None,
+            'target_type': self.target_type,
+            'impact_value': self.impact_value,
+            'is_global': self.is_global,
+            'metadata': meta,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
 
 

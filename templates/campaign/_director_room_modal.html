@@ -1,0 +1,471 @@
+<!-- Director Room Modal (Phòng Đạo Diễn & Biên Tập Kịch Bản Mùa Giải) -->
+<div id="director-room-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(8, 10, 15, 0.88); z-index: 9999; backdrop-filter: blur(6px); justify-content: center; align-items: center; padding: 20px;">
+  <div class="card" style="width: 1050px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid #334155; border-radius: 14px; box-shadow: 0 25px 60px -15px rgba(0,0,0,0.85); overflow: hidden; animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+    
+    <!-- Modal Header -->
+    <div style="padding: 18px 24px; border-bottom: 1px solid #1e293b; background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; justify-content: center; font-size: 22px;">
+          🎬
+        </div>
+        <div>
+          <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px;">
+            <span>PHÒNG ĐẠO DIỄN KỊCH BẢN MÙA GIẢI</span>
+            <span id="dr-modal-year-badge" style="font-size: 0.75rem; font-weight: 700; background: #3b82f6; color: #fff; padding: 2px 8px; border-radius: 9999px;">2027</span>
+          </h2>
+          <p style="margin: 3px 0 0; font-size: 0.82rem; color: #94a3b8;">
+            Hệ thống tự động biên kịch các câu chuyện chấn động Esports — Bạn có toàn quyền duyệt, đổi đội hoặc tùy biến trước khi khởi tranh!
+          </p>
+        </div>
+      </div>
+      <button type="button" onclick="closeDirectorRoomModal()" style="background: none; border: none; color: #64748b; font-size: 24px; cursor: pointer; line-height: 1; padding: 4px; border-radius: 6px; transition: color 0.15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#64748b'">&times;</button>
+    </div>
+
+    <!-- Toolbar / Ticker -->
+    <div style="padding: 10px 24px; background: #131d36; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #cbd5e1; max-width: 60%;">
+        <span style="background: #ef4444; color: #fff; font-weight: 800; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; animation: pulse 2s infinite;">VLR.GG LIVE</span>
+        <span id="dr-ticker-text" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #e2e8f0; font-style: italic;">
+          Đang chuẩn bị kịch bản cho mùa giải...
+        </span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" onclick="rerollDirectorDraft()" id="btn-dr-reroll" style="padding: 7px 13px; font-size: 0.8rem; font-weight: 600; background: #1e293b; border: 1px solid #475569; color: #f8fafc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+          <span>🎲</span> Máy Đạo Diễn Lại (Random)
+        </button>
+        <button type="button" onclick="toggleAddStorylineForm()" id="btn-dr-add" style="padding: 7px 13px; font-size: 0.8rem; font-weight: 600; background: #334155; border: 1px solid #64748b; color: #f8fafc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;">
+          <span>➕</span> Thêm Kịch Bản
+        </button>
+      </div>
+    </div>
+
+    <!-- Manual Add Scenario Form (Hidden by default) -->
+    <div id="dr-add-form" style="display: none; padding: 14px 24px; background: #16203a; border-bottom: 1px solid #334155; animation: slideDown 0.2s ease;">
+      <div style="font-size: 0.85rem; font-weight: 700; color: #38bdf8; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <span>TỰ TAY CHỌN KỊCH BẢN VÀ GÁN CHO ĐỘI BẠN MUỐN:</span>
+        <span onclick="toggleAddStorylineForm()" style="cursor: pointer; color: #94a3b8; font-size: 0.8rem;">Đóng form ✕</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 2fr 2fr 1fr 1fr auto; gap: 10px; align-items: center;">
+        <div>
+          <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 3px;">Kịch bản (14 Archetypes)</label>
+          <select id="dr-add-scenario-select" style="width: 100%; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem;" onchange="onAddScenarioSelectChange()">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 3px;">Đội tuyển mục tiêu</label>
+          <select id="dr-add-club-select" style="width: 100%; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem;">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 3px;">Tác động vào</label>
+          <select id="dr-add-target-type" style="width: 100%; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem;">
+            <option value="rating">Sức mạnh gốc</option>
+            <option value="form">Phong độ</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 3px;">Mức +/-</label>
+          <input type="number" id="dr-add-impact" value="10" style="width: 100%; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 6px 10px; font-size: 0.82rem; text-align: center;">
+        </div>
+        <div style="padding-top: 17px;">
+          <button type="button" onclick="commitAddCustomStoryline()" style="padding: 7px 15px; font-weight: 700; font-size: 0.82rem; background: #0284c7; color: #fff; border: none; border-radius: 6px; cursor: pointer;">
+            Thêm
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Body: Storylines List -->
+    <div id="dr-modal-body" style="padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px;">
+      <!-- Populated dynamically via JS -->
+      <div style="text-align: center; padding: 40px; color: #64748b;">
+        <div style="font-size: 28px; margin-bottom: 10px; animation: spin 1s infinite;">⏳</div>
+        <div>Đang nạp dữ liệu Phòng Đạo Diễn...</div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 16px 24px; border-top: 1px solid #1e293b; background: #0b1120; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+      <div style="font-size: 0.8rem; color: #64748b;">
+        💡 <em>Mẹo: Bạn có thể sửa tít báo chí, đổi đội dính kịch bản hoặc chỉnh giá trị trực tiếp trên từng thẻ.</em>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button type="button" onclick="closeDirectorRoomModal()" style="padding: 9px 18px; font-size: 0.85rem; background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 7px; cursor: pointer;">
+          Để sau / Đóng
+        </button>
+        <button type="button" id="btn-dr-confirm-save" onclick="saveAndCommitStorylines()" style="padding: 9px 24px; font-size: 0.88rem; font-weight: 800; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; border: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+          <span>🚀</span> Chốt Kịch Bản & Khởi Tranh Mùa Giải
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+@keyframes popIn {
+  0% { transform: scale(0.96); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes slideDown {
+  0% { transform: translateY(-10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.dr-story-card {
+  background: #131d35;
+  border: 1px solid #283756;
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dr-story-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.dr-badge-amber { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+.dr-badge-purple { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+.dr-badge-emerald { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+.dr-badge-red { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.dr-badge-sky { background: rgba(14, 165, 233, 0.18); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); }
+.dr-badge-slate { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); }
+.dr-badge-rose { background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4); }
+.dr-badge-orange { background: rgba(249, 115, 22, 0.18); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
+.dr-badge-indigo { background: rgba(99, 102, 241, 0.18); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }
+</style>
+
+<script>
+// Biến toàn cục quản lý trạng thái Director Room
+let DR_STATE = {
+  campaignId: null,
+  year: 2027,
+  storylines: [],
+  catalog: {},
+  clubs: [],
+  isAdvanceFlow: false, // True nếu mở từ season_summary để sang năm mới
+};
+
+async function openDirectorRoom(campaignId, year, isAdvanceFlow = false) {
+  DR_STATE.campaignId = campaignId;
+  DR_STATE.year = year;
+  DR_STATE.isAdvanceFlow = isAdvanceFlow;
+
+  document.getElementById('dr-modal-year-badge').textContent = year;
+  document.getElementById('director-room-modal').style.display = 'flex';
+
+  // Nạp catalog và CLB nếu chưa có
+  if (Object.keys(DR_STATE.catalog).length === 0) {
+    try {
+      const catRes = await API.get(`/api/campaign/${campaignId}/storylines/catalog`);
+      if (catRes.success) DR_STATE.catalog = catRes.catalog;
+    } catch (e) {
+      console.error("Load catalog error:", e);
+    }
+  }
+
+  // Nạp danh sách CLB
+  if (DR_STATE.clubs.length === 0) {
+    try {
+      const clubsRes = await API.get(`/api/campaign/${campaignId}/clubs`);
+      if (clubsRes.success) DR_STATE.clubs = clubsRes.clubs;
+    } catch (e) {
+      console.error("Load clubs error:", e);
+    }
+  }
+
+  populateManualAddDropdowns();
+
+  // Kiểm tra xem năm này đã có kịch bản đã commit chưa
+  try {
+    const activeRes = await API.get(`/api/campaign/${campaignId}/storylines?year=${year}`);
+    if (activeRes.success && activeRes.storylines && activeRes.storylines.length > 0 && !isAdvanceFlow) {
+      DR_STATE.storylines = activeRes.storylines;
+      renderStorylinesList();
+      return;
+    }
+  } catch (e) {
+    console.warn("Check active storylines error:", e);
+  }
+
+  // Nếu chưa có hoặc là luồng Advance Year: Máy tự động tạo Draft mới!
+  await rerollDirectorDraft();
+}
+
+function closeDirectorRoomModal() {
+  document.getElementById('director-room-modal').style.display = 'none';
+}
+
+async function rerollDirectorDraft() {
+  const body = document.getElementById('dr-modal-body');
+  body.innerHTML = `
+    <div style="text-align: center; padding: 40px; color: #64748b;">
+      <div style="font-size: 28px; margin-bottom: 10px;">🎲</div>
+      <div>Máy đang phân tích mùa giải cũ và đạo diễn kịch bản mới...</div>
+    </div>`;
+
+  try {
+    const res = await API.get(`/api/campaign/${DR_STATE.campaignId}/storylines/draft?year=${DR_STATE.year}`);
+    if (res.success && res.draft) {
+      DR_STATE.storylines = res.draft;
+      renderStorylinesList();
+    } else {
+      body.innerHTML = `<div style="text-align: center; color: #f87171; padding: 30px;">Không thể tạo kịch bản: ${res.error || 'Lỗi không xác định'}</div>`;
+    }
+  } catch (e) {
+    body.innerHTML = `<div style="text-align: center; color: #f87171; padding: 30px;">Lỗi mạng: ${e.message}</div>`;
+  }
+}
+
+function renderStorylinesList() {
+  const body = document.getElementById('dr-modal-body');
+  if (!DR_STATE.storylines || DR_STATE.storylines.length === 0) {
+    body.innerHTML = `
+      <div style="text-align: center; padding: 50px 20px; color: #64748b;">
+        <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
+        <div style="font-size: 1.05rem; font-weight: 600; color: #94a3b8;">Chưa có kịch bản nào cho mùa giải này!</div>
+        <p style="font-size: 0.85rem; margin-top: 6px;">Bấm nút <strong>"🎲 Máy Đạo Diễn Lại"</strong> ở góc trên hoặc tự tay thêm kịch bản mới.</p>
+      </div>`;
+    updateTicker("Chưa có tin tức tiêu điểm cho mùa giải này.");
+    return;
+  }
+
+  // Cập nhật Ticker bằng tít đầu tiên
+  updateTicker(DR_STATE.storylines[0].headline);
+
+  let html = '';
+  DR_STATE.storylines.forEach((item, index) => {
+    const badgeColorClass = `dr-badge-${item.badge_color || 'amber'}`;
+    const isRating = item.target_type === 'rating';
+    const targetLabel = isRating ? 'Sức mạnh gốc (Rating)' : 'Phong độ (Form)';
+    const impactPrefix = item.impact_value > 0 ? `+${item.impact_value}` : `${item.impact_value}`;
+    const impactColor = item.impact_value > 0 ? '#34d399' : '#f87171';
+
+    html += `
+      <div class="dr-story-card" id="dr-card-${index}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span class="${badgeColorClass}" style="font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 9999px;">
+              ${item.badge || '📰 Tiêu Điểm'}
+            </span>
+            <span style="font-size: 0.75rem; color: #94a3b8; background: #1e293b; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;">
+              ${item.region_name || 'Quốc tế'}
+            </span>
+            <span style="font-size: 0.75rem; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 2px 8px; border-radius: 4px;">
+              🎯 Tác động: <strong>${targetLabel}</strong>
+            </span>
+          </div>
+
+          <button type="button" onclick="removeStoryline(${index})" title="Xóa kịch bản này" style="background: none; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 0.75rem; transition: all 0.15s;" onmouseover="this.style.color='#f87171'; this.style.borderColor='#f87171'" onmouseout="this.style.color='#94a3b8'; this.style.borderColor='#334155'">
+            🗑️ Xóa
+          </button>
+        </div>
+
+        <!-- Headline Input (Editable) -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; display: block; margin-bottom: 3px;">Tiêu đề Báo chí VLR.gg</label>
+          <input type="text" value="${escapeHtml(item.headline)}" onchange="updateStorylineField(${index}, 'headline', this.value)" style="width: 100%; background: #0b1120; border: 1px solid #334155; color: #f8fafc; font-weight: 700; font-size: 0.92rem; padding: 8px 12px; border-radius: 6px;">
+        </div>
+
+        <!-- Description Lore -->
+        <div style="margin-bottom: 12px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; background: #0b1120; border-radius: 6px; padding: 8px 12px; border: 1px solid #1e293b;">
+          ${item.description || ''}
+        </div>
+
+        <!-- Target Controls Grid -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: center; background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 8px; border: 1px solid #1e293b;">
+          <div>
+            <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 4px;">Đội tuyển nhận kịch bản:</label>
+            <select onchange="updateStorylineClub(${index}, this.value)" style="width: 100%; background: #0f172a; border: 1px solid #475569; color: #fff; border-radius: 6px; padding: 6px 10px; font-size: 0.85rem;">
+              ${renderClubOptions(item.club_id)}
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 4px;">Biên độ tác động (${targetLabel}):</label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" onclick="stepImpactValue(${index}, -2)" style="width: 28px; height: 28px; background: #1e293b; border: 1px solid #475569; color: #cbd5e1; border-radius: 4px; font-weight: bold; cursor: pointer;">-</button>
+              <input type="number" value="${item.impact_value}" onchange="updateStorylineField(${index}, 'impact_value', parseInt(this.value) || 0)" style="width: 60px; height: 28px; text-align: center; background: #0f172a; border: 1px solid #475569; color: ${impactColor}; font-weight: 800; font-size: 0.9rem; border-radius: 4px;">
+              <button type="button" onclick="stepImpactValue(${index}, 2)" style="width: 28px; height: 28px; background: #1e293b; border: 1px solid #475569; color: #cbd5e1; border-radius: 4px; font-weight: bold; cursor: pointer;">+</button>
+              <span style="font-size: 0.75rem; color: #64748b;">(Điểm)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+  });
+
+  body.innerHTML = html;
+}
+
+function updateTicker(text) {
+  const el = document.getElementById('dr-ticker-text');
+  if (el) el.textContent = text;
+}
+
+function renderClubOptions(selectedId) {
+  if (!DR_STATE.clubs || DR_STATE.clubs.length === 0) {
+    return `<option value="">Đang tải đội tuyển...</option>`;
+  }
+  return DR_STATE.clubs.map(c => `
+    <option value="${c.id}" ${c.id == selectedId ? 'selected' : ''}>
+      [${c.region_slug ? c.region_slug.toUpperCase() : ''}] ${c.short_code} - ${c.name} (Gốc: ${c.story_rating || c.base_rating})
+    </option>
+  `).join('');
+}
+
+function updateStorylineField(index, field, value) {
+  if (DR_STATE.storylines[index]) {
+    DR_STATE.storylines[index][field] = value;
+  }
+}
+
+function updateStorylineClub(index, newClubId) {
+  const cid = parseInt(newClubId);
+  const found = DR_STATE.clubs.find(c => c.id === cid);
+  if (found && DR_STATE.storylines[index]) {
+    DR_STATE.storylines[index].club_id = cid;
+    DR_STATE.storylines[index].club_name = found.name;
+    DR_STATE.storylines[index].club_short_code = found.short_code;
+    DR_STATE.storylines[index].region_name = found.region_name || 'Khu vực';
+    DR_STATE.storylines[index].region_slug = found.region_slug;
+    
+    // Tự động thay tên đội trong headline nếu có
+    const scKey = DR_STATE.storylines[index].scenario_key;
+    const scDef = DR_STATE.catalog[scKey];
+    if (scDef && scDef.headlines && scDef.headlines.length > 0) {
+      DR_STATE.storylines[index].headline = scDef.headlines[0].replace(/{club}/g, found.name).replace(/{region}/g, found.region_name || '');
+      renderStorylinesList();
+    }
+  }
+}
+
+function stepImpactValue(index, step) {
+  if (DR_STATE.storylines[index]) {
+    DR_STATE.storylines[index].impact_value = (DR_STATE.storylines[index].impact_value || 0) + step;
+    renderStorylinesList();
+  }
+}
+
+function removeStoryline(index) {
+  DR_STATE.storylines.splice(index, 1);
+  renderStorylinesList();
+}
+
+function toggleAddStorylineForm() {
+  const form = document.getElementById('dr-add-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function populateManualAddDropdowns() {
+  const sSelect = document.getElementById('dr-add-scenario-select');
+  if (sSelect && Object.keys(DR_STATE.catalog).length > 0) {
+    sSelect.innerHTML = Object.values(DR_STATE.catalog).map(s => `
+      <option value="${s.key}">${s.badge} - ${s.title} (${s.target_type === 'rating' ? 'Rating' : 'Form'})</option>
+    `).join('');
+  }
+
+  const cSelect = document.getElementById('dr-add-club-select');
+  if (cSelect && DR_STATE.clubs.length > 0) {
+    cSelect.innerHTML = DR_STATE.clubs.map(c => `
+      <option value="${c.id}">[${c.region_slug ? c.region_slug.toUpperCase() : ''}] ${c.short_code} - ${c.name}</option>
+    `).join('');
+  }
+}
+
+function onAddScenarioSelectChange() {
+  const sSelect = document.getElementById('dr-add-scenario-select');
+  const tSelect = document.getElementById('dr-add-target-type');
+  const iInput = document.getElementById('dr-add-impact');
+
+  const chosen = DR_STATE.catalog[sSelect.value];
+  if (chosen) {
+    tSelect.value = chosen.target_type;
+    iInput.value = chosen.default_impact;
+  }
+}
+
+function commitAddCustomStoryline() {
+  const sKey = document.getElementById('dr-add-scenario-select').value;
+  const cId = parseInt(document.getElementById('dr-add-club-select').value);
+  const targetType = document.getElementById('dr-add-target-type').value;
+  const impactVal = parseInt(document.getElementById('dr-add-impact').value) || 0;
+
+  const scDef = DR_STATE.catalog[sKey] || {};
+  const clubObj = DR_STATE.clubs.find(c => c.id === cId) || {};
+
+  const headline = (scDef.headlines && scDef.headlines.length > 0)
+    ? scDef.headlines[0].replace(/{club}/g, clubObj.name || '').replace(/{region}/g, clubObj.region_name || '')
+    : `${scDef.title}: ${clubObj.name}`;
+
+  const desc = (scDef.descriptions && scDef.descriptions.length > 0)
+    ? scDef.descriptions[0].replace(/{club}/g, clubObj.name || '').replace(/{region}/g, clubObj.region_name || '')
+    : '';
+
+  DR_STATE.storylines.push({
+    scenario_key: sKey,
+    title: scDef.title || 'Kịch bản Mới',
+    badge: scDef.badge || '📰 Tiêu Điểm',
+    badge_color: scDef.badge_color || 'amber',
+    target_type: targetType,
+    impact_value: impactVal,
+    club_id: cId,
+    club_name: clubObj.name,
+    club_short_code: clubObj.short_code,
+    region_name: clubObj.region_name || 'Khu vực',
+    region_slug: clubObj.region_slug || 'americas',
+    headline: headline,
+    description: desc,
+    is_global: false,
+  });
+
+  toggleAddStorylineForm();
+  renderStorylinesList();
+}
+
+async function saveAndCommitStorylines() {
+  const btn = document.getElementById('btn-dr-confirm-save');
+  btn.disabled = true;
+  btn.innerHTML = `<span>⏳</span> Đang chốt kịch bản...`;
+
+  try {
+    if (DR_STATE.isAdvanceFlow) {
+      // Nếu là luồng sang năm mới từ season_summary:
+      const res = await API.post(`/api/campaign/${DR_STATE.campaignId}/advance-year`, {
+        storylines: DR_STATE.storylines
+      });
+      if (res.success) {
+        window.location.href = `/campaign/${DR_STATE.campaignId}?reveal=1`;
+        return;
+      } else {
+        alert("Lỗi khi chuyển mùa giải: " + (res.error || 'Unknown error'));
+      }
+    } else {
+      // Nếu là lưu kịch bản của mùa giải hiện tại:
+      const res = await API.post(`/api/campaign/${DR_STATE.campaignId}/storylines/commit`, {
+        year: DR_STATE.year,
+        storylines: DR_STATE.storylines
+      });
+      if (res.success) {
+        closeDirectorRoomModal();
+        window.location.reload();
+        return;
+      } else {
+        alert("Lỗi khi lưu kịch bản: " + (res.error || 'Unknown error'));
+      }
+    }
+  } catch (e) {
+    alert("Lỗi kết nối: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>🚀</span> Chốt Kịch Bản & Khởi Tranh Mùa Giải`;
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+</script>
