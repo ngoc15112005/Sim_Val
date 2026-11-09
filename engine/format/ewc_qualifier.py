@@ -317,7 +317,7 @@ def get_phase2_bracket_templates() -> List[Dict[str, Any]]:
             'label': 'Chung kết nhánh thua (Tranh vé EWC)',
             'team_a_source': {'type': 'match_loser', 'value': 'p2_ub_f'},
             'team_b_source': {'type': 'match_winner', 'value': 'p2_lb_sf'},
-            'bo': 5,
+            'bo': 3,
             'is_decider': True,
         },
         # Grand Final (1 match) -> Winner is EWC Pool 3, Loser is EWC Pool 4
@@ -329,7 +329,7 @@ def get_phase2_bracket_templates() -> List[Dict[str, Any]]:
             'label': 'Tổng Chung kết EWC Qualifier',
             'team_a_source': {'type': 'match_winner', 'value': 'p2_ub_f'},
             'team_b_source': {'type': 'match_winner', 'value': 'p2_lb_f'},
-            'bo': 5,
+            'bo': 3,
             'is_decider': True,
         },
     ]

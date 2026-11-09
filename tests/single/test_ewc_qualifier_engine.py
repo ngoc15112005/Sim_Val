@@ -74,6 +74,15 @@ class TestEWCQualifierEngine(unittest.TestCase):
         self.assertEqual(m1['winner_id'], 1)
         self.assertEqual(qf1['team_a']['id'], 1)
 
+    def test_all_matches_are_bo3(self):
+        p1 = get_phase1_bracket_templates()
+        p2 = get_phase2_bracket_templates()
+        self.assertTrue(all(t['bo'] == 3 for t in p1))
+        self.assertTrue(all(t['bo'] == 3 for t in p2))
+        state = init_ewc_qualifier_region_state('pacific', self.phase1_teams, self.phase2_direct)
+        self.assertTrue(all(m['bo'] == 3 for m in state['phase1_matches']))
+        self.assertTrue(all(m['bo'] == 3 for m in state['phase2_matches']))
+
 
 if __name__ == '__main__':
     unittest.main()

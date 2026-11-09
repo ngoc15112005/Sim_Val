@@ -2293,6 +2293,22 @@ def get_ewc_qualifier_data(campaign_id: int, year: Optional[int] = None) -> Opti
         # Self-heal / state recovery: if all 28 matches are completed for a region, ensure status and matches_completed reflect this
         updated = False
         for r_slug, reg_data in data.get('regions', {}).items():
+            for m in reg_data.get('phase2_matches', []):
+                if m.get('round_name') in ('p2_lb_f', 'p2_gf') and m.get('bo') != 3:
+                    m['bo'] = 3
+                    if m.get('status') == 'completed':
+                        sc_a = m.get('team_a_score', 0)
+                        sc_b = m.get('team_b_score', 0)
+                        if sc_a > sc_b:
+                            m['team_a_score'] = 2
+                            m['team_b_score'] = 1 if sc_b >= 1 else 0
+                        elif sc_b > sc_a:
+                            m['team_b_score'] = 2
+                            m['team_a_score'] = 1 if sc_a >= 1 else 0
+                        if len(m.get('maps', [])) > 3:
+                            m['maps'] = m['maps'][:3]
+                    updated = True
+
             is_done, _ = is_stage_region_actually_completed('ewc_qualifier', reg_data)
             if is_done:
                 if not reg_data.get('matches_completed') or reg_data.get('status') != 'completed':
