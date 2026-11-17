@@ -114,16 +114,19 @@ from engine.format.champion_sim import (
 
 
 def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 2027) -> Campaign:
-    """Initialize a brand-new Story Mode campaign.
+    """Initialize a brand-new Story Mode campaign (v2.0 with Player System).
     
-    Copies all clubs into isolated CampaignClubState instances with:
+    Copies all clubs into isolated CampaignClubState instances and seeds full Player rosters:
     - story_rating initialized from Club.current_rating
-    - form_modifier = 0
-    - championship_points = 0
-    - is_partner set according to official VCT 2027 32-team partner list.
+    - player_bonus calculated from 5 Starters (each 0..+5, never negative)
+    - salary_cap set based on Partner status & Org Tier
     """
+    from engine.player_engine import get_club_salary_cap
+    from services.player_service import initialize_campaign_players
+
     campaign = Campaign(
         name=name,
+        schema_version=Config.CURRENT_CAMPAIGN_SCHEMA_VERSION,
         current_year=start_year,
         current_stage='open_qualifier',
         status='active'
@@ -146,11 +149,14 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
 
         base_r = club.current_rating or club.base_rating or 80
         t_elo = round(base_r * 18.75, 1)
+        sal_cap = get_club_salary_cap(club.short_code, is_partner, reg_slug or 'pacific')
 
         state = CampaignClubState(
             campaign_id=campaign.id,
             club_id=club.id,
             story_rating=base_r,
+            player_bonus=0,
+            salary_cap=sal_cap,
             form_modifier=0,
             championship_points=0,
             is_partner=is_partner,
@@ -161,7 +167,10 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
         )
         db.session.add(state)
 
-    # Initialize Stage 1: Open Qualifier
+    db.session.flush()
+    initialize_campaign_players(campaign.id, start_year=start_year)
+
+    # Initialize Stage 1: Open Qualifier (after players & player_bonus are populated)
     oq_stage = CampaignStage(
         campaign_id=campaign.id,
         year=start_year,
@@ -726,7 +735,7 @@ def resolve_oq_match(campaign_id: int, region_slug: str, match_id: str,
 
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_open_qualifier_match(
@@ -760,7 +769,7 @@ def sim_oq_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) 
 
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -788,7 +797,7 @@ def sim_oq_region(campaign_id: int, region_slug: str, auto_confirm: bool = True)
 
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -1076,7 +1085,7 @@ def resolve_ko_match(campaign_id: int, region_slug: str, match_id: str,
 
     reg_data = data['regional_results'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_kickoff_match(
@@ -1106,7 +1115,7 @@ def sim_ko_round(campaign_id: int, region_slug: str, auto_confirm: bool = True) 
     reg_data = data['regional_results'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_kickoff_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -1130,7 +1139,7 @@ def sim_ko_region(campaign_id: int, region_slug: str, auto_confirm: bool = True)
     reg_data = data['regional_results'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_kickoff_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -1169,10 +1178,12 @@ def run_kickoff_stage(campaign_id: int, region_slug: Optional[str] = None,
             c_id = t['id']
             if c_id in states:
                 t['story_rating'] = states[c_id].story_rating
+                t['player_bonus'] = states[c_id].player_bonus or 0
+                t['roster_base_rating'] = states[c_id].roster_base_rating
                 t['form_modifier'] = states[c_id].form_modifier
                 t['effective_rating'] = states[c_id].effective_rating
 
-        rating_lookup = {t['id']: t['story_rating'] for t in roster}
+        rating_lookup = {t['id']: t.get('roster_base_rating') or t['story_rating'] for t in roster}
         form_lookup = {t['id']: t['form_modifier'] for t in roster}
 
         existing_overrides = data['manual_overrides'].get(r_slug, {})
@@ -1271,6 +1282,8 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
                 'regional_seed': 1,
                 'title': f'{r_slug.upper()} Kickoff Champion',
                 'story_rating': cs1.story_rating if cs1 else qualifiers[0].get('story_rating', 80),
+                'player_bonus': cs1.player_bonus or 0 if cs1 else 0,
+                'roster_base_rating': cs1.roster_base_rating if cs1 else qualifiers[0].get('story_rating', 80),
                 'form_modifier': cs1.form_modifier if cs1 else 0,
                 'effective_rating': cs1.effective_rating if cs1 else 80,
                 'logo_url': cs1.club.logo_url if cs1 and cs1.club else qualifiers[0].get('logo_url'),
@@ -1284,6 +1297,8 @@ def _prepare_major_stage(campaign: Campaign, kickoff_regional_results: Dict[str,
                 'regional_seed': 2,
                 'title': f'{r_slug.upper()} Kickoff Runner-up',
                 'story_rating': cs2.story_rating if cs2 else qualifiers[1].get('story_rating', 80),
+                'player_bonus': cs2.player_bonus or 0 if cs2 else 0,
+                'roster_base_rating': cs2.roster_base_rating if cs2 else qualifiers[1].get('story_rating', 80),
                 'form_modifier': cs2.form_modifier if cs2 else 0,
                 'effective_rating': cs2.effective_rating if cs2 else 80,
                 'logo_url': cs2.club.logo_url if cs2 and cs2.club else qualifiers[1].get('logo_url'),
@@ -1399,6 +1414,33 @@ def _check_and_finalize_major(campaign: Campaign, stage: CampaignStage, data: Di
     stage.stage_data = json.dumps(data)
 
 
+def _sync_intl_stage_ratings(campaign_id: int, res_dict: Dict[str, Any]):
+    """Refresh roster_base_rating, player_bonus, story_rating and form_modifier inside an international stage dict."""
+    if not res_dict or not isinstance(res_dict, dict):
+        return
+    states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign_id).all()}
+
+    def _upd(t_obj):
+        if not isinstance(t_obj, dict):
+            return
+        cid = t_obj.get('id') or t_obj.get('club_id')
+        cs = states.get(cid)
+        if cs:
+            t_obj['story_rating'] = cs.story_rating
+            t_obj['player_bonus'] = cs.player_bonus or 0
+            t_obj['roster_base_rating'] = cs.roster_base_rating
+            t_obj['form_modifier'] = cs.form_modifier
+            t_obj['effective_rating'] = cs.effective_rating
+
+    for list_key in ('matches', 'playoff_matches', 'swiss_matches', 'group_matches', 'bracket_matches', 'standings'):
+        for item in res_dict.get(list_key, []):
+            if isinstance(item, dict):
+                _upd(item.get('team_a'))
+                _upd(item.get('team_b'))
+                _upd(item.get('team'))
+                _upd(item)
+
+
 def resolve_major_match_interactive(campaign_id: int, match_id: str,
                                     winner_id: Optional[int] = None,
                                     maps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
@@ -1413,6 +1455,7 @@ def resolve_major_match_interactive(campaign_id: int, match_id: str,
 
     data = get_major_data(campaign_id)
     major_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, major_data)
 
     resolved = resolve_major_match(major_data, match_id, winner_id=winner_id, maps=maps)
 
@@ -1433,6 +1476,7 @@ def sim_major_round_interactive(campaign_id: int, auto_confirm: bool = True) -> 
 
     data = get_major_data(campaign_id)
     major_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, major_data)
 
     sim_count = sim_major_round(major_data)
 
@@ -1453,6 +1497,7 @@ def sim_major_tournament_interactive(campaign_id: int, auto_confirm: bool = True
 
     data = get_major_data(campaign_id)
     major_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, major_data)
 
     sim_major_remaining(major_data)
 
@@ -1497,6 +1542,8 @@ def run_major_stage(campaign_id: int, manual_overrides: Optional[Dict[str, Any]]
         c_id = t['id']
         if c_id in states:
             t['story_rating'] = states[c_id].story_rating
+            t['player_bonus'] = states[c_id].player_bonus or 0
+            t['roster_base_rating'] = states[c_id].roster_base_rating
             t['form_modifier'] = states[c_id].form_modifier
             t['effective_rating'] = states[c_id].effective_rating
             if states[c_id].club and states[c_id].club.logo_url:
@@ -1721,7 +1768,7 @@ def resolve_oq_stage1_match(campaign_id: int, region_slug: str, match_id: str,
     data = get_oq_stage1_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_open_qualifier_match(
@@ -1749,7 +1796,7 @@ def sim_oq_stage1_round(campaign_id: int, region_slug: str, auto_confirm: bool =
     data = get_oq_stage1_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -1771,7 +1818,7 @@ def sim_oq_stage1_region(campaign_id: int, region_slug: str, auto_confirm: bool 
     data = get_oq_stage1_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -1792,7 +1839,7 @@ def sim_oq_stage1_all(campaign_id: int, auto_confirm: bool = True) -> Dict[str, 
 
     data = get_oq_stage1_data(campaign_id)
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     for r_slug in ['pacific', 'americas', 'emea', 'china']:
@@ -1970,6 +2017,8 @@ def _prepare_master_stage(campaign: Campaign, s1_regional_results: Dict[str, Any
                 'regional_seed': q.get('regional_seed', 1),
                 'title': q.get('title'),
                 'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
+                'player_bonus': cs.player_bonus or 0 if cs else 0,
+                'roster_base_rating': cs.roster_base_rating if cs else t.get('story_rating', 80),
                 'form_modifier': cs.form_modifier if cs else 0,
                 'effective_rating': cs.effective_rating if cs else 80,
                 'logo_url': cs.club.logo_url if cs and cs.club else t.get('logo_url'),
@@ -2027,6 +2076,8 @@ def _prepare_ewc_stage(campaign: Campaign, s1_regional_results: Dict[str, Any]):
                 'pool': q.get('pool', 1),
                 'title': q.get('title'),
                 'story_rating': cs.story_rating if cs else t.get('story_rating', 80),
+                'player_bonus': cs.player_bonus or 0 if cs else 0,
+                'roster_base_rating': cs.roster_base_rating if cs else t.get('story_rating', 80),
                 'form_modifier': cs.form_modifier if cs else 0,
                 'effective_rating': cs.effective_rating if cs else 80,
                 'logo_url': cs.club.logo_url if cs and cs.club else t.get('logo_url'),
@@ -2135,7 +2186,7 @@ def resolve_stage1_match_interactive(campaign_id: int, region_slug: str, match_i
     reg_data = data['regional_results'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_stage1_match(
@@ -2165,7 +2216,7 @@ def sim_stage1_round_interactive(campaign_id: int, region_slug: str, auto_confir
     reg_data = data['regional_results'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage1_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -2189,7 +2240,7 @@ def sim_stage1_region_interactive(campaign_id: int, region_slug: str, auto_confi
     reg_data = data['regional_results'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage1_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -2211,7 +2262,7 @@ def sim_stage1_all_interactive(campaign_id: int, auto_confirm: bool = True) -> D
 
     data = get_stage1_data(campaign_id)
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     total_sim = 0
@@ -2462,7 +2513,7 @@ def resolve_ewc_qualifier_match_interactive(campaign_id: int, region_slug: str, 
     reg_data = data['regions'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_ewc_qualifier_match(
@@ -2492,7 +2543,7 @@ def sim_ewc_qualifier_round_interactive(campaign_id: int, region_slug: str, auto
     reg_data = data['regions'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved_matches = sim_ewc_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -2516,7 +2567,7 @@ def sim_ewc_qualifier_region_interactive(campaign_id: int, region_slug: str, aut
     reg_data = data['regions'][region_slug]
 
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     count = sim_ewc_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -2538,7 +2589,7 @@ def sim_ewc_qualifier_all_interactive(campaign_id: int, auto_confirm: bool = Tru
 
     data = get_ewc_qualifier_data(campaign_id)
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     total_sim = 0
@@ -2656,6 +2707,7 @@ def resolve_master_match_interactive(campaign_id: int, match_id: str,
         raise ValueError("Masters Toronto data not initialized")
 
     master_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, master_data)
     resolved = resolve_master_match(master_data, match_id, winner_id=winner_id, maps=maps)
 
     _check_and_finalize_master(campaign, stage, data)
@@ -2678,6 +2730,7 @@ def sim_master_round_interactive(campaign_id: int, auto_confirm: bool = True) ->
         raise ValueError("Masters Toronto data not initialized")
 
     master_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, master_data)
     sim_count = sim_master_round(master_data)
 
     _check_and_finalize_master(campaign, stage, data, auto_confirm=auto_confirm)
@@ -2700,6 +2753,7 @@ def sim_master_tournament_interactive(campaign_id: int, auto_confirm: bool = Tru
         raise ValueError("Masters Toronto data not initialized")
 
     master_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, master_data)
     sim_master_remaining(master_data)
 
     _check_and_finalize_master(campaign, stage, data, auto_confirm=auto_confirm)
@@ -2805,6 +2859,7 @@ def resolve_ewc_match_interactive(campaign_id: int, match_id: str,
         raise ValueError("EWC data not initialized")
 
     ewc_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, ewc_data)
     resolved = resolve_ewc_match(ewc_data, match_id, winner_id=winner_id, maps=maps)
 
     _check_and_finalize_ewc(campaign, stage, data)
@@ -2827,6 +2882,7 @@ def sim_ewc_round_interactive(campaign_id: int, auto_confirm: bool = True) -> Di
         raise ValueError("EWC data not initialized")
 
     ewc_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, ewc_data)
     sim_count = sim_ewc_round(ewc_data)
 
     _check_and_finalize_ewc(campaign, stage, data, auto_confirm=auto_confirm)
@@ -2849,6 +2905,7 @@ def sim_ewc_tournament_interactive(campaign_id: int, auto_confirm: bool = True) 
         raise ValueError("EWC data not initialized")
 
     ewc_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, ewc_data)
     sim_ewc_remaining(ewc_data)
 
     _check_and_finalize_ewc(campaign, stage, data, auto_confirm=auto_confirm)
@@ -2944,6 +3001,8 @@ def get_championship_leaderboard(campaign_id: int, region_slug: Optional[str] = 
             'is_partner': s.is_partner,
             'championship_points': s.championship_points or 0,
             'story_rating': s.story_rating,
+            'player_bonus': s.player_bonus or 0,
+            'roster_base_rating': s.roster_base_rating,
             'effective_rating': s.effective_rating,
             'stage2_rank': ranks.get('stage2_playoffs'),
             'master_rank': ranks.get('master'),
@@ -3128,7 +3187,7 @@ def resolve_oq_stage2_match(campaign_id: int, region_slug: str, match_id: str,
     data = get_oq_stage2_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_open_qualifier_match(
@@ -3156,7 +3215,7 @@ def sim_oq_stage2_round(campaign_id: int, region_slug: str, auto_confirm: bool =
     data = get_oq_stage2_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_open_qualifier_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -3178,7 +3237,7 @@ def sim_oq_stage2_region(campaign_id: int, region_slug: str, auto_confirm: bool 
     data = get_oq_stage2_data(campaign_id)
     reg_data = data['regions'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_open_qualifier_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -3199,7 +3258,7 @@ def sim_oq_stage2_all(campaign_id: int, auto_confirm: bool = True) -> Dict[str, 
 
     data = get_oq_stage2_data(campaign_id)
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     for r_slug in ['pacific', 'americas', 'emea', 'china']:
@@ -3521,7 +3580,7 @@ def resolve_stage2_match_interactive(campaign_id: int, region_slug: str, match_i
     data = get_stage2_data(campaign_id)
     reg_data = data['regional_results'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     resolved = resolve_stage2_match(
@@ -3549,7 +3608,7 @@ def sim_stage2_round_interactive(campaign_id: int, region_slug: str, auto_confir
     data = get_stage2_data(campaign_id)
     reg_data = data['regional_results'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage2_round(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -3571,7 +3630,7 @@ def sim_stage2_region_interactive(campaign_id: int, region_slug: str, auto_confi
     data = get_stage2_data(campaign_id)
     reg_data = data['regional_results'][region_slug]
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     sim_count = sim_stage2_remaining(reg_data, rating_lookup=rating_lookup, form_lookup=form_lookup)
@@ -3592,7 +3651,7 @@ def sim_stage2_all_interactive(campaign_id: int, auto_confirm: bool = True) -> D
 
     data = get_stage2_data(campaign_id)
     club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
-    rating_lookup = {cs.club_id: cs.story_rating for cs in club_states}
+    rating_lookup = {cs.club_id: cs.roster_base_rating for cs in club_states}
     form_lookup = {cs.club_id: cs.form_modifier for cs in club_states}
 
     total_sim = 0
@@ -3742,6 +3801,7 @@ def resolve_champion_match_interactive(campaign_id: int, match_id: str,
 
     data = get_champion_data(campaign_id)
     champ_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, champ_data)
 
     resolved = resolve_champion_match(champ_data, match_id, winner_id=winner_id, maps=maps)
     _check_and_finalize_champion(campaign, stage, data)
@@ -3761,6 +3821,7 @@ def sim_champion_round_interactive(campaign_id: int, auto_confirm: bool = True) 
 
     data = get_champion_data(campaign_id)
     champ_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, champ_data)
 
     sim_count = sim_champion_round(champ_data)
     _check_and_finalize_champion(campaign, stage, data, auto_confirm=auto_confirm)
@@ -3780,6 +3841,7 @@ def sim_champion_tournament_interactive(campaign_id: int, auto_confirm: bool = T
 
     data = get_champion_data(campaign_id)
     champ_data = data['result']
+    _sync_intl_stage_ratings(campaign_id, champ_data)
     sim_champion_remaining(champ_data)
 
     _check_and_finalize_champion(campaign, stage, data, auto_confirm=auto_confirm)
@@ -4207,12 +4269,16 @@ def get_season_summary_data(
 # Multi-Year Campaign Rollover (Advance to Next Season)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
+def advance_campaign_to_next_year(
+    campaign_id: int,
+    personnel_decisions: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Advance campaign to Year N+1:
     - Archive current season summary into Hall of Fame
     - Increment current_year
     - Reset current_stage to 'open_qualifier'
     - Age ratings with mean regression (carryover) and reset seasonal points
+    - Apply Pre-season Player Lifecycle decisions (retirements, comebacks, role/Flex evolutions, rookies, AI transfers)
     - Initialize next year's Open Qualifier
     """
     campaign = get_campaign(campaign_id)
@@ -4303,6 +4369,17 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
         cs.win_streak = 0
         cs.power_score = calculate_composite_power_score(cs.team_elo, 1500.0, 0)
         cs.power_rating = power_score_to_ovr(cs.power_score)
+
+    # 3b. Run Pre-season Player Lifecycle (Retirements, Comebacks, Role Evolutions, Rookies & AI Free Agency)
+    from models import CampaignPlayer
+    if CampaignPlayer.query.filter_by(campaign_id=campaign.id).count() > 0 or personnel_decisions is not None:
+        from services.player_service import commit_preseason_personnel_decisions
+        commit_preseason_personnel_decisions(
+            campaign.id,
+            decisions=personnel_decisions,
+            target_year=campaign.current_year,
+            run_ai_transfers=True,
+        )
 
     # 4. Initialize new year Open Qualifier
     new_oq_stage = CampaignStage(

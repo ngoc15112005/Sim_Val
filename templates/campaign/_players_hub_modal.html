@@ -1,0 +1,368 @@
+<!-- Players Hub & Custom Player Creator Modal (Player System v2.0) -->
+<div id="players-hub-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(4px); z-index: 9992; justify-content: center; align-items: center; padding: 16px;">
+  <div class="card" style="width: 1180px; max-width: 98vw; max-height: 92vh; display: flex; flex-direction: column; background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 12px; overflow: hidden;">
+    
+    <!-- Header -->
+    <div style="padding: 16px 22px; background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 27, 75, 0.9)); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <h3 style="margin: 0; color: #fff; font-size: 1.25em; display: flex; align-items: center; gap: 8px;">
+          <span>👥</span> Trung Tâm Tuyển Thủ VCT (Pool &amp; Tạo Tuyển Thủ Mới)
+        </h3>
+        <div id="phm-counts-bar" style="font-size: 0.84em; color: var(--dim); margin-top: 5px; display: flex; gap: 14px; flex-wrap: wrap;">
+          <span>Đang tải dữ liệu tuyển thủ...</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button type="button" onclick="openCustomPlayerCreator(PHM_STATE.campaignId, null, () => phmLoadPlayers())" style="padding: 8px 14px; background: linear-gradient(135deg, #9333ea, #6366f1); color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          + ✨ Tự Tạo Tuyển Thủ
+        </button>
+        <button type="button" onclick="closePlayersHubModal()" style="background: transparent; border: 1px solid var(--border); color: var(--dim); width: 32px; height: 32px; border-radius: 6px; cursor: pointer;">✕</button>
+      </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div style="padding: 12px 22px; background: rgba(15, 23, 42, 0.65); border-bottom: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="text" id="phm-search" placeholder="Tìm theo IGN..." oninput="phmDebounceLoad()" style="width: 210px; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85em;">
+      <select id="phm-status" onchange="phmLoadPlayers()" style="padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85em;">
+        <option value="all">Tất cả trạng thái</option>
+        <option value="active">🔥 Đang thi đấu (CLB)</option>
+        <option value="free_agent">🛒 Tự do (Free Agent)</option>
+        <option value="retired">🕊️ Đã giải nghệ</option>
+      </select>
+      <select id="phm-region" onchange="phmLoadPlayers()" style="padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85em;">
+        <option value="all">Tất cả Khu vực</option>
+        <option value="pacific">Pacific</option>
+        <option value="americas">Americas</option>
+        <option value="emea">EMEA</option>
+        <option value="china">China</option>
+      </select>
+      <select id="phm-role" onchange="phmLoadPlayers()" style="padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85em;">
+        <option value="all">Tất cả Role</option>
+        <option value="Duelist">Duelist</option>
+        <option value="Initiator">Initiator</option>
+        <option value="Controller">Controller</option>
+        <option value="Sentinel">Sentinel</option>
+        <option value="Flex">✨ Flex</option>
+      </select>
+      <span id="phm-result-badge" style="margin-left: auto; font-size: 0.82em; color: var(--dim);"></span>
+    </div>
+
+    <!-- Table Body -->
+    <div style="flex: 1; overflow-y: auto; padding: 0 22px 18px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.86em; margin-top: 8px;">
+        <thead style="position: sticky; top: 0; background: var(--surface); z-index: 2;">
+          <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
+            <th style="padding: 10px 8px;">Tuyển thủ (IGN)</th>
+            <th style="padding: 10px 8px; text-align: center;">Quốc tịch</th>
+            <th style="padding: 10px 8px; text-align: center;">Tuổi</th>
+            <th style="padding: 10px 8px;">Vai trò</th>
+            <th style="padding: 10px 8px; text-align: center;">Bonus (0..+5)</th>
+            <th style="padding: 10px 8px; text-align: right;">Lương</th>
+            <th style="padding: 10px 8px;">CLB / Trạng thái</th>
+            <th style="padding: 10px 8px;">Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody id="phm-table-body"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- Custom Player Creator Sub-Modal -->
+<div id="custom-player-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.9); z-index: 9998; justify-content: center; align-items: center; padding: 16px;">
+  <div class="card" style="width: 560px; max-width: 96vw; background: var(--surface); border: 1px solid rgba(168, 85, 247, 0.55); border-radius: 12px; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.7);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h3 style="margin: 0; color: #fff; font-size: 1.15em;">✨ Tự Tạo Tuyển Thủ Mới</h3>
+      <button type="button" onclick="closeCustomPlayerCreator()" style="background: transparent; border: 1px solid var(--border); color: var(--dim); width: 28px; height: 28px; border-radius: 6px; cursor: pointer;">✕</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 110px; gap: 12px; margin-bottom: 12px;">
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Tên thi đấu (IGN) *</label>
+        <input type="text" id="cp-ign" placeholder="VD: TenZVN, ShadowX..." style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Tuổi (16-38)</label>
+        <input type="number" id="cp-age" min="16" max="38" value="18" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Quốc tịch / Khu vực</label>
+        <select id="cp-nationality" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;"></select>
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Chỉ số cộng thêm (0 đến +5)</label>
+        <select id="cp-bonus" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <option value="0">+0 (Role player / Rookie · $60K)</option>
+          <option value="1">+1 (Đạt chuẩn giải · $110K)</option>
+          <option value="2">+2 (Trụ cột ổn định · $180K)</option>
+          <option value="3">+3 (Ngôi sao khu vực · $280K)</option>
+          <option value="4">+4 (Siêu sao hàng đầu · $400K)</option>
+          <option value="5">+5 (Huyền thoại đỉnh cao · $550K)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Vai trò chính (Primary Role)</label>
+        <select id="cp-primary-role" onchange="cpRoleChanged()" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <option value="Duelist">Duelist</option>
+          <option value="Initiator">Initiator</option>
+          <option value="Controller">Controller</option>
+          <option value="Sentinel">Sentinel</option>
+          <option value="Flex">✨ Flex (Đa năng mọi Role)</option>
+        </select>
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Vai trò phụ (Tùy chọn)</label>
+        <select id="cp-secondary-role" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <option value="">Không có</option>
+          <option value="Duelist">Duelist</option>
+          <option value="Initiator">Initiator</option>
+          <option value="Controller">Controller</option>
+          <option value="Sentinel">Sentinel</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 0.86em; color: #fbbf24; cursor: pointer;">
+      <input type="checkbox" id="cp-is-flex">
+      <span>Kích hoạt năng lực <strong>Flex Đa Năng</strong> (+15% lương, có thể lấp bất kỳ Role nào còn thiếu)</span>
+    </label>
+
+    <div style="display: grid; grid-template-columns: 1fr 150px; gap: 12px; margin-bottom: 18px;">
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Đội tuyển chủ quản</label>
+        <select id="cp-club-id" onchange="cpClubChanged()" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <option value="">🛒 Để ở Thị trường Tự do (Free Agent)</option>
+        </select>
+      </div>
+      <div>
+        <label style="display: block; font-size: 0.8em; color: var(--dim); margin-bottom: 4px;">Vị trí trong đội</label>
+        <select id="cp-roster-slot" style="width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <option value="free_agent">Tự do</option>
+          <option value="bench">Dự bị (Bench)</option>
+          <option value="starter">Đội hình chính</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" onclick="closeCustomPlayerCreator()" style="padding: 8px 16px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">Hủy</button>
+      <button type="button" id="cp-btn-submit" onclick="createCustomPlayerSubmit()" style="padding: 8px 20px; background: #9333ea; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        ✨ Tạo Tuyển Thủ
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PHM_STATE = {
+  campaignId: null,
+  subregions: {{ (subregions_list | tojson) if subregions_list is defined else '[]' }},
+  clubs: [],
+  debounceTimer: null,
+  customCallback: null,
+};
+
+async function phmEnsureClubsLoaded(campaignId) {
+  if (PHM_STATE.clubs.length > 0 && PHM_STATE.campaignId === campaignId) return;
+  try {
+    const res = await API.get(`/api/campaign/${campaignId}/power-rankings`);
+    if (res.success && Array.isArray(res.rankings)) {
+      PHM_STATE.clubs = res.rankings.map(r => ({
+        id: r.club_id || r.club?.id,
+        short_code: r.short_code || r.club?.short_code,
+        name: r.club_name || r.club?.name,
+        region_slug: r.region_slug || r.club?.region_slug,
+      })).filter(c => c.id);
+    }
+  } catch (e) {}
+}
+
+async function openPlayersHubModal(campaignId) {
+  PHM_STATE.campaignId = campaignId;
+  document.getElementById('players-hub-modal').style.display = 'flex';
+  await phmLoadPlayers();
+}
+
+function closePlayersHubModal() {
+  document.getElementById('players-hub-modal').style.display = 'none';
+}
+
+function phmDebounceLoad() {
+  clearTimeout(PHM_STATE.debounceTimer);
+  PHM_STATE.debounceTimer = setTimeout(phmLoadPlayers, 250);
+}
+
+async function phmLoadPlayers() {
+  const cid = PHM_STATE.campaignId;
+  if (!cid) return;
+  const search = document.getElementById('phm-search').value || '';
+  const status = document.getElementById('phm-status').value || 'all';
+  const region = document.getElementById('phm-region').value || 'all';
+  const role = document.getElementById('phm-role').value || 'all';
+
+  const qs = new URLSearchParams({ search, status, region, role }).toString();
+  const res = await API.get(`/api/campaign/${cid}/players?${qs}`);
+  if (!res.success) return;
+
+  if (Array.isArray(res.subregions) && res.subregions.length > 0) {
+    PHM_STATE.subregions = res.subregions;
+  }
+
+  const c = res.counts || {};
+  document.getElementById('phm-counts-bar').innerHTML = `
+    <span>Tổng pool: <strong style="color:#fff;">${c.total || 0}</strong></span>
+    <span>Đang thi đấu: <strong style="color:#4ade80;">${c.active || 0}</strong></span>
+    <span>Tự do: <strong style="color:#38bdf8;">${c.free_agent || 0}</strong></span>
+    <span>Đã giải nghệ: <strong style="color:#94a3b8;">${c.retired || 0}</strong></span>
+  `;
+
+  const players = res.players || [];
+  const slice = players.slice(0, 200);
+  document.getElementById('phm-result-badge').textContent =
+    players.length > 200 ? `Hiển thị 200 / ${players.length} kết quả (hãy lọc thêm)` : `${players.length} kết quả`;
+
+  const tbody = document.getElementById('phm-table-body');
+  if (slice.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="padding:24px; text-align:center; color:var(--dim);">Không có tuyển thủ nào khớp bộ lọc.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = slice.map(p => {
+    const flex = p.is_flex || p.primary_role === 'Flex';
+    const b = p.bonus_rating || 0;
+    const statusBadge = p.status === 'active'
+      ? `<strong style="color:#38bdf8;">${p.club ? p.club.short_code : 'CLB'}</strong> <span style="font-size:0.8em; color:var(--dim);">(${p.roster_slot === 'starter' ? 'Chính' : 'Dự bị'})</span>`
+      : (p.status === 'free_agent'
+        ? `<span style="color:#4ade80;">🛒 Tự do</span>`
+        : `<span style="color:#94a3b8;">🕊️ Giải nghệ (${p.years_retired || 0} năm)</span>`);
+
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+        <td style="padding:9px 8px;">
+          <strong style="color:#fff;">${p.ign}</strong>
+          ${p.is_custom ? '<span style="margin-left:5px; font-size:0.7em; padding:1px 5px; border-radius:3px; background:rgba(244,114,182,0.18); color:#f472b6;">CUSTOM</span>' : ''}
+        </td>
+        <td style="padding:9px 8px; text-align:center;" title="${p.nationality_name || p.nationality}">
+          ${p.nationality_flag || '🏳️'} <span style="color:var(--dim); font-size:0.85em;">${p.nationality}</span>
+        </td>
+        <td style="padding:9px 8px; text-align:center; color:#cbd5e1;">${p.age}</td>
+        <td style="padding:9px 8px;">
+          <span style="padding:2px 7px; border-radius:4px; font-size:0.8em; font-weight:700; background:${flex ? 'rgba(251,191,36,0.16)' : 'rgba(56,189,248,0.14)'}; color:${flex ? '#fbbf24' : '#38bdf8'};">${flex ? '✨ Flex' : p.primary_role}${p.secondary_role ? '/' + p.secondary_role : ''}</span>
+        </td>
+        <td style="padding:9px 8px; text-align:center;">
+          <span style="font-weight:800; color:${b >= 3 ? '#fbbf24' : '#4ade80'};">+${b}</span>
+        </td>
+        <td style="padding:9px 8px; text-align:right; color:#cbd5e1;">$${p.salary}K</td>
+        <td style="padding:9px 8px;">${statusBadge}</td>
+        <td style="padding:9px 8px; color:var(--dim); font-size:0.85em; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${p.career_note || ''}">${p.career_note || '-'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function openCustomPlayerCreator(campaignId, presetClubId = null, onCreated = null) {
+  PHM_STATE.campaignId = campaignId;
+  PHM_STATE.customCallback = onCreated;
+
+  // Hydrate subregions if not yet loaded
+  if (!PHM_STATE.subregions || PHM_STATE.subregions.length === 0) {
+    const r = await API.get(`/api/campaign/${campaignId}/players?status=active`);
+    if (r.subregions) PHM_STATE.subregions = r.subregions;
+  }
+  await phmEnsureClubsLoaded(campaignId);
+
+  const natSel = document.getElementById('cp-nationality');
+  natSel.innerHTML = PHM_STATE.subregions.map(s =>
+    `<option value="${s.code}">${s.flag || ''} ${s.short_name || s.name} (${(s.region || '').toUpperCase()})</option>`
+  ).join('');
+
+  const clubSel = document.getElementById('cp-club-id');
+  clubSel.innerHTML = `<option value="">🛒 Để ở Thị trường Tự do (Free Agent)</option>` +
+    PHM_STATE.clubs.map(c => `<option value="${c.id}">[${(c.region_slug || '').toUpperCase()}] ${c.short_code} - ${c.name}</option>`).join('');
+
+  document.getElementById('cp-ign').value = '';
+  document.getElementById('cp-age').value = 18;
+  document.getElementById('cp-bonus').value = '1';
+  document.getElementById('cp-primary-role').value = 'Duelist';
+  document.getElementById('cp-secondary-role').value = '';
+  document.getElementById('cp-is-flex').checked = false;
+
+  if (presetClubId) {
+    clubSel.value = String(presetClubId);
+    document.getElementById('cp-roster-slot').value = 'bench';
+  } else {
+    clubSel.value = '';
+    document.getElementById('cp-roster-slot').value = 'free_agent';
+  }
+
+  document.getElementById('custom-player-modal').style.display = 'flex';
+}
+
+function closeCustomPlayerCreator() {
+  document.getElementById('custom-player-modal').style.display = 'none';
+}
+
+function cpRoleChanged() {
+  const role = document.getElementById('cp-primary-role').value;
+  if (role === 'Flex') {
+    document.getElementById('cp-is-flex').checked = true;
+  }
+}
+
+function cpClubChanged() {
+  const cid = document.getElementById('cp-club-id').value;
+  const slotEl = document.getElementById('cp-roster-slot');
+  if (!cid) {
+    slotEl.value = 'free_agent';
+  } else if (slotEl.value === 'free_agent') {
+    slotEl.value = 'bench';
+  }
+}
+
+async function createCustomPlayerSubmit() {
+  const ign = (document.getElementById('cp-ign').value || '').trim();
+  if (!ign) {
+    alert('Vui lòng nhập IGN tuyển thủ!');
+    return;
+  }
+  const clubVal = document.getElementById('cp-club-id').value;
+  const payload = {
+    ign,
+    age: parseInt(document.getElementById('cp-age').value || 18, 10),
+    nationality: document.getElementById('cp-nationality').value,
+    bonus_rating: parseInt(document.getElementById('cp-bonus').value || 0, 10),
+    primary_role: document.getElementById('cp-primary-role').value,
+    secondary_role: document.getElementById('cp-secondary-role').value || null,
+    is_flex: document.getElementById('cp-is-flex').checked,
+    club_id: clubVal ? parseInt(clubVal, 10) : null,
+    roster_slot: clubVal ? document.getElementById('cp-roster-slot').value : 'free_agent',
+  };
+
+  const btn = document.getElementById('cp-btn-submit');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tạo...';
+  try {
+    const res = await API.post(`/api/campaign/${PHM_STATE.campaignId}/players/custom`, payload);
+    if (!res.success) {
+      alert('Lỗi tạo tuyển thủ: ' + (res.error || 'Không rõ'));
+      return;
+    }
+    closeCustomPlayerCreator();
+    if (typeof PHM_STATE.customCallback === 'function') {
+      await PHM_STATE.customCallback(res.player);
+    } else if (document.getElementById('players-hub-modal').style.display === 'flex') {
+      await phmLoadPlayers();
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Tạo Tuyển Thủ';
+  }
+}
+</script>

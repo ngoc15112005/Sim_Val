@@ -44,11 +44,12 @@ def create_app():
                 from models import TournamentParticipant, Match, MatchMap, ClubRating
                 from models import (
                     Campaign, CampaignClubState, CampaignStage, CampaignSeason,
-                    CampaignStagePlacement, CampaignStoryline, CampaignPartnershipReview
+                    CampaignStagePlacement, CampaignStoryline, CampaignPartnershipReview,
+                    CampaignPlayer,
                 )
                 db.create_all()
 
-                # Graceful SQLite Schema Migration for GPR & History columns (SQLite only)
+                # Graceful SQLite Schema Migration for GPR, History & Player System v2.0 columns
                 if db.engine.dialect.name == 'sqlite':
                     try:
                         with db.engine.connect() as conn:
@@ -59,6 +60,9 @@ def create_app():
                                 cursor.execute("ALTER TABLE campaigns ADD COLUMN league_ratings TEXT DEFAULT '{\"pacific\": 1500.0, \"americas\": 1500.0, \"emea\": 1500.0, \"china\": 1500.0}'")
                             if cols and 'season_hosts' not in cols:
                                 cursor.execute("ALTER TABLE campaigns ADD COLUMN season_hosts TEXT DEFAULT '{}'")
+                            if cols and 'schema_version' not in cols:
+                                # Mark pre-existing v1 saves as schema_version=1 so incompatible saves are safely locked
+                                cursor.execute("ALTER TABLE campaigns ADD COLUMN schema_version INTEGER DEFAULT 1")
 
                             cursor.execute("PRAGMA table_info(campaign_club_states)")
                             state_cols = [row[1] for row in cursor.fetchall()]
@@ -73,6 +77,10 @@ def create_app():
                                     cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN previous_rank INTEGER")
                                 if 'win_streak' not in state_cols:
                                     cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN win_streak INTEGER DEFAULT 0")
+                                if 'player_bonus' not in state_cols:
+                                    cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN player_bonus INTEGER DEFAULT 0")
+                                if 'salary_cap' not in state_cols:
+                                    cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN salary_cap INTEGER DEFAULT 1200")
 
                             # Ensure composite indexes exist on legacy SQLite databases
                             for idx_sql in (
@@ -84,6 +92,8 @@ def create_app():
                                 "CREATE INDEX IF NOT EXISTS ix_csp_campaign_club ON campaign_stage_placements (campaign_id, club_id)",
                                 "CREATE INDEX IF NOT EXISTS ix_cstory_campaign_year ON campaign_storylines (campaign_id, year)",
                                 "CREATE INDEX IF NOT EXISTS ix_cpr_campaign_year ON campaign_partnership_reviews (campaign_id, year)",
+                                "CREATE INDEX IF NOT EXISTS ix_cplayer_campaign_club ON campaign_players (campaign_id, club_id)",
+                                "CREATE INDEX IF NOT EXISTS ix_cplayer_campaign_status ON campaign_players (campaign_id, status)",
                             ):
                                 cursor.execute(idx_sql)
 

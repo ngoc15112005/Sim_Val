@@ -48,6 +48,8 @@ def _clean_database_url(url: str | None) -> str:
 
 
 class Config:
+    CURRENT_CAMPAIGN_SCHEMA_VERSION = 2
+    CURRENT_SAVE_FORMAT_VERSION = '2.0'
     SECRET_KEY = os.environ.get('SECRET_KEY', 'val-sim-dev-key')
     SQLALCHEMY_DATABASE_URI = _clean_database_url(
         os.environ.get('TURSO_DATABASE_URL') or os.environ.get('DATABASE_URL')

@@ -432,7 +432,12 @@ async function saveAndCommitStorylines() {
 
   try {
     if (DR_STATE.isAdvanceFlow) {
-      // Nếu là luồng sang năm mới từ season_summary:
+      // Nếu là luồng sang năm mới từ season_summary -> Chuyển sang Hội đồng Nhân sự Tuyển thủ để duyệt giải nghệ / comeback / debut
+      if (typeof openPreseasonPersonnelModal === 'function') {
+        closeDirectorRoomModal();
+        openPreseasonPersonnelModal(DR_STATE.campaignId, DR_STATE.year, true, DR_STATE.storylines);
+        return;
+      }
       const res = await API.post(`/api/campaign/${DR_STATE.campaignId}/advance-year`, {
         storylines: DR_STATE.storylines
       });

@@ -377,6 +377,39 @@ def register_routes(app):
         generate_partnership_evaluation,
         commit_partnership_selection,
     )
+    from services.player_service import (
+        get_campaign_players,
+        get_campaign_clubs_roster_summary,
+        get_club_roster_details,
+        update_club_roster_bulk,
+        auto_fill_club_roster,
+        create_custom_player,
+        generate_preseason_personnel_draft,
+        commit_preseason_personnel_decisions,
+    )
+    from engine.partnership import SUBREGION_METADATA
+
+    @app.before_request
+    def _guard_incompatible_v1_campaigns():
+        """Chặn mọi save chiến dịch v1.x cũ không còn tương thích với Đại Cập Nhật Tuyển Thủ v2.0."""
+        view_args = request.view_args or {}
+        cid = view_args.get('campaign_id')
+        if not cid:
+            return None
+        endpoint = request.endpoint or ''
+        # Cho phép xóa save cũ và giữ tương thích cho endpoint recalculate_gpr nội bộ nếu test cũ gọi
+        if endpoint in ('campaign_delete', 'api_campaign_gpr_recalculate'):
+            return None
+        camp = get_campaign(int(cid))
+        if camp and not camp.is_compatible:
+            msg = (
+                f"Chiến dịch '{camp.name}' thuộc phiên bản cũ (v1.x), không còn tương thích với "
+                f"bản Đại Cập Nhật Tuyển Thủ (v{Config.CURRENT_CAMPAIGN_SCHEMA_VERSION}.0). Vui lòng tạo mùa giải mới!"
+            )
+            if request.path.startswith('/api/'):
+                return jsonify({'error': msg, 'incompatible_v1': True}), 400
+            return render_template('campaign/incompatible_v1.html', campaign=camp, message=msg, cfg=Config), 409
+        return None
 
     @app.route('/campaigns')
     def campaigns_list():
@@ -464,11 +497,15 @@ def register_routes(app):
                 club_storylines.setdefault(st['club_id'], []).append(st)
 
         partnership_cycle = get_partnership_cycle_status(campaign_id, campaign.current_year)
+        roster_summaries = get_campaign_clubs_roster_summary(campaign_id)
+        subregions_list = list(SUBREGION_METADATA.values())
 
         return render_template(
             'campaign/detail.html',
             campaign=campaign,
             club_states=club_states,
+            roster_summaries=roster_summaries,
+            subregions_list=subregions_list,
             active_storylines=active_storylines,
             club_storylines=club_storylines,
             partnership_cycle=partnership_cycle,
@@ -752,6 +789,110 @@ def register_routes(app):
             res = commit_partnership_selection(campaign_id, selections, year=int(year))
             return jsonify(res)
         except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Player System v2.0 APIs (Rosters, Free Agents, Custom Creator, Preseason)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @app.route('/api/campaign/<int:campaign_id>/players')
+    def api_campaign_players_list(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        res = get_campaign_players(
+            campaign_id,
+            region_slug=request.args.get('region'),
+            club_id=request.args.get('club_id', type=int),
+            status=request.args.get('status'),
+            role=request.args.get('role'),
+            nationality=request.args.get('nationality'),
+            search=request.args.get('search'),
+        )
+        return jsonify({'success': True, **res})
+
+    @app.route('/api/campaign/<int:campaign_id>/players/custom', methods=['POST'])
+    def api_campaign_players_custom(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        data = request.get_json(silent=True) or {}
+        try:
+            player = create_custom_player(campaign_id, data)
+            return jsonify({'success': True, 'player': player})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/club/<int:club_id>/roster')
+    def api_campaign_club_roster(campaign_id, club_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        try:
+            details = get_club_roster_details(campaign_id, club_id)
+            return jsonify({'success': True, **details})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/club/<int:club_id>/roster/update', methods=['POST'])
+    def api_campaign_club_roster_update(campaign_id, club_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        data = request.get_json(silent=True) or {}
+        try:
+            details = update_club_roster_bulk(
+                campaign_id,
+                club_id,
+                starter_ids=data.get('starter_ids', []),
+                bench_ids=data.get('bench_ids', []),
+            )
+            return jsonify({'success': True, **details})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/club/<int:club_id>/roster/auto-fill', methods=['POST'])
+    def api_campaign_club_roster_autofill(campaign_id, club_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        try:
+            details = auto_fill_club_roster(campaign_id, club_id)
+            return jsonify({'success': True, **details})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/roster/preseason-draft')
+    def api_campaign_preseason_draft(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        year = request.args.get('year', type=int) or (campaign.current_year + 1)
+        try:
+            draft = generate_preseason_personnel_draft(campaign_id, target_year=year)
+            return jsonify({'success': True, 'draft': draft})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/roster/preseason-commit', methods=['POST'])
+    def api_campaign_preseason_commit(campaign_id):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+        data = request.get_json(silent=True) or {}
+        try:
+            res = commit_preseason_personnel_decisions(
+                campaign_id,
+                decisions=data.get('decisions') or data,
+                target_year=data.get('target_year') or campaign.current_year,
+                run_ai_transfers=bool(data.get('run_ai_transfers', True)),
+            )
+            return jsonify(res)
+        except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 400
 
     @app.route('/campaign/<int:campaign_id>/stage/kickoff')
@@ -2007,9 +2148,10 @@ def register_routes(app):
             data = request.get_json(silent=True) or {}
             storylines_payload = data.get('storylines')
             partnership_selections = data.get('partnership_selections')
+            personnel_decisions = data.get('personnel_decisions')
             if partnership_selections and isinstance(partnership_selections, dict):
                 commit_partnership_selection(campaign_id, partnership_selections, year=campaign.current_year)
-            res = advance_campaign_to_next_year(campaign_id)
+            res = advance_campaign_to_next_year(campaign_id, personnel_decisions=personnel_decisions)
             if storylines_payload and isinstance(storylines_payload, list):
                 commit_season_storylines(campaign_id, storylines_payload, year=campaign.current_year)
             return jsonify({'success': True, 'result': res})

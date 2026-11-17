@@ -420,6 +420,11 @@ def commit_partnership_selection(
 
     db.session.flush()
 
+    from models import CampaignPlayer
+    if CampaignPlayer.query.filter_by(campaign_id=campaign_id).count() > 0:
+        from services.player_service import sync_all_club_player_bonuses_and_caps
+        sync_all_club_player_bonuses_and_caps(campaign_id)
+
     # 4. Nếu chiến dịch đang ở giai đoạn 'open_qualifier' của mùa giải mới và chưa đá trận nào,
     # khởi tạo lại danh sách 16 đội Non-Partner của Open Qualifier theo danh sách Partner mới!
     if camp.current_stage == "open_qualifier":

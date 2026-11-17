@@ -25,6 +25,9 @@
     <button type="button" class="btn-sm" onclick="openSeasonPosterModal()" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(245, 158, 11, 0.15)); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);">
       <span>📜</span> Áp Phích Đăng Cai Mùa Giải
     </button>
+    <button type="button" class="btn-sm" onclick="openPlayersHubModal({{ campaign.id }})" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(56, 189, 248, 0.2)); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+      <span>👥</span> Trung tâm Tuyển thủ &amp; Tạo mới
+    </button>
     <button type="button" class="btn-sm" onclick="openDirectorRoom({{ campaign.id }}, {{ campaign.current_year }})" style="padding: 10px 16px; font-weight: bold; background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.2)); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);">
       <span>🎬</span> Phòng Đạo Diễn Kịch Bản
     </button>
@@ -643,6 +646,7 @@
             <th style="width: 90px; text-align: center;">Khu vực</th>
             <th style="text-align: center; width: 160px; white-space: nowrap;">Sức mạnh gốc (50-99)</th>
             <th style="text-align: center; width: 210px; white-space: nowrap;">Phong độ (-30 đến +30)</th>
+            <th style="text-align: center; width: 175px; white-space: nowrap;">Tuyển thủ &amp; Đội hình</th>
             <th style="text-align: center; width: 140px; white-space: nowrap;">Sức mạnh thực tế</th>
             <th style="text-align: center; width: 90px; white-space: nowrap;">Điểm CP</th>
           </tr>
@@ -686,7 +690,7 @@
             <td style="text-align: center; vertical-align: middle;">
               <div class="stepper-box" style="display: inline-flex; align-items: center; background: #0b1120; border: 1px solid #334155; border-radius: 6px; overflow: hidden; height: 32px;">
                 <button type="button" onclick="adjustRating({{ cs.club_id }}, -1)" class="stepper-btn" title="Giảm 1 điểm" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">−</button>
-                <input type="number" id="rating-input-{{ cs.club_id }}" class="stepper-num-input" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.story_rating }}" min="50" max="99" value="{{ cs.story_rating }}" oninput="updateClubState({{ cs.club_id }})" style="width: 48px; height: 100%; text-align: center; font-weight: 800; font-size: 1rem; background: transparent; border: none; color: #fff; padding: 0 !important; margin: 0; outline: none;">
+                <input type="number" id="rating-input-{{ cs.club_id }}" class="stepper-num-input" data-club-id="{{ cs.club_id }}" data-region="{{ r_slug }}" data-initial="{{ cs.story_rating }}" data-player-bonus="{{ cs.player_bonus or 0 }}" min="50" max="99" value="{{ cs.story_rating }}" oninput="updateClubState({{ cs.club_id }})" style="width: 48px; height: 100%; text-align: center; font-weight: 800; font-size: 1rem; background: transparent; border: none; color: #fff; padding: 0 !important; margin: 0; outline: none;">
                 <button type="button" onclick="adjustRating({{ cs.club_id }}, 1)" class="stepper-btn" title="Tăng 1 điểm" style="width: 28px; height: 100%; border: none; background: #1e293b; color: #94a3b8; cursor: pointer; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; justify-content: center; transition: all 0.15s;" onmouseover="this.style.background='#334155'; this.style.color='#fff';" onmouseout="this.style.background='#1e293b'; this.style.color='#94a3b8';">+</button>
               </div>
             </td>
@@ -705,7 +709,23 @@
                 </div>
               </div>
             </td>
-            <!-- Sức mạnh thực tế (Effective Rating = Gốc + Phong độ) -->
+            <!-- Đội hình Tuyển thủ & Quỹ lương -->
+            {% set rsum = roster_summaries.get(cs.club_id) if roster_summaries else none %}
+            <td style="text-align: center; vertical-align: middle;">
+              <button type="button" onclick="openClubRosterModal({{ campaign.id }}, {{ cs.club_id }}, (res) => refreshClubRowFromRoster({{ cs.club_id }}, res))"
+                style="padding: 5px 10px; border-radius: 6px; border: 1px solid {{ 'rgba(16, 185, 129, 0.45)' if (rsum and rsum.roles_ok and rsum.starter_count == 5) else 'rgba(239, 68, 68, 0.45)' }}; background: rgba(15, 23, 42, 0.75); color: #e2e8f0; cursor: pointer; font-size: 0.78em; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 140px;"
+                title="{{ (rsum.starter_igns | join(', ')) if rsum and rsum.starter_igns else 'Xem & quản lý đội hình 5 người' }}">
+                <span style="font-weight: 800; color: {{ '#4ade80' if (cs.player_bonus or 0) > 0 else '#94a3b8' }};">
+                  👥 +<span id="club-bonus-display-{{ cs.club_id }}">{{ cs.player_bonus or 0 }}</span>
+                  <span style="color: #60a5fa; font-weight: 600;">({{ rsum.starter_count if rsum else 0 }}/5{{ ' · ✓4R' if (rsum and rsum.roles_ok) else ' · !Role' }})</span>
+                </span>
+                <span id="club-payroll-display-{{ cs.club_id }}" style="font-size: 0.88em; color: var(--dim);">
+                  ${{ rsum.payroll if rsum else 0 }}K / ${{ cs.salary_cap or 1200 }}K
+                </span>
+              </button>
+            </td>
+
+            <!-- Sức mạnh thực tế (Effective Rating = Gốc + Tuyển thủ + Phong độ) -->
             <td style="text-align: center; vertical-align: middle;">
               <span id="effective-display-{{ cs.club_id }}" style="font-size: 1.25em; font-weight: 800; color: {% if cs.effective_rating >= 90 %}#fbbf24{% elif cs.effective_rating >= 80 %}#4ade80{% elif cs.effective_rating >= 70 %}#60a5fa{% else %}#f87171{% endif %};">
                 {{ cs.effective_rating }}
@@ -811,8 +831,9 @@ function updateClubState(clubId) {
     fInput.style.color = 'var(--dim)';
   }
 
-  // Live preview effective rating
-  const eff = rVal + fVal;
+  // Live preview effective rating (Gốc + Bonus Tuyển thủ + Phong độ)
+  const bonusVal = parseInt(rInput.dataset.playerBonus || '0', 10) || 0;
+  const eff = rVal + bonusVal + fVal;
   effSpan.textContent = eff;
   if (eff >= 90) effSpan.style.color = '#fbbf24';
   else if (eff >= 80) effSpan.style.color = '#4ade80';
@@ -1101,5 +1122,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% include "campaign/_director_room_modal.html" %}
 {% include "campaign/_partnership_review_modal.html" %}
+{% include "campaign/_club_roster_modal.html" %}
+{% include "campaign/_players_hub_modal.html" %}
+{% include "campaign/_preseason_personnel_modal.html" %}
+<script>
+function refreshClubRowFromRoster(clubId, res) {
+  if (!res || !res.club_state) return;
+  const bonus = res.club_state.player_bonus || 0;
+  const rInput = document.getElementById(`rating-input-${clubId}`);
+  if (rInput) rInput.dataset.playerBonus = String(bonus);
+  const bSpan = document.getElementById(`club-bonus-display-${clubId}`);
+  if (bSpan) bSpan.textContent = String(bonus);
+  const effSpan = document.getElementById(`effective-display-${clubId}`);
+  if (effSpan) effSpan.textContent = String(res.club_state.effective_rating);
+  const pSpan = document.getElementById(`club-payroll-display-${clubId}`);
+  if (pSpan && res.validation && res.validation.metrics) {
+    const m = res.validation.metrics;
+    pSpan.textContent = `$${m.payroll}K / $${m.salary_cap}K`;
+  }
+}
+</script>
 
 {% endblock %}

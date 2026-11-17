@@ -10,21 +10,26 @@ Cho phép người chơi:
 import json
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+from config import Config
 from models import (
     db, Club, Campaign, CampaignClubState, CampaignStage,
-    CampaignSeason, CampaignStagePlacement, CampaignPartnershipReview
+    CampaignSeason, CampaignStagePlacement, CampaignPartnershipReview,
+    CampaignPlayer,
 )
 
 
 def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
-    """Export an entire campaign into a JSON-serializable dictionary."""
-    campaign = Campaign.query.get(campaign_id)
+    """Export an entire campaign (v2.0 with Player System) into a JSON-serializable dictionary."""
+    campaign = db.session.get(Campaign, campaign_id)
     if not campaign:
         raise ValueError(f"Không tìm thấy chiến dịch với ID {campaign_id}")
+    if (campaign.schema_version or 1) < Config.CURRENT_CAMPAIGN_SCHEMA_VERSION:
+        raise ValueError("Save chiến dịch phiên bản cũ (v1.x) không tương thích với bản Đại Cập Nhật Tuyển Thủ (v2.0).")
 
     # 1. Campaign metadata
     camp_meta = {
         'name': campaign.name,
+        'schema_version': campaign.schema_version or Config.CURRENT_CAMPAIGN_SCHEMA_VERSION,
         'current_year': campaign.current_year,
         'current_stage': campaign.current_stage,
         'status': campaign.status,
@@ -42,6 +47,8 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
         club_states_data.append({
             'short_code': cs.club.short_code,
             'story_rating': cs.story_rating,
+            'player_bonus': cs.player_bonus or 0,
+            'salary_cap': cs.salary_cap or 1200,
             'form_modifier': cs.form_modifier,
             'championship_points': cs.championship_points,
             'is_partner': cs.is_partner,
@@ -117,8 +124,35 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
             'committed_at': pr.committed_at.isoformat() if pr.committed_at else None,
         })
 
+    # 7. Campaign Players (v2.0 Roster & Free Agent / Retired pool)
+    players_data = []
+    for pl in getattr(campaign, 'players', []):
+        players_data.append({
+            'club_short_code': pl.club.short_code if pl.club else None,
+            'ign': pl.ign,
+            'real_name': pl.real_name,
+            'age': pl.age,
+            'nationality': pl.nationality,
+            'region_slug': pl.region_slug,
+            'primary_role': pl.primary_role,
+            'secondary_role': pl.secondary_role,
+            'is_flex': bool(pl.is_flex),
+            'bonus_rating': pl.bonus_rating,
+            'salary': pl.salary,
+            'roster_slot': pl.roster_slot,
+            'status': pl.status,
+            'debut_year': pl.debut_year,
+            'retired_year': pl.retired_year,
+            'years_retired': pl.years_retired,
+            'seasons_played': pl.seasons_played,
+            'is_custom': bool(pl.is_custom),
+            'is_real_life': bool(pl.is_real_life),
+            'career_note': pl.career_note,
+        })
+
     return {
-        'format_version': '1.0',
+        'format_version': Config.CURRENT_SAVE_FORMAT_VERSION,
+        'schema_version': Config.CURRENT_CAMPAIGN_SCHEMA_VERSION,
         'export_type': 'vct_campaign_save',
         'exported_at': datetime.now(timezone.utc).isoformat(),
         'campaign': camp_meta,
@@ -127,18 +161,29 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
         'placements': placements_data,
         'seasons': seasons_data,
         'partnership_reviews': partnership_reviews_data,
+        'players': players_data,
     }
 
 
 def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = None) -> Campaign:
-    """Import a campaign JSON payload and reconstruct all records in database."""
+    """Import a v2.0 campaign JSON payload and reconstruct all records in database.
+    Explicitly rejects incompatible v1.0 legacy saves without Player System support.
+    """
     if not isinstance(payload, dict):
         raise ValueError("Dữ liệu save file không hợp lệ (phải là đối tượng JSON)")
 
     if payload.get('export_type') != 'vct_campaign_save':
         raise ValueError("File này không phải là định dạng Save Game VCT Circuit hợp lệ")
 
+    fmt_ver = str(payload.get('format_version') or '1.0')
     camp_meta = payload.get('campaign')
+    schema_ver = int(payload.get('schema_version') or (camp_meta.get('schema_version') if isinstance(camp_meta, dict) else 1) or 1)
+    if fmt_ver != Config.CURRENT_SAVE_FORMAT_VERSION or schema_ver < Config.CURRENT_CAMPAIGN_SCHEMA_VERSION or 'players' not in payload:
+        raise ValueError(
+            f"Save phiên bản cũ (v{fmt_ver}) không còn tương thích với bản Đại Cập Nhật Tuyển Thủ (v{Config.CURRENT_SAVE_FORMAT_VERSION}). "
+            f"Vui lòng tạo mùa giải mới!"
+        )
+
     if not camp_meta or not isinstance(camp_meta, dict):
         raise ValueError("Dữ liệu thông tin chiến dịch bị thiếu hoặc hỏng")
 
@@ -155,6 +200,7 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
     camp_name = custom_name or camp_meta.get('name') or 'VCT Mùa Giải Khôi Phục'
     new_campaign = Campaign(
         name=camp_name,
+        schema_version=Config.CURRENT_CAMPAIGN_SCHEMA_VERSION,
         current_year=camp_meta.get('current_year', 2027),
         current_stage=camp_meta.get('current_stage', 'open_qualifier'),
         status=camp_meta.get('status', 'active'),
@@ -177,6 +223,8 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
             campaign_id=new_campaign.id,
             club_id=club.id,
             story_rating=cs_data.get('story_rating', 80),
+            player_bonus=cs_data.get('player_bonus', 0),
+            salary_cap=cs_data.get('salary_cap', 1200),
             form_modifier=cs_data.get('form_modifier', 0),
             championship_points=cs_data.get('championship_points', 0),
             is_partner=cs_data.get('is_partner', False),
@@ -198,10 +246,12 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
             db.session.add(CampaignClubState(
                 campaign_id=new_campaign.id,
                 club_id=club.id,
-                story_rating=club.reputation or 80,
+                story_rating=club.current_rating or club.base_rating or 80,
+                player_bonus=0,
+                salary_cap=850,
                 form_modifier=0,
                 championship_points=0,
-                is_partner=club.is_partner,
+                is_partner=False,
                 stage_ranks='{}',
                 regular_season_wins=0,
                 map_differential=0,
@@ -302,6 +352,35 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
             committed_at=cm_at,
         )
         db.session.add(new_pr)
+
+    # 7. Reconstruct Players
+    for pl_data in payload.get('players', []):
+        c_code = pl_data.get('club_short_code')
+        club_obj = clubs_by_code.get(c_code) if c_code else None
+        new_pl = CampaignPlayer(
+            campaign_id=new_campaign.id,
+            club_id=club_obj.id if club_obj else None,
+            ign=pl_data.get('ign', 'Player'),
+            real_name=pl_data.get('real_name'),
+            age=pl_data.get('age', 20),
+            nationality=pl_data.get('nationality', 'SG_MY'),
+            region_slug=pl_data.get('region_slug', 'pacific'),
+            primary_role=pl_data.get('primary_role', 'Duelist'),
+            secondary_role=pl_data.get('secondary_role'),
+            is_flex=bool(pl_data.get('is_flex', False)),
+            bonus_rating=max(0, min(5, int(pl_data.get('bonus_rating', 0)))),
+            salary=pl_data.get('salary', 60),
+            roster_slot=pl_data.get('roster_slot', 'starter' if club_obj else 'free_agent'),
+            status=pl_data.get('status', 'active' if club_obj else 'free_agent'),
+            debut_year=pl_data.get('debut_year', new_campaign.current_year),
+            retired_year=pl_data.get('retired_year'),
+            years_retired=pl_data.get('years_retired', 0),
+            seasons_played=pl_data.get('seasons_played', 0),
+            is_custom=bool(pl_data.get('is_custom', False)),
+            is_real_life=bool(pl_data.get('is_real_life', True)),
+            career_note=pl_data.get('career_note'),
+        )
+        db.session.add(new_pl)
 
     db.session.commit()
     return new_campaign

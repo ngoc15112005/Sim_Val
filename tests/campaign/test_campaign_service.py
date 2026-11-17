@@ -62,7 +62,7 @@ class TestCampaignService(unittest.TestCase):
         self.assertTrue(success)
         db.session.refresh(state)
         self.assertEqual(state.form_modifier, 5)
-        self.assertEqual(state.effective_rating, state.story_rating + 5)
+        self.assertEqual(state.effective_rating, state.story_rating + state.player_bonus + 5)
 
         # Test clamp (-30 to +30)
         update_club_form(campaign.id, state.club_id, 45)

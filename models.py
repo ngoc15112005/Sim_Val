@@ -204,6 +204,7 @@ class Campaign(db.Model):
     __tablename__ = 'campaigns'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    schema_version = db.Column(db.Integer, default=2, nullable=False)
     current_year = db.Column(db.Integer, default=2027)
     current_stage = db.Column(db.String(30), default='open_qualifier')
     status = db.Column(db.String(20), default='active')  # 'active', 'completed'
@@ -225,6 +226,12 @@ class Campaign(db.Model):
                                  cascade='all, delete-orphan')
     partnership_reviews = db.relationship('CampaignPartnershipReview', backref='campaign', lazy=True,
                                           cascade='all, delete-orphan')
+    players = db.relationship('CampaignPlayer', backref='campaign', lazy=True,
+                              cascade='all, delete-orphan')
+
+    @property
+    def is_compatible(self) -> bool:
+        return (self.schema_version or 1) >= 2
 
     def to_dict(self):
         import json
@@ -237,6 +244,8 @@ class Campaign(db.Model):
         return {
             'id': self.id,
             'name': self.name,
+            'schema_version': self.schema_version or 1,
+            'is_compatible': self.is_compatible,
             'current_year': self.current_year,
             'current_stage': self.current_stage,
             'status': self.status,
@@ -255,6 +264,8 @@ class CampaignClubState(db.Model):
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
     story_rating = db.Column(db.Integer, default=80)
+    player_bonus = db.Column(db.Integer, default=0)
+    salary_cap = db.Column(db.Integer, default=1200)
     form_modifier = db.Column(db.Integer, default=0)
     championship_points = db.Column(db.Integer, default=0)
     is_partner = db.Column(db.Boolean, default=False)
@@ -273,8 +284,12 @@ class CampaignClubState(db.Model):
     club = db.relationship('Club', backref='campaign_states')
 
     @property
+    def roster_base_rating(self):
+        return (self.story_rating or 80) + max(0, self.player_bonus or 0)
+
+    @property
     def effective_rating(self):
-        return (self.story_rating or 80) + (self.form_modifier or 0)
+        return self.roster_base_rating + (self.form_modifier or 0)
 
     def get_stage_rank(self, stage_key):
         import json
@@ -308,6 +323,9 @@ class CampaignClubState(db.Model):
             'campaign_id': self.campaign_id,
             'club_id': self.club_id,
             'story_rating': self.story_rating,
+            'player_bonus': max(0, self.player_bonus or 0),
+            'salary_cap': self.salary_cap or 1200,
+            'roster_base_rating': self.roster_base_rating,
             'form_modifier': self.form_modifier,
             'effective_rating': self.effective_rating,
             'championship_points': self.championship_points,
@@ -531,6 +549,86 @@ class CampaignPartnershipReview(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'committed_at': self.committed_at.isoformat() if self.committed_at else None,
         }
+
+
+class CampaignPlayer(db.Model):
+    """Stores per-campaign player profiles, roles, bonus ratings (0..+5), salary, and career lifecycle."""
+    __tablename__ = 'campaign_players'
+    __table_args__ = (
+        db.Index('ix_cplayer_campaign_club', 'campaign_id', 'club_id'),
+        db.Index('ix_cplayer_campaign_status', 'campaign_id', 'status'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)  # None if free_agent or retired
+
+    ign = db.Column(db.String(60), nullable=False)
+    real_name = db.Column(db.String(100), nullable=True)
+    age = db.Column(db.Integer, default=20, nullable=False)
+    nationality = db.Column(db.String(20), nullable=False)  # Country/subregion code matching SUBREGION_METADATA
+    region_slug = db.Column(db.String(20), default='pacific')
+
+    primary_role = db.Column(db.String(20), nullable=False)  # Duelist, Initiator, Controller, Sentinel, Flex
+    secondary_role = db.Column(db.String(20), nullable=True)
+    is_flex = db.Column(db.Boolean, default=False)
+
+    bonus_rating = db.Column(db.Integer, default=0, nullable=False)  # Strictly 0..5 (never negative)
+    salary = db.Column(db.Integer, default=60, nullable=False)       # Annual wage in $K
+
+    roster_slot = db.Column(db.String(20), default='starter')  # 'starter', 'bench', 'free_agent', 'retired'
+    status = db.Column(db.String(20), default='active')        # 'active', 'free_agent', 'retired'
+
+    debut_year = db.Column(db.Integer, default=2027)
+    retired_year = db.Column(db.Integer, nullable=True)
+    years_retired = db.Column(db.Integer, default=0)
+    seasons_played = db.Column(db.Integer, default=0)
+    is_custom = db.Column(db.Boolean, default=False)
+    is_real_life = db.Column(db.Boolean, default=True)
+    career_note = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    club = db.relationship('Club', backref='campaign_players')
+
+    def to_dict(self):
+        from engine.partnership import SUBREGION_METADATA
+        meta = SUBREGION_METADATA.get(self.nationality, {})
+        c_dict = None
+        if self.club:
+            c_dict = {
+                'id': self.club.id,
+                'name': self.club.name,
+                'short_code': self.club.short_code,
+                'logo_url': self.club.logo_url,
+                'region_slug': self.club.region.slug if self.club.region else self.region_slug,
+            }
+        return {
+            'id': self.id,
+            'campaign_id': self.campaign_id,
+            'club_id': self.club_id,
+            'club': c_dict,
+            'ign': self.ign,
+            'real_name': self.real_name or self.ign,
+            'age': self.age,
+            'nationality': self.nationality,
+            'nationality_name': meta.get('short_name', meta.get('name', self.nationality)),
+            'nationality_flag': meta.get('flag', '🏳️'),
+            'region_slug': self.region_slug,
+            'primary_role': self.primary_role,
+            'secondary_role': self.secondary_role,
+            'is_flex': bool(self.is_flex or self.primary_role == 'Flex'),
+            'bonus_rating': max(0, min(5, int(self.bonus_rating or 0))),
+            'salary': int(self.salary or 60),
+            'roster_slot': self.roster_slot,
+            'status': self.status,
+            'debut_year': self.debut_year,
+            'retired_year': self.retired_year,
+            'years_retired': self.years_retired or 0,
+            'seasons_played': self.seasons_played or 0,
+            'is_custom': bool(self.is_custom),
+            'is_real_life': bool(self.is_real_life),
+            'career_note': self.career_note or '',
+        }
+
 
 
 

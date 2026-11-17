@@ -97,25 +97,43 @@
         <span>📤</span> Nạp Save Game
       </button>
     </div>
+    <div style="margin-bottom: 12px; padding: 10px 12px; background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 6px; font-size: 0.82em; color: #fde68a; line-height: 1.45;">
+      ⚡ <strong>Phiên bản Đại Cập Nhật Tuyển Thủ (v2.0):</strong> Hỗ trợ đầy đủ đội hình 5 người đủ 4 Role, chỉ số cộng thêm (0 đến +5), quỹ lương, ngoại binh, giải nghệ &amp; comeback. Các file save &amp; chiến dịch cũ từ phiên bản v1.x không còn tương thích (bạn chỉ có thể xóa save cũ hoặc Tạo / Nhập save v2.0 mới).
+    </div>
     {% if campaigns %}
       <ul class="campaign-list" style="list-style: none; padding: 0;">
         {% for c in campaigns %}
-          <li class="campaign-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;">
+          <li class="campaign-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg); border: 1px solid {{ 'rgba(239, 68, 68, 0.45)' if not c.is_compatible else 'var(--border)' }}; border-radius: 8px; margin-bottom: 10px; {{ 'opacity: 0.85;' if not c.is_compatible else '' }}">
             <div>
-              <div style="font-weight: bold; font-size: 1.05em; color: #fff;">
-                {{ c.name }} <span style="font-size: 0.85em; color: var(--yellow);">({{ c.current_year }})</span>
+              <div style="font-weight: bold; font-size: 1.05em; color: #fff; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>{{ c.name }} <span style="font-size: 0.85em; color: var(--yellow);">({{ c.current_year }})</span></span>
+                {% if c.is_compatible %}
+                  <span style="font-size: 0.7em; padding: 2px 7px; border-radius: 4px; background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-weight: 700;">
+                    v2.0 Tuyển thủ
+                  </span>
+                {% else %}
+                  <span style="font-size: 0.7em; padding: 2px 7px; border-radius: 4px; background: rgba(239, 68, 68, 0.16); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 700;">
+                    🔒 Save cũ v1.x (Không tương thích v2.0)
+                  </span>
+                {% endif %}
               </div>
               <div style="font-size: 0.85em; color: var(--dim); margin-top: 4px;">
                 Giai đoạn: <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); text-transform: uppercase;">{{ c.current_stage }}</span>
               </div>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <a href="/api/campaign/{{ c.id }}/export" class="action-btn" style="text-decoration: none; padding: 6px 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; font-size: 0.85em; font-weight: bold;" title="Tải file lưu (.json) của mùa giải này về máy">
-                📥 Xuất
-              </a>
-              <a href="/campaign/{{ c.id }}" class="action-btn view-btn" style="text-decoration: none; padding: 6px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-weight: bold;">
-                Vào chơi ➔
-              </a>
+              {% if c.is_compatible %}
+                <a href="/api/campaign/{{ c.id }}/export" class="action-btn" style="text-decoration: none; padding: 6px 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; font-size: 0.85em; font-weight: bold;" title="Tải file lưu (.json) của mùa giải này về máy">
+                  📥 Xuất
+                </a>
+                <a href="/campaign/{{ c.id }}" class="action-btn view-btn" style="text-decoration: none; padding: 6px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-weight: bold;">
+                  Vào chơi ➔
+                </a>
+              {% else %}
+                <span class="action-btn" style="padding: 6px 12px; background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 6px; font-size: 0.82em; cursor: not-allowed;" title="Save cũ v1.x không thể chơi trên phiên bản Tuyển thủ v2.0">
+                  🔒 Đã khóa
+                </span>
+              {% endif %}
               <form action="/campaign/{{ c.id }}/delete" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mùa giải này không?');" style="display: inline; margin: 0;">
                 <button type="submit" class="action-btn delete-btn" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
                   Xóa

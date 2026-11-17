@@ -238,18 +238,18 @@ class TestMatrixPhase1Core(unittest.TestCase):
         self.assertEqual(cstate.form_modifier, -30)
 
     def test_tc_c02_effective_rating_math(self):
-        """TC-C02: effective_rating = story_rating + form_modifier."""
+        """TC-C02: effective_rating = story_rating + player_bonus + form_modifier."""
         camp = create_campaign("Effective Rating Test", 2027)
         cstate = CampaignClubState.query.filter_by(campaign_id=camp.id).first()
         cstate.story_rating = 85
         cstate.form_modifier = -7
         db.session.commit()
 
-        self.assertEqual(cstate.effective_rating, 78)
+        self.assertEqual(cstate.effective_rating, 85 + cstate.player_bonus - 7)
 
         cstate.form_modifier = 12
         db.session.commit()
-        self.assertEqual(cstate.effective_rating, 97)
+        self.assertEqual(cstate.effective_rating, 85 + cstate.player_bonus + 12)
 
     def test_tc_c03_bulk_form_update(self):
         """TC-C03: Bulk form update applies correctly across multiple clubs."""
@@ -282,9 +282,12 @@ class TestMatrixPhase1Core(unittest.TestCase):
         state_b.form_modifier = -15
         db.session.commit()
 
-        self.assertEqual(state_a.effective_rating, 95)
-        self.assertEqual(state_b.effective_rating, 65)
-        self.assertEqual(state_a.effective_rating - state_b.effective_rating, 30)
+        self.assertEqual(state_a.effective_rating, 80 + state_a.player_bonus + 15)
+        self.assertEqual(state_b.effective_rating, 80 + state_b.player_bonus - 15)
+        self.assertEqual(
+            (state_a.effective_rating - state_a.player_bonus) - (state_b.effective_rating - state_b.player_bonus),
+            30,
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # CATEGORY M: Match Simulation, Map Pools & Overtime Rules

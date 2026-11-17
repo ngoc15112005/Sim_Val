@@ -49,9 +49,11 @@ class TestCampaignExportImport(unittest.TestCase):
 
         # 2. Export campaign
         data = export_campaign_save(camp.id)
-        self.assertEqual(data.get('format_version'), '1.0')
+        self.assertEqual(data.get('format_version'), '2.0')
         self.assertEqual(data.get('export_type'), 'vct_campaign_save')
         self.assertIn('campaign', data)
+        self.assertIn('players', data)
+        self.assertGreaterEqual(len(data['players']), 480)
         self.assertEqual(data['campaign']['name'], "Test Export VCT 2027")
         self.assertEqual(data['campaign']['current_year'], 2027)
         self.assertGreaterEqual(len(data['club_states']), 44)
@@ -163,6 +165,26 @@ class TestCampaignExportImport(unittest.TestCase):
             content_type='application/json'
         )
         self.assertEqual(resp2.status_code, 400)
+
+    def test_reject_legacy_v1_save_import(self):
+        legacy_payload = {
+            'format_version': '1.0',
+            'export_type': 'vct_campaign_save',
+            'campaign': {'name': 'Legacy v1 Save', 'current_year': 2030, 'current_stage': 'open_qualifier'},
+            'club_states': [],
+            'stages': [],
+        }
+        with self.assertRaises(ValueError):
+            import_campaign_save(legacy_payload)
+
+        resp = self.client.post(
+            '/api/campaign/import',
+            data=json.dumps(legacy_payload),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 400)
+        res_data = json.loads(resp.data.decode('utf-8'))
+        self.assertIn('error', res_data)
 
 
 if __name__ == '__main__':

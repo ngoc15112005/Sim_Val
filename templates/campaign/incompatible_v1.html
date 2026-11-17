@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Save cũ không tương thích (v1.x){% endblock %}
+
+{% block content %}
+<div style="max-width: 680px; margin: 48px auto;">
+  <div class="card" style="background: var(--surface); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 12px; padding: 28px 32px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+      <div style="width: 48px; height: 48px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; font-size: 1.6em; flex-shrink: 0;">
+        🔒
+      </div>
+      <div>
+        <span style="display: inline-block; font-size: 0.75em; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #f87171; background: rgba(239, 68, 68, 0.12); padding: 2px 8px; border-radius: 4px; margin-bottom: 4px;">
+          Save Phiên Bản Cũ (v{{ campaign.schema_version }}.x)
+        </span>
+        <h2 style="margin: 0; color: #fff; font-size: 1.35em;">
+          {{ campaign.name }} ({{ campaign.current_year }})
+        </h2>
+      </div>
+    </div>
+
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; color: #e2e8f0; line-height: 1.6; font-size: 0.95em;">
+      <p style="margin: 0 0 10px 0;">
+        {{ message or 'Chiến dịch này được tạo từ phiên bản cũ (v1.x) trước Đại Cập Nhật Hệ Thống Tuyển Thủ v2.0.' }}
+      </p>
+      <p style="margin: 0; color: var(--dim); font-size: 0.9em;">
+        Bản cập nhật <strong style="color: #fbbf24;">v2.0</strong> thay đổi toàn diện cấu trúc đội hình (5 thành viên đủ 4 Role, chỉ số cộng thêm +0 đến +5, quỹ lương, ngoại binh, giải nghệ &amp; comeback), nên các file lưu cũ không còn tương thích để tiếp tục mô phỏng.
+      </p>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <a href="/campaigns" class="btn-sm" style="text-decoration: none; padding: 10px 18px; background: var(--bg); color: #e2e8f0; border: 1px solid var(--border); border-radius: 6px; font-weight: 600;">
+        ⬅ Quay về Danh sách mùa
+      </a>
+
+      <form action="/campaign/{{ campaign.id }}/delete" method="POST" onsubmit="return confirm('Xóa vĩnh viễn save cũ \'{{ campaign.name }}\'? Hành động này không thể hoàn tác.');" style="margin: 0;">
+        <button type="submit" style="padding: 10px 18px; background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.55); border-radius: 6px; font-weight: bold; cursor: pointer;">
+          🗑️ Xóa save cũ này
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

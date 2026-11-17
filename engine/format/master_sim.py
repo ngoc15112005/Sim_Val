@@ -86,8 +86,8 @@ def simulate_master_single_match(team_a: Dict[str, Any], team_b: Dict[str, Any],
     id_a = team_a['id'] if 'id' in team_a else team_a.get('club_id')
     id_b = team_b['id'] if 'id' in team_b else team_b.get('club_id')
 
-    r_a = team_a.get('story_rating') or team_a.get('current_rating') or team_a.get('rating') or 80
-    r_b = team_b.get('story_rating') or team_b.get('current_rating') or team_b.get('rating') or 80
+    r_a = team_a.get('roster_base_rating') or team_a.get('story_rating') or team_a.get('current_rating') or team_a.get('rating') or 80
+    r_b = team_b.get('roster_base_rating') or team_b.get('story_rating') or team_b.get('current_rating') or team_b.get('rating') or 80
 
     target_wins = 3 if bo == 5 else 2
     max_maps = bo
