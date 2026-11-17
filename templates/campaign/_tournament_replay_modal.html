@@ -1,0 +1,307 @@
+<!-- Tournament Replay Viewer Modal (O(1) Fast Single-Stage Archive Viewer) -->
+<div id="tournament-replay-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.9); backdrop-filter: blur(6px); z-index: 9999999; justify-content: center; align-items: center; padding: 16px;">
+  <div class="card" style="width: 1020px; max-width: 97vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 12px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.85); padding: 0;">
+
+    <!-- Header -->
+    <div style="padding: 16px 22px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span style="font-size: 1.3em;">📜</span>
+          <h2 id="trm-title" style="margin: 0; font-size: 1.25em; color: #fbbf24; font-weight: 800;">XEM LẠI GIẢI ĐẤU</h2>
+          <span id="trm-prize-pill" style="padding: 3px 10px; border-radius: 99px; font-size: 0.78em; font-weight: 800; background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.45);">💰 $0</span>
+          <span id="trm-host-pill" style="display: none; padding: 3px 10px; border-radius: 99px; font-size: 0.75em; font-weight: 700; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);"></span>
+        </div>
+        <div id="trm-subtitle" style="font-size: 0.82em; color: var(--dim); margin-top: 4px;">
+          Đang tải thông tin giải đấu...
+        </div>
+      </div>
+      <button type="button" onclick="closeTournamentReplayModal()" style="background: transparent; border: 1px solid var(--border); color: #94a3b8; width: 32px; height: 32px; border-radius: 6px; font-size: 1.15em; cursor: pointer;">✕</button>
+    </div>
+
+    <!-- Controls Toolbar -->
+    <div style="padding: 10px 22px; background: #131d35; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button type="button" class="trm-tab-btn active" onclick="trmSwitchTab('matches', this)">⚔️ Diễn Biến Trận Đấu (<span id="trm-matches-cnt">0</span>)</button>
+        <button type="button" class="trm-tab-btn" onclick="trmSwitchTab('standings', this)">🏆 Xếp Hạng &amp; Tiền Thưởng (<span id="trm-standings-cnt">0</span>)</button>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <label id="trm-only-club-wrap" style="display: none; align-items: center; gap: 6px; font-size: 0.82em; color: #38bdf8; cursor: pointer;">
+          <input type="checkbox" id="trm-only-club-chk" onchange="trmRenderBody()" style="accent-color: #38bdf8;">
+          <span>⭐ Chỉ hiện trận của đội đang xem</span>
+        </label>
+
+        <div id="trm-region-bar" style="display: none; gap: 6px;">
+          <button type="button" class="trm-reg-btn" data-reg="pacific" onclick="trmSwitchRegion('pacific')">Pacific</button>
+          <button type="button" class="trm-reg-btn" data-reg="americas" onclick="trmSwitchRegion('americas')">Americas</button>
+          <button type="button" class="trm-reg-btn" data-reg="emea" onclick="trmSwitchRegion('emea')">EMEA</button>
+          <button type="button" class="trm-reg-btn" data-reg="china" onclick="trmSwitchRegion('china')">China</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scrollable Body -->
+    <div id="trm-body" style="padding: 18px 22px; overflow-y: auto; flex: 1;">
+      <div style="padding: 40px; text-align: center; color: var(--dim);">⏳ Đang tải chi tiết giải đấu...</div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding: 12px 22px; background: #0b1120; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <a id="trm-full-bracket-link" href="#" style="text-decoration: none; padding: 8px 16px; background: linear-gradient(135deg, #38bdf8, #0284c7); color: #fff; border-radius: 6px; font-weight: bold; font-size: 0.88em; display: inline-flex; align-items: center; gap: 8px;">
+        <span>🗺️</span> Mở Sơ Đồ Nhánh Đấu Đầy Đủ (Full Bracket) ➔
+      </a>
+      <button type="button" onclick="closeTournamentReplayModal()" style="padding: 8px 16px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+        Đóng
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.trm-tab-btn, .trm-reg-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.83em;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trm-tab-btn.active {
+  background: #fbbf24;
+  color: #000;
+  border-color: #fbbf24;
+}
+.trm-reg-btn.active {
+  background: #38bdf8;
+  color: #000;
+  border-color: #38bdf8;
+}
+</style>
+
+<script>
+const TRM_STATE = {
+  campaignId: null,
+  stageKey: '',
+  year: null,
+  region: null,
+  highlightClubId: null,
+  tab: 'matches',
+  replay: null,
+};
+
+async function openTournamentReplayModal(campaignId, stageKey, year, regionSlug = null, highlightClubId = null) {
+  TRM_STATE.campaignId = campaignId;
+  TRM_STATE.stageKey = stageKey;
+  TRM_STATE.year = year;
+  TRM_STATE.region = regionSlug;
+  TRM_STATE.highlightClubId = highlightClubId;
+  TRM_STATE.tab = 'matches';
+
+  document.querySelectorAll('.trm-tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  const chk = document.getElementById('trm-only-club-chk');
+  if (chk) chk.checked = false;
+
+  const modal = document.getElementById('tournament-replay-modal');
+  if (modal) modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  await trmLoadData();
+}
+
+function closeTournamentReplayModal() {
+  const modal = document.getElementById('tournament-replay-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function trmSwitchTab(tabKey, btnEl) {
+  TRM_STATE.tab = tabKey;
+  document.querySelectorAll('.trm-tab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  trmRenderBody();
+}
+
+async function trmSwitchRegion(reg) {
+  TRM_STATE.region = reg;
+  await trmLoadData();
+}
+
+async function trmLoadData() {
+  const bodyEl = document.getElementById('trm-body');
+  if (bodyEl) bodyEl.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--dim);">⏳ Đang nạp nhánh đấu &amp; tỷ số từ lưu trữ...</div>`;
+
+  const qs = new URLSearchParams();
+  if (TRM_STATE.year) qs.set('year', TRM_STATE.year);
+  if (TRM_STATE.region) qs.set('region', TRM_STATE.region);
+  if (TRM_STATE.highlightClubId) qs.set('club_id', TRM_STATE.highlightClubId);
+
+  const res = await API.get(`/api/campaign/${TRM_STATE.campaignId}/stage-replay/${TRM_STATE.stageKey}?${qs.toString()}`);
+  if (!res || !res.success || !res.replay) {
+    if (bodyEl) bodyEl.innerHTML = `<div style="padding: 24px; color: #f87171;">Không thể tải chi tiết giải đấu: ${res?.error || 'Lỗi không rõ'}</div>`;
+    return;
+  }
+
+  const rp = res.replay;
+  TRM_STATE.replay = rp;
+  TRM_STATE.region = rp.region_slug || TRM_STATE.region;
+
+  document.getElementById('trm-title').textContent = `${rp.stage_name} (${rp.year})`;
+  document.getElementById('trm-prize-pill').textContent = `💰 Quỹ thưởng: ${rp.prize_pool_display || '$0'}`;
+
+  const hostPill = document.getElementById('trm-host-pill');
+  if (hostPill) {
+    if (rp.host_city) {
+      hostPill.style.display = 'inline-block';
+      hostPill.textContent = `📍 ${rp.host_city}`;
+    } else {
+      hostPill.style.display = 'none';
+    }
+  }
+
+  document.getElementById('trm-subtitle').textContent =
+    `Trạng thái: ${rp.status === 'completed' ? '✅ Đã hoàn tất' : '🔄 Đang diễn ra'} • ${rp.completed_matches}/${rp.total_matches} trận đấu đã ghi nhận`;
+
+  document.getElementById('trm-matches-cnt').textContent = rp.total_matches || 0;
+  document.getElementById('trm-standings-cnt').textContent = (rp.standings || []).length;
+
+  const fullLink = document.getElementById('trm-full-bracket-link');
+  if (fullLink && rp.full_bracket_url) fullLink.href = rp.full_bracket_url;
+
+  const regBar = document.getElementById('trm-region-bar');
+  if (regBar) {
+    regBar.style.display = rp.is_regional ? 'flex' : 'none';
+    regBar.querySelectorAll('.trm-reg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.reg === rp.region_slug);
+    });
+  }
+
+  const onlyClubWrap = document.getElementById('trm-only-club-wrap');
+  if (onlyClubWrap) {
+    onlyClubWrap.style.display = TRM_STATE.highlightClubId ? 'flex' : 'none';
+  }
+
+  trmRenderBody();
+}
+
+function trmRenderBody() {
+  const rp = TRM_STATE.replay;
+  const bodyEl = document.getElementById('trm-body');
+  if (!rp || !bodyEl) return;
+
+  if (TRM_STATE.tab === 'standings') {
+    const rows = rp.standings || [];
+    if (rows.length === 0) {
+      bodyEl.innerHTML = `<div style="padding: 36px; text-align: center; color: var(--dim);">Chưa có bảng xếp hạng chung cuộc cho giải đấu này.</div>`;
+      return;
+    }
+
+    const tbodyHtml = rows.map(s => {
+      const c = s.club || {};
+      const rowBg = s.is_highlight
+        ? 'rgba(56, 189, 248, 0.14)'
+        : (s.rank === 1 ? 'rgba(234, 179, 8, 0.12)' : (s.rank === 2 ? 'rgba(148, 163, 184, 0.08)' : ''));
+      const rankHtml = s.rank === 1 ? '🥇 1st' : (s.rank === 2 ? '🥈 2nd' : (s.rank === 3 ? '🥉 3rd' : `#${s.rank}`));
+      return `
+        <tr style="background: ${rowBg}; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <td style="padding: 9px 10px; text-align: center; font-weight: 800; color: ${s.rank <= 3 ? '#fbbf24' : '#e2e8f0'};">${rankHtml}</td>
+          <td style="padding: 9px 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="closeTournamentReplayModal(); openTeamProfileModal(${c.id}, ${rp.campaign_id});">
+              ${c.logo_url ? `<img src="${c.logo_url}" style="width:20px; height:20px; object-fit:contain;" alt="">` : ''}
+              <strong class="team-profile-trigger" style="color: ${s.is_highlight ? '#38bdf8' : '#fff'};">${c.name || 'TBD'}</strong>
+              <span style="color: var(--dim); font-size: 0.82em;">(${c.short_code || ''})</span>
+              ${s.is_highlight ? '<span style="font-size:0.7em; padding:1px 6px; border-radius:4px; background:rgba(56,189,248,0.2); color:#38bdf8; font-weight:800;">ĐỘI ĐANG XEM</span>' : ''}
+            </div>
+          </td>
+          <td style="padding: 9px 10px; text-align: center; color: var(--dim); font-size: 0.88em;">${s.elimination_stage || '-'}</td>
+          <td style="padding: 9px 10px; text-align: center; font-weight: 700; color: #4ade80;">${s.matches_won || 0}W - ${s.matches_lost || 0}L</td>
+          <td style="padding: 9px 10px; text-align: center; font-weight: 700; color: #fbbf24;">${s.stage_points_earned > 0 ? '+' + s.stage_points_earned + ' CP' : '0 CP'}</td>
+          <td style="padding: 9px 10px; text-align: right; font-weight: 800; color: ${s.prize_money > 0 ? '#34d399' : 'var(--dim)'};">${s.prize_money_display || '$0'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    bodyEl.innerHTML = `
+      <div class="table-scroll">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--dim); text-align: left;">
+              <th style="padding: 9px 10px; text-align: center; width: 80px;">Hạng</th>
+              <th style="padding: 9px 10px;">Đội tuyển</th>
+              <th style="padding: 9px 10px; text-align: center;">Vòng dừng bước</th>
+              <th style="padding: 9px 10px; text-align: center;">W - L</th>
+              <th style="padding: 9px 10px; text-align: center;">Điểm CP</th>
+              <th style="padding: 9px 10px; text-align: right;">💰 Tiền thưởng</th>
+            </tr>
+          </thead>
+          <tbody>${tbodyHtml}</tbody>
+        </table>
+      </div>
+    `;
+    return;
+  }
+
+  // Render Matches by Section
+  const onlyClub = Boolean(document.getElementById('trm-only-club-chk')?.checked);
+  const sections = rp.sections || [];
+  let html = '';
+
+  sections.forEach(sec => {
+    const matches = (sec.matches || []).filter(m => !onlyClub || m.involves_highlight);
+    if (matches.length === 0) return;
+
+    const cardsHtml = matches.map(m => {
+      const aWon = m.winner_id && m.winner_id === m.team_a.id;
+      const bWon = m.winner_id && m.winner_id === m.team_b.id;
+      const mapsHtml = (m.maps || []).length > 0
+        ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">` +
+          m.maps.map(mp => `<span style="font-size:0.73em; padding:2px 7px; border-radius:4px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:#cbd5e1;">${mp.map_name}: <strong>${mp.team_a_score}-${mp.team_b_score}</strong></span>`).join('') +
+          `</div>`
+        : '';
+
+      return `
+        <div style="padding: 10px 14px; background: var(--surface); border: 1px solid ${m.involves_highlight ? 'rgba(56, 189, 248, 0.55)' : 'var(--border)'}; border-radius: 8px; ${m.involves_highlight ? 'box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);' : ''}">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 0.75em; color: var(--dim); font-weight: 700; min-width: 120px;">
+              ${m.round_name} · BO${m.bo}
+            </span>
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 240px;">
+              <span style="text-align: right; flex: 1; font-weight: ${aWon ? '800' : '600'}; color: ${aWon ? '#4ade80' : (m.status === 'completed' ? '#94a3b8' : '#e2e8f0')};">
+                ${m.team_a.short_code || m.team_a.name}
+              </span>
+              <span style="padding: 3px 10px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-weight: 900; color: #fff; font-size: 0.95em; min-width: 58px; text-align: center;">
+                ${m.status === 'completed' ? `${m.score_a} - ${m.score_b}` : 'VS'}
+              </span>
+              <span style="text-align: left; flex: 1; font-weight: ${bWon ? '800' : '600'}; color: ${bWon ? '#4ade80' : (m.status === 'completed' ? '#94a3b8' : '#e2e8f0')};">
+                ${m.team_b.short_code || m.team_b.name}
+              </span>
+            </div>
+            <span style="font-size: 0.74em; color: ${m.status === 'completed' ? '#34d399' : '#fbbf24'}; min-width: 72px; text-align: right;">
+              ${m.status === 'completed' ? '✓ Xong' : '⏳ Chờ'}
+            </span>
+          </div>
+          ${mapsHtml}
+        </div>
+      `;
+    }).join('');
+
+    html += `
+      <div style="margin-bottom: 18px;">
+        <div style="font-size: 0.82em; color: #38bdf8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(56, 189, 248, 0.25);">
+          ${sec.section_name} (${matches.length} trận)
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          ${cardsHtml}
+        </div>
+      </div>
+    `;
+  });
+
+  if (!html) {
+    html = `<div style="padding: 36px; text-align: center; color: var(--dim); border: 1px dashed var(--border); border-radius: 8px;">Chưa có trận đấu nào được ghi nhận ở mục này.</div>`;
+  }
+  bodyEl.innerHTML = html;
+}
+</script>

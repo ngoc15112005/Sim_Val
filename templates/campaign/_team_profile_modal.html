@@ -1,6 +1,6 @@
 <!-- Component Quick Profile Modal Drawer (Xem nhanh hồ sơ đội tuyển kiểu Liquipedia) -->
 <div id="team-profile-modal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 15, 29, 0.88); backdrop-filter: blur(8px); z-index: 999999; justify-content: center; align-items: center; padding: 16px;">
-  <div class="card" style="width: 680px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.8); overflow: hidden; padding: 0;">
+  <div class="card" style="width: 780px; max-width: 96vw; max-height: 92vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.8); overflow: hidden; padding: 0;">
     
     <!-- Modal Header with dynamic tier border -->
     <div id="tpm-header-bar" style="padding: 16px 20px; background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
@@ -38,12 +38,13 @@
               <span style="font-size: 1.8em;">🛡️</span>
             </div>
             <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <h2 id="tpm-team-name" style="margin: 0; font-size: 1.35em; color: #fff; font-weight: 800;">-</h2>
                 <span id="tpm-team-code" class="badge" style="background: rgba(255,255,255,0.1); color: #fff; font-weight: bold;">-</span>
                 <span id="tpm-team-region" class="badge" style="text-transform: uppercase;">-</span>
+                <span id="tpm-partner-pill" class="badge" style="font-size: 0.72em;"></span>
               </div>
-              <div style="margin-top: 4px; display: flex; align-items: center; gap: 10px; font-size: 0.85em; color: var(--dim);">
+              <div style="margin-top: 4px; display: flex; align-items: center; gap: 10px; font-size: 0.85em; color: var(--dim); flex-wrap: wrap;">
                 <span>Hạng TG: <strong id="tpm-global-rank" style="color: #fff;">#--</strong> <span id="tpm-rank-delta"></span></span>
                 &bull;
                 <span>Hạng Vùng: <strong id="tpm-regional-rank" style="color: #38bdf8;">#--</strong></span>
@@ -52,6 +53,7 @@
                 &bull;
                 <span>OVR: <strong id="tpm-ovr-rating" style="color: #4ade80;">--</strong></span>
               </div>
+              <div id="tpm-power-breakdown" style="margin-top: 4px; font-size: 0.78em; color: #94a3b8;"></div>
             </div>
           </div>
 
@@ -60,31 +62,48 @@
           </div>
         </div>
 
-        <!-- Career & Season Stats 4-Grid -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+        <!-- Career & Season Stats 5-Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px;">
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
-            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Thành Tích Đấu</div>
-            <div id="tpm-stat-wl" style="font-size: 1.15em; font-weight: 900; color: #fff; margin-top: 2px;">0W - 0L</div>
-            <div id="tpm-stat-winrate" style="font-size: 0.75em; color: #4ade80; margin-top: 2px;">0% Winrate</div>
+            <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Thành Tích Đấu</div>
+            <div id="tpm-stat-wl" style="font-size: 1.1em; font-weight: 900; color: #fff; margin-top: 2px;">0W - 0L</div>
+            <div id="tpm-stat-winrate" style="font-size: 0.73em; color: #4ade80; margin-top: 2px;">0% Winrate</div>
+          </div>
+
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.7em; color: #6ee7b7; text-transform: uppercase; font-weight: bold;">💰 Tiền Thưởng</div>
+            <div id="tpm-stat-prize" style="font-size: 1.1em; font-weight: 900; color: #34d399; margin-top: 2px;">$0</div>
+            <div id="tpm-stat-season-prize" style="font-size: 0.73em; color: var(--dim); margin-top: 2px;">Mùa này: $0</div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
-            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Điểm CP Trọn Đời</div>
-            <div id="tpm-stat-cp" style="font-size: 1.15em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 CP</div>
-            <div id="tpm-stat-season-cp" style="font-size: 0.75em; color: var(--dim); margin-top: 2px;">Mùa này: 0 CP</div>
+            <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Điểm CP Trọn Đời</div>
+            <div id="tpm-stat-cp" style="font-size: 1.1em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 CP</div>
+            <div id="tpm-stat-season-cp" style="font-size: 0.73em; color: var(--dim); margin-top: 2px;">Mùa này: 0 CP</div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
-            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tủ Cúp (Trophies)</div>
-            <div id="tpm-stat-trophies" style="font-size: 1.15em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 🏆</div>
-            <div id="tpm-stat-trophies-detail" style="font-size: 0.72em; color: var(--dim); margin-top: 2px;">0 Ch. / 0 M.</div>
+            <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tủ Cúp (Trophies)</div>
+            <div id="tpm-stat-trophies" style="font-size: 1.1em; font-weight: 900; color: #fbbf24; margin-top: 2px;">0 🏆</div>
+            <div id="tpm-stat-trophies-detail" style="font-size: 0.7em; color: var(--dim); margin-top: 2px;">0 Ch. / 0 M.</div>
           </div>
 
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center;">
-            <div style="font-size: 0.72em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Chuỗi Phong Độ</div>
-            <div id="tpm-stat-streak" style="font-size: 1.15em; font-weight: 900; color: #38bdf8; margin-top: 2px;">Hòa</div>
-            <div id="tpm-stat-form" style="font-size: 0.72em; color: var(--dim); margin-top: 2px;">Form: 0</div>
+            <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Chuỗi Phong Độ</div>
+            <div id="tpm-stat-streak" style="font-size: 1.1em; font-weight: 900; color: #38bdf8; margin-top: 2px;">Hòa</div>
+            <div id="tpm-stat-form" style="font-size: 0.73em; color: var(--dim); margin-top: 2px;">Form: 0</div>
           </div>
+        </div>
+
+        <!-- Active Roster (5 Starters + Bench) -->
+        <div style="background: var(--surface); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 10px; padding: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+            <div style="font-size: 0.82em; color: #38bdf8; font-weight: 800; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+              <span>👥</span> ĐỘI HÌNH HIỆN TẠI (ACTIVE ROSTER)
+            </div>
+            <div id="tpm-roster-meta" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.76em;"></div>
+          </div>
+          <div id="tpm-roster-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px;"></div>
         </div>
 
         <!-- Radar Attributes Bars -->
@@ -334,6 +353,86 @@ function renderTeamProfileModal(profile, campId) {
   const sCpEl = document.getElementById('tpm-stat-season-cp');
   if (sCpEl) sCpEl.textContent = `Mùa này: ${stats.current_season_cp || 0} CP`;
 
+  const prizeEl = document.getElementById('tpm-stat-prize');
+  if (prizeEl) prizeEl.textContent = stats.lifetime_prize_money_display || '$0';
+
+  const sPrizeEl = document.getElementById('tpm-stat-season-prize');
+  if (sPrizeEl) sPrizeEl.textContent = `Mùa này: ${stats.current_season_prize_money_display || '$0'}`;
+
+  // Partner badge & Roster Power Breakdown + Active Roster Cards
+  const roster = profile.roster || {};
+  const rMetrics = roster.metrics || {};
+  const partnerEl = document.getElementById('tpm-partner-pill');
+  if (partnerEl) {
+    const isP = Boolean(rMetrics.is_partner || (profile.state && profile.state.is_partner));
+    partnerEl.textContent = isP ? '⭐ PARTNER' : '⚔️ NON-PARTNER';
+    partnerEl.style.background = isP ? 'rgba(251, 191, 36, 0.16)' : 'rgba(148, 163, 184, 0.14)';
+    partnerEl.style.color = isP ? '#fbbf24' : '#94a3b8';
+    partnerEl.style.border = isP ? '1px solid rgba(251, 191, 36, 0.45)' : '1px solid rgba(148, 163, 184, 0.3)';
+  }
+
+  const pbEl = document.getElementById('tpm-power-breakdown');
+  if (pbEl) {
+    const stR = rMetrics.story_rating ?? (profile.state ? profile.state.story_rating : 80);
+    const pBon = rMetrics.player_bonus ?? (profile.state ? profile.state.player_bonus : 0);
+    const effR = rMetrics.effective_rating ?? (stR + pBon);
+    const fMod = rMetrics.form_modifier || 0;
+    pbEl.innerHTML = `Sức mạnh: Gốc <strong style="color:#fff;">${stR}</strong> + Tuyển thủ <strong style="color:#4ade80;">+${pBon}</strong> + Form <strong style="color:#fbbf24;">${fMod >= 0 ? '+' + fMod : fMod}</strong> = <strong style="color:#38bdf8;">${effR}</strong>`;
+  }
+
+  const metaEl = document.getElementById('tpm-roster-meta');
+  if (metaEl) {
+    const pay = rMetrics.payroll || 0;
+    const cap = rMetrics.salary_cap || 1200;
+    const imp = rMetrics.import_count || 0;
+    const maxF = rMetrics.max_foreign || 2;
+    const rOk = Boolean(rMetrics.roles_ok);
+    const editBtn = typeof openClubRosterModal === 'function'
+      ? `<button type="button" onclick="closeTeamProfileModal(); openClubRosterModal(${campId}, ${c.id});" style="padding:3px 8px; border-radius:4px; background:rgba(56,189,248,0.16); color:#38bdf8; border:1px solid rgba(56,189,248,0.45); cursor:pointer; font-weight:700;">⚙️ Quản lý</button>`
+      : '';
+    metaEl.innerHTML = `
+      <span style="padding:2px 7px; border-radius:4px; background:${rOk ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.14)'}; color:${rOk ? '#4ade80' : '#f87171'}; font-weight:700;">${rOk ? '✓ 4 Role' : '! Thiếu Role'}</span>
+      <span style="padding:2px 7px; border-radius:4px; background:rgba(255,255,255,0.06); color:#cbd5e1;">Ngoại binh: <strong>${imp}/${maxF}</strong></span>
+      <span style="padding:2px 7px; border-radius:4px; background:rgba(255,255,255,0.06); color:#34d399;">Lương: <strong>$${pay}K/$${cap}K</strong></span>
+      ${editBtn}
+    `;
+  }
+
+  const rosterEl = document.getElementById('tpm-roster-list');
+  if (rosterEl) {
+    const starters = roster.starters || [];
+    const bench = roster.bench || [];
+    const allPlayers = [...starters.map(p => ({ ...p, _isBench: false })), ...bench.map(p => ({ ...p, _isBench: true }))];
+    if (allPlayers.length === 0) {
+      rosterEl.innerHTML = `<div style="grid-column: 1/-1; color: var(--dim); font-size: 0.84em; font-style: italic;">Chiến dịch chưa có dữ liệu tuyển thủ (phiên bản save cũ).</div>`;
+    } else {
+      rosterEl.innerHTML = allPlayers.map(p => {
+        const b = p.bonus_rating || 0;
+        const flex = p.is_flex || p.primary_role === 'Flex';
+        const bonusCol = b >= 3 ? '#fbbf24' : (b >= 1 ? '#4ade80' : '#94a3b8');
+        return `
+          <div style="padding: 8px 10px; background: var(--bg); border: 1px solid ${p._isBench ? 'rgba(168,85,247,0.35)' : 'var(--border)'}; border-radius: 7px; display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 0.82em;">
+            <div style="min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                <span>${p.nationality_flag || '🏳️'}</span>
+                <strong style="color: #fff;">${p.ign}</strong>
+                <span style="color: var(--dim); font-size: 0.85em;">${p.age}t</span>
+                ${p._isBench ? '<span style="font-size:0.72em; padding:1px 4px; border-radius:3px; background:rgba(168,85,247,0.18); color:#c084fc;">DỰ BỊ</span>' : ''}
+              </div>
+              <div style="margin-top: 3px; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.82em; padding: 1px 6px; border-radius: 4px; background: ${flex ? 'rgba(251,191,36,0.14)' : 'rgba(56,189,248,0.14)'}; color: ${flex ? '#fbbf24' : '#38bdf8'}; font-weight: 700;">
+                  ${flex ? '✨ Flex' : p.primary_role}
+                </span>
+                <span style="color: var(--dim); font-size: 0.82em;">$${p.salary}K</span>
+              </div>
+            </div>
+            <span style="padding: 3px 7px; border-radius: 5px; background: rgba(255,255,255,0.06); color: ${bonusCol}; font-weight: 900; font-size: 1em;">+${b}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
   const troEl = document.getElementById('tpm-stat-trophies');
   if (troEl) troEl.textContent = `${trophies.total_titles || 0} 🏆`;
 
@@ -380,7 +479,7 @@ function renderTeamProfileModal(profile, campId) {
   const scoutEl = document.getElementById('tpm-scouting-report');
   if (scoutEl) scoutEl.textContent = evalData.scouting_report || '-';
 
-  // Recent Tournaments (Up to 3)
+  // Recent Tournaments (Up to 5 with Prize Money & Replay button)
   const tourList = document.getElementById('tpm-recent-tournaments-list');
   const tourBadge = document.getElementById('tpm-tour-total-badge');
   const results = profile.tournament_results || [];
@@ -391,24 +490,30 @@ function renderTeamProfileModal(profile, campId) {
     if (results.length === 0) {
       tourList.innerHTML = `<div style="color: var(--dim); font-size: 0.85em; font-style: italic;">Chưa có dữ liệu giải đấu nào được ghi nhận.</div>`;
     } else {
-      const top3 = results.slice(0, 3);
-      tourList.innerHTML = top3.map(r => {
+      const top5 = results.slice(0, 5);
+      tourList.innerHTML = top5.map(r => {
         const isCh = r.rank === 1;
         const isRu = r.rank === 2;
         const bgCol = isCh ? 'rgba(234, 179, 8, 0.12)' : (isRu ? 'rgba(148, 163, 184, 0.08)' : 'var(--bg)');
         const rankColor = isCh ? '#fbbf24' : (isRu ? '#cbd5e1' : '#fff');
+        const regArg = r.region_slug ? `'${r.region_slug}'` : 'null';
+        const replayBtn = typeof openTournamentReplayModal === 'function'
+          ? `<button type="button" onclick="event.stopPropagation(); closeTeamProfileModal(); openTournamentReplayModal(${campId}, '${r.stage_key}', ${r.year}, ${regArg}, ${c.id});" style="padding:3px 8px; border-radius:4px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.4); font-size:0.78em; font-weight:700; cursor:pointer;">🔍 Xem giải</button>`
+          : '';
         return `
-          <div style="background: ${bgCol}; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em;">
+          <div style="background: ${bgCol}; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.85em; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="badge" style="background: rgba(255,255,255,0.08); font-size: 0.78em; padding: 2px 6px;">Năm ${r.year}</span>
-              <strong style="color: #fff;">${r.stage_name}</strong>
+              <strong style="color: #fff;">${r.tournament_name || r.stage_key}</strong>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
               <span style="color: var(--dim); font-size: 0.82em;">${r.matches_won}W - ${r.matches_lost}L</span>
               <span style="font-weight: 900; color: ${rankColor};">
                 ${r.rank === 1 ? '🥇 1st' : (r.rank === 2 ? '🥈 2nd' : (r.rank === 3 ? '🥉 3rd' : '#' + r.rank))}
               </span>
+              <span style="color: #34d399; font-weight: 800; font-size: 0.84em;">${r.prize_money_display || '$0'}</span>
               <span style="color: #fbbf24; font-weight: bold; font-size: 0.82em;">+${r.stage_points_earned} CP</span>
+              ${replayBtn}
             </div>
           </div>
         `;

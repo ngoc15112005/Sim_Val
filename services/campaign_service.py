@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any, Tuple, Union
 from sqlalchemy.orm import joinedload
 from models import (
-    db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
+    db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement,
+    CampaignPlayer, CampaignStoryline, CampaignMatchRecord,
 )
 
 COMPETITIVE_STAGE_KEYS = (
@@ -28,7 +29,7 @@ COMPETITIVE_STAGE_KEYS = (
 # Bounded in-memory cache for prior-year GPR checkpoints:
 # Keyed by campaign_id -> (prior_signature, checkpoint_dict)
 _GPR_PRIOR_CACHE: Dict[int, Tuple[Any, Dict[str, Any]]] = {}
-from config import Config
+from config import Config, get_stage_prize_money, get_stage_total_prize_pool, format_usd
 from engine.power_rating import (
     update_team_elo,
     update_regional_league_elo,
@@ -169,6 +170,12 @@ def create_campaign(name: str = "VCT 2027 Circuit Journey", start_year: int = 20
 
     db.session.flush()
     initialize_campaign_players(campaign.id, start_year=start_year)
+
+    # Cân bằng Sức mạnh gốc CLB (story_rating) = Target Total Rating - Player Bonus
+    # Để Tổng (story_rating + player_bonus) nằm hợp lý trong [68..96], không bị out thang 100+.
+    for cs in CampaignClubState.query.filter_by(campaign_id=campaign.id).all():
+        target_total = cs.story_rating or 80
+        cs.story_rating = max(55, target_total - (cs.player_bonus or 0))
 
     # Initialize Stage 1: Open Qualifier (after players & player_bonus are populated)
     oq_stage = CampaignStage(
@@ -607,6 +614,7 @@ def unlock_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> D
             campaign.current_stage = stage_key
 
     stage.stage_data = json.dumps(data)
+    sync_stage_match_records(campaign.id, stage, parsed_data=data)
     db.session.commit()
     recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
@@ -648,6 +656,7 @@ def unlock_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
             campaign.current_stage = stage_key
 
     stage.stage_data = json.dumps(data)
+    sync_stage_match_records(campaign.id, stage, parsed_data=data)
     db.session.commit()
     recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
@@ -658,11 +667,13 @@ def unlock_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
         'message': f"Đã mở khóa thành công giải đấu {stage_key.upper()}."
     }
 
-def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieve full Open Qualifier data for all regions in a campaign.
-    Auto-initializes any uninitialized region with Swiss Round 1 matches in 'pending' status.
+def get_open_qualifier_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve full Open Qualifier data for all regions in a campaign (supports historical year replay).
+    Auto-initializes current year's uninitialized regions with Swiss Round 1 matches.
     """
-    stage = get_stage_record(campaign_id, 'open_qualifier')
+    campaign = get_campaign(campaign_id)
+    target_year = year or (campaign.current_year if campaign else None)
+    stage = get_stage_record(campaign_id, 'open_qualifier', year=target_year)
     if not stage or not stage.stage_data:
         return None
     try:
@@ -670,11 +681,11 @@ def get_open_qualifier_data(campaign_id: int) -> Optional[Dict[str, Any]]:
     except Exception:
         data = {'regions': {}}
 
+    is_current = campaign and target_year == campaign.current_year
     regions = data.get('regions', {})
-    if any(r not in regions for r in ['pacific', 'americas', 'emea', 'china']):
+    if is_current and any(r not in regions for r in ['pacific', 'americas', 'emea', 'china']):
         data = init_campaign_open_qualifier(campaign_id)
-    campaign = get_campaign(campaign_id)
-    if campaign:
+    if campaign and is_current:
         heal_stage_regional_state(campaign, stage, 'open_qualifier', data)
     return data
 
@@ -1699,20 +1710,20 @@ def _prepare_oq_stage1_stage(campaign: Campaign):
         stage_record.stage_data = json.dumps(curr_data)
 
 
-def get_oq_stage1_data(campaign_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieve full Open Qualifier Stage 1 data for a campaign."""
-    stage = get_stage_record(campaign_id, 'oq_stage1')
-    if not stage or not stage.stage_data:
-        campaign = get_campaign(campaign_id)
-        if campaign:
-            _prepare_oq_stage1_stage(campaign)
-            db.session.commit()
-            stage = get_stage_record(campaign_id, 'oq_stage1')
+def get_oq_stage1_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve full Open Qualifier Stage 1 data for a campaign (supports historical year replay)."""
+    campaign = get_campaign(campaign_id)
+    target_year = year or (campaign.current_year if campaign else None)
+    is_current = campaign and target_year == campaign.current_year
+    stage = get_stage_record(campaign_id, 'oq_stage1', year=target_year)
+    if (not stage or not stage.stage_data) and is_current:
+        _prepare_oq_stage1_stage(campaign)
+        db.session.commit()
+        stage = get_stage_record(campaign_id, 'oq_stage1', year=target_year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
-    campaign = get_campaign(campaign_id)
-    if campaign:
+    if campaign and is_current:
         heal_stage_regional_state(campaign, stage, 'oq_stage1', data)
     return data
 
@@ -3118,20 +3129,20 @@ def _prepare_oq_stage2_stage(campaign: Campaign):
         stage_record.stage_data = json.dumps(curr_data)
 
 
-def get_oq_stage2_data(campaign_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieve full Open Qualifier Stage 2 data for a campaign."""
-    stage = get_stage_record(campaign_id, 'oq_stage2')
-    if not stage or not stage.stage_data:
-        campaign = get_campaign(campaign_id)
-        if campaign:
-            _prepare_oq_stage2_stage(campaign)
-            db.session.commit()
-            stage = get_stage_record(campaign_id, 'oq_stage2')
+def get_oq_stage2_data(campaign_id: int, year: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve full Open Qualifier Stage 2 data for a campaign (supports historical year replay)."""
+    campaign = get_campaign(campaign_id)
+    target_year = year or (campaign.current_year if campaign else None)
+    is_current = campaign and target_year == campaign.current_year
+    stage = get_stage_record(campaign_id, 'oq_stage2', year=target_year)
+    if (not stage or not stage.stage_data) and is_current:
+        _prepare_oq_stage2_stage(campaign)
+        db.session.commit()
+        stage = get_stage_record(campaign_id, 'oq_stage2', year=target_year)
     if not stage or not stage.stage_data:
         return None
     data = json.loads(stage.stage_data)
-    campaign = get_campaign(campaign_id)
-    if campaign:
+    if campaign and is_current:
         heal_stage_regional_state(campaign, stage, 'oq_stage2', data)
     return data
 
@@ -4871,6 +4882,7 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
         existing = existing_by_club.get(cid)
 
         rank_d = _get_rank_display(rank)
+        pm = get_stage_prize_money(stage_key, rank)
         if not existing:
             rec = CampaignStagePlacement(
                 campaign_id=campaign_id,
@@ -4883,6 +4895,7 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
                 rank_display=rank_d,
                 elimination_stage=elim_stage,
                 stage_points_earned=cp,
+                prize_money=pm,
                 matches_won=m_won,
                 matches_lost=m_lost,
                 power_score_snapshot=p_score,
@@ -4895,6 +4908,7 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
             existing.rank_display = rank_d
             existing.elimination_stage = elim_stage
             existing.stage_points_earned = cp
+            existing.prize_money = pm
             existing.matches_won = m_won
             existing.matches_lost = m_lost
             existing.power_score_snapshot = p_score
@@ -5087,11 +5101,14 @@ def get_stage_placements_history(
         'third_place': plist[2] if len(plist) >= 3 and plist[2]['rank'] == 3 else None,
     }
 
+    prize_pool = get_stage_total_prize_pool(stage_key)
     return {
         'stage_key': stage_key,
         'available_years': available_years,
         'selected_year': selected_year,
         'region_slug': region_slug,
+        'prize_pool': prize_pool,
+        'prize_pool_display': format_usd(prize_pool),
         'podium': podium,
         'placements': plist,
         'total_teams': len(plist),
@@ -5246,8 +5263,63 @@ DEFAULT_REGIONAL_DNA = {
 }
 
 
-def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int = 5) -> List[Dict[str, Any]]:
-    """Extract recent head-to-head match records for a club across competitive campaign stages."""
+def _iter_matches_from_stage_json(
+    d: Dict[str, Any],
+    target_region: Optional[str] = None,
+) -> List[Tuple[str, Optional[str], Dict[str, Any]]]:
+    """Trích xuất thống nhất tất cả trận đấu từ bất kỳ cấu trúc JSON stage_data nào.
+    Trả về list (section_label, region_slug_or_None, match_dict).
+    """
+    collected: List[Tuple[str, Optional[str], Dict[str, Any]]] = []
+    if not isinstance(d, dict):
+        return collected
+
+    def _append_from_container(container: Any, section: str, reg: Optional[str]):
+        if isinstance(container, list):
+            for item in container:
+                if isinstance(item, dict):
+                    collected.append((section, reg, item))
+        elif isinstance(container, dict):
+            for item in container.values():
+                if isinstance(item, dict):
+                    collected.append((section, reg, item))
+
+    # 1. Direct result / top-level (Major, Master, EWC, Champion)
+    res_obj = d.get('result') if isinstance(d.get('result'), dict) else d
+    if isinstance(res_obj, dict):
+        groups_obj = res_obj.get('groups') or d.get('groups')
+        if isinstance(groups_obj, dict):
+            for g_label, g_data in groups_obj.items():
+                if isinstance(g_data, dict):
+                    _append_from_container(g_data.get('matches'), f"Bảng {g_label}", None)
+        _append_from_container(res_obj.get('swiss_matches') or d.get('swiss_matches'), "Vòng Swiss", None)
+        _append_from_container(res_obj.get('matches'), "Vòng Bảng / Chung Kết", None)
+        _append_from_container(res_obj.get('playoff_matches') or d.get('playoff_matches'), "Playoffs", None)
+
+    # 2. Regional maps ('regional_results' or 'regions')
+    for reg_dict_key in ('regional_results', 'regions'):
+        reg_map = d.get(reg_dict_key)
+        if not isinstance(reg_map, dict):
+            continue
+        for r_slug, reg_data in reg_map.items():
+            if target_region and r_slug != target_region:
+                continue
+            if not isinstance(reg_data, dict):
+                continue
+            _append_from_container(reg_data.get('phase1_matches'), "Phase 1 (Swiss)", r_slug)
+            _append_from_container(reg_data.get('phase2_matches'), "Phase 2 (Playoffs)", r_slug)
+            _append_from_container(reg_data.get('swiss_matches'), "Vòng Swiss", r_slug)
+            _append_from_container(reg_data.get('alpha_matches'), "Bảng Alpha", r_slug)
+            _append_from_container(reg_data.get('omega_matches'), "Bảng Omega", r_slug)
+            _append_from_container(reg_data.get('regular_matches'), "Vòng Bảng (Regular)", r_slug)
+            _append_from_container(reg_data.get('matches'), "Vòng Đấu", r_slug)
+            _append_from_container(reg_data.get('playoff_matches'), "Playoffs", r_slug)
+
+    return collected
+
+
+def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int = 8) -> List[Dict[str, Any]]:
+    """Extract recent head-to-head match records in O(1) bounded time (scans at most 12 latest stages)."""
     stages = (
         CampaignStage.query
         .filter(
@@ -5255,6 +5327,7 @@ def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int 
             CampaignStage.stage_key.in_(COMPETITIVE_STAGE_KEYS),
         )
         .order_by(CampaignStage.year.desc(), CampaignStage.id.desc())
+        .limit(12)
         .all()
     )
 
@@ -5269,26 +5342,8 @@ def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int 
         except Exception:
             continue
 
-        raw_matches = []
-        # Search in direct result
-        if 'result' in d and isinstance(d['result'], dict):
-            res = d['result']
-            raw_matches.extend(res.get('matches', []))
-            raw_matches.extend(res.get('playoff_matches', []))
-            raw_matches.extend(res.get('swiss_matches', []))
-
-        # Search in regional results
-        if 'regional_results' in d and isinstance(d['regional_results'], dict):
-            for reg_data in d['regional_results'].values():
-                if isinstance(reg_data, dict):
-                    raw_matches.extend(reg_data.get('matches', []))
-                    raw_matches.extend(reg_data.get('playoff_matches', []))
-                    raw_matches.extend(reg_data.get('alpha_matches', []))
-                    raw_matches.extend(reg_data.get('omega_matches', []))
-
-        for m in reversed(raw_matches):
-            if not isinstance(m, dict):
-                continue
+        extracted = _iter_matches_from_stage_json(d)
+        for section_label, r_slug, m in reversed(extracted):
             ta_id = m.get('team_a_id') or (m.get('team_a', {}).get('id') if isinstance(m.get('team_a'), dict) else None)
             tb_id = m.get('team_b_id') or (m.get('team_b', {}).get('id') if isinstance(m.get('team_b'), dict) else None)
             w_id = m.get('winner_id')
@@ -5307,11 +5362,13 @@ def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int 
                     'match_code': m.get('match_code') or m.get('id', ''),
                     'tournament_name': st.stage_name,
                     'stage_key': st.stage_key,
-                    'round_name': m.get('round_name') or m.get('round_type') or 'Trận đấu',
+                    'year': st.year,
+                    'region_slug': r_slug,
+                    'round_name': m.get('round_name') or m.get('round_type') or section_label or 'Trận đấu',
                     'is_winner': is_win,
                     'score_display': f"{score_for} - {score_against}",
                     'result_badge': 'W' if is_win else 'L',
-                    'opponent': opp_club.to_dict() if opp_club else {'name': 'Đối thủ', 'short_code': 'OPP'},
+                    'opponent': opp_club.to_dict() if opp_club else {'id': opp_id, 'name': 'Đối thủ', 'short_code': 'OPP'},
                 })
 
                 if len(found_matches) >= limit:
@@ -5358,7 +5415,7 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
     prev_rk = c_state.previous_rank if c_state else None
     rank_delta = format_rank_delta(global_rank, prev_rk)
 
-    # 2. Tournament Placements History (Liquipedia Style)
+    # 2. Tournament Placements History & Prize Earnings (Liquipedia Style)
     placements = CampaignStagePlacement.query.filter_by(
         campaign_id=campaign_id, club_id=club_id
     ).order_by(CampaignStagePlacement.year.desc(), CampaignStagePlacement.id.desc()).all()
@@ -5373,6 +5430,10 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
     total_matches_won = 0
     total_matches_lost = 0
     lifetime_cp = 0
+    lifetime_prize_money = 0
+    current_season_prize_money = 0
+    best_placement = None
+    season_agg: Dict[int, Dict[str, Any]] = {}
 
     tier_cat_map = {
         'champion': ('👑 VALORANT Champions', 'tier-world'),
@@ -5410,13 +5471,55 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
         cp_pts = p.stage_points_earned or 0
         lifetime_cp += cp_pts
 
-        winrate = round((w / (w + l) * 100), 1) if (w + l) > 0 else 0.0
+        pm = p.prize_money if (p.prize_money is not None and p.prize_money > 0) else get_stage_prize_money(p.stage_key, p.rank)
+        lifetime_prize_money += pm
+        if p.year == campaign.current_year:
+            current_season_prize_money += pm
 
+        # Track best historical finish (international stage weighted before regional on equal rank)
+        intl_priority = 0 if p.stage_key == 'champion' else (1 if p.stage_key in ('master', 'major', 'ewc') else 2)
+        if best_placement is None or (p.rank, intl_priority) < (best_placement['rank'], best_placement['_intl_priority']):
+            best_placement = {
+                'rank': p.rank,
+                'rank_display': p.rank_display,
+                'tournament_name': p.tournament_name,
+                'year': p.year,
+                'stage_key': p.stage_key,
+                'prize_money_display': format_usd(pm),
+                '_intl_priority': intl_priority,
+            }
+
+        # Aggregate per season in O(1) memory without extra queries
+        s_bucket = season_agg.setdefault(p.year, {
+            'year': p.year,
+            'tournaments_count': 0,
+            'wins': 0,
+            'losses': 0,
+            'cp_earned': 0,
+            'prize_money': 0,
+            'titles_count': 0,
+            'best_rank': 999,
+            'best_label': '-',
+        })
+        s_bucket['tournaments_count'] += 1
+        s_bucket['wins'] += w
+        s_bucket['losses'] += l
+        s_bucket['cp_earned'] += cp_pts
+        s_bucket['prize_money'] += pm
+        if p.rank == 1:
+            s_bucket['titles_count'] += 1
+        if p.rank < s_bucket['best_rank']:
+            s_bucket['best_rank'] = p.rank
+            s_bucket['best_label'] = f"{p.rank_display} · {p.tournament_name}"
+
+        winrate = round((w / (w + l) * 100), 1) if (w + l) > 0 else 0.0
         p_tier = get_tier_info(p.power_score_snapshot or 1500.0)
+        reg_param = f"&region={p.region_slug}" if p.region_slug else ""
 
         tournament_results.append({
             'year': p.year,
             'stage_key': p.stage_key,
+            'region_slug': p.region_slug,
             'tournament_name': p.tournament_name,
             'category_name': cat_name,
             'category_class': cat_cls,
@@ -5427,10 +5530,24 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
             'matches_lost': l,
             'win_rate': winrate,
             'stage_points_earned': cp_pts,
+            'prize_money': pm,
+            'prize_money_display': format_usd(pm),
+            'replay_url': f"/campaign/{campaign_id}/stage/{p.stage_key}?year={p.year}{reg_param}",
             'power_score_snapshot': round(p.power_score_snapshot or 1500.0, 1),
             'power_rating_snapshot': round(p.power_rating_snapshot or 80.0, 1),
             'tier': p_tier,
         })
+
+    if best_placement:
+        best_placement.pop('_intl_priority', None)
+
+    season_breakdown = []
+    for yr in sorted(season_agg.keys(), reverse=True):
+        sb = season_agg[yr]
+        tm = sb['wins'] + sb['losses']
+        sb['win_rate'] = round((sb['wins'] / tm * 100), 1) if tm > 0 else 0.0
+        sb['prize_money_display'] = format_usd(sb['prize_money'])
+        season_breakdown.append(sb)
 
     total_titles = champions_titles + major_titles + masters_titles + ewc_titles + regional_titles
     total_finals = total_titles + runners_up
@@ -5443,6 +5560,46 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
     base_r = c_state.story_rating if c_state else (club.base_rating or 80)
     form_mod = c_state.form_modifier if c_state else 0
     eff_r = (c_state.effective_rating if c_state else base_r)
+
+    # 3b. Active Club Roster & Salary/Import Compliance (1 indexed query via ix_cplayer_campaign_club)
+    from engine.player_engine import validate_roster_lineup, get_club_salary_cap, get_club_import_openness
+    from engine.partnership import get_club_country_info
+
+    active_players = (
+        CampaignPlayer.query
+        .filter_by(campaign_id=campaign_id, club_id=club_id, status='active')
+        .order_by(CampaignPlayer.roster_slot.desc(), CampaignPlayer.bonus_rating.desc(), CampaignPlayer.age.asc())
+        .all()
+    )
+    starters_list = [pl.to_dict() for pl in active_players if pl.roster_slot == 'starter']
+    bench_list = [pl.to_dict() for pl in active_players if pl.roster_slot == 'bench']
+    c_info = get_club_country_info(club.short_code, c_reg)
+    is_partner_flag = bool(c_state.is_partner) if c_state else False
+    sal_cap = (c_state.salary_cap if c_state and c_state.salary_cap else None) or get_club_salary_cap(club.short_code, is_partner_flag, c_reg)
+    roles_valid, roster_errors, roster_metrics = validate_roster_lineup(
+        starters=starters_list,
+        bench=bench_list,
+        club_country_code=c_info['country_code'],
+        club_region_slug=c_reg,
+        salary_cap=sal_cap,
+        strict_starter_count=True,
+    )
+    roster_metrics['story_rating'] = base_r
+    roster_metrics['roster_base_rating'] = base_r + roster_metrics.get('player_bonus', 0)
+    roster_metrics['effective_rating'] = eff_r
+    roster_metrics['form_modifier'] = form_mod
+    roster_metrics['is_valid'] = roles_valid
+    roster_metrics['errors'] = roster_errors
+    roster_metrics['is_partner'] = is_partner_flag
+    roster_metrics['import_openness'] = get_club_import_openness(club.short_code, c_info['country_code'])
+
+    # 3c. Current Season Storylines for this Club (1 indexed query)
+    club_storylines = [
+        st.to_dict()
+        for st in CampaignStoryline.query.filter_by(
+            campaign_id=campaign_id, year=campaign.current_year, club_id=club_id
+        ).order_by(CampaignStoryline.id.desc()).all()
+    ]
 
     firepower = min(99, max(60, int(eff_r + 2)))
     strategy = min(99, max(60, int(ovr * 0.98)))
@@ -5518,7 +5675,19 @@ def get_team_profile_data(campaign_id: int, club_id: int) -> Optional[Dict[str, 
             'lifetime_cp': lifetime_cp,
             'current_season_cp': c_state.championship_points if c_state else 0,
             'international_appearances': intl_count,
+            'lifetime_prize_money': lifetime_prize_money,
+            'lifetime_prize_money_display': format_usd(lifetime_prize_money),
+            'current_season_prize_money': current_season_prize_money,
+            'current_season_prize_money_display': format_usd(current_season_prize_money),
+            'best_placement': best_placement,
         },
+        'roster': {
+            'starters': starters_list,
+            'bench': bench_list,
+            'metrics': roster_metrics,
+        },
+        'season_breakdown': season_breakdown,
+        'storylines': club_storylines,
         'evaluation': {
             'firepower': firepower,
             'strategy': strategy,
@@ -5761,6 +5930,7 @@ def confirm_stage_region(
         _advance_campaign_to_next_stage(campaign, stage_key, data)
 
     stage.stage_data = json.dumps(data)
+    sync_stage_match_records(campaign.id, stage, parsed_data=data)
     db.session.commit()
     if not skip_gpr:
         recalculate_campaign_gpr(campaign.id, skip_backfill=True)
@@ -5898,6 +6068,7 @@ def confirm_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]
     _advance_campaign_to_next_stage(campaign, stage_key, data)
 
     stage.stage_data = json.dumps(data)
+    sync_stage_match_records(campaign.id, stage, parsed_data=data)
     db.session.commit()
     recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
@@ -5951,3 +6122,619 @@ def confirm_stage_all(campaign_id: int, stage_key: str) -> Dict[str, Any]:
         last_res = confirm_stage_region(campaign_id, stage_key, r, skip_gpr=True)
     recalculate_campaign_gpr(campaign_id, skip_backfill=True)
     return last_res
+
+
+def get_stage_replay_data(
+    campaign_id: int,
+    stage_key: str,
+    year: Optional[int] = None,
+    region_slug: Optional[str] = None,
+    highlight_club_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Lấy dữ liệu xem lại (Replay) toàn bộ 1 giải đấu trong O(1) — chỉ đọc duy nhất
+    1 bản ghi CampaignStage (campaign_id, year, stage_key) và placements của đúng giải đó.
+    Tránh tuyệt đối việc quét lại các năm khác gây nghẽn ở save nhiều thập kỷ.
+    """
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    target_year = int(year or campaign.current_year)
+    regional_keys = ('open_qualifier', 'kickoff', 'oq_stage1', 'stage1', 'ewc_qualifier', 'oq_stage2', 'stage2')
+    is_regional = stage_key in regional_keys
+
+    clubs_cache = {c.id: c for c in Club.query.options(joinedload(Club.region)).all()}
+
+    eff_region = region_slug.lower() if region_slug else None
+    if is_regional:
+        if not eff_region and highlight_club_id and highlight_club_id in clubs_cache:
+            hc = clubs_cache[highlight_club_id]
+            eff_region = hc.region.slug if hc.region else 'pacific'
+        if eff_region not in ('pacific', 'americas', 'emea', 'china'):
+            eff_region = 'pacific'
+    else:
+        eff_region = None
+
+    stage = (
+        CampaignStage.query
+        .filter_by(campaign_id=campaign_id, year=target_year, stage_key=stage_key)
+        .first()
+    )
+
+    data: Dict[str, Any] = {}
+    if stage and stage.stage_data:
+        try:
+            data = json.loads(stage.stage_data)
+        except Exception:
+            data = {}
+
+    def _club_summary(tid: Optional[int], fallback_obj: Any = None) -> Dict[str, Any]:
+        c = clubs_cache.get(tid) if tid else None
+        if c:
+            return {
+                'id': c.id,
+                'name': c.name,
+                'short_code': c.short_code,
+                'logo_url': c.logo_url,
+                'region_slug': c.region.slug if c.region else '',
+            }
+        if isinstance(fallback_obj, dict):
+            return {
+                'id': fallback_obj.get('id') or tid,
+                'name': fallback_obj.get('name') or 'TBD',
+                'short_code': fallback_obj.get('short_code') or 'TBD',
+                'logo_url': fallback_obj.get('logo_url') or '',
+                'region_slug': fallback_obj.get('region') or '',
+            }
+        return {'id': tid, 'name': 'TBD', 'short_code': 'TBD', 'logo_url': '', 'region_slug': ''}
+
+    # 1. Trích xuất toàn bộ trận đấu theo từng phần (Group/Swiss/Playoffs)
+    extracted = _iter_matches_from_stage_json(data, target_region=eff_region if is_regional else None)
+    sections_map: Dict[str, List[Dict[str, Any]]] = {}
+    total_completed_matches = 0
+
+    for idx, (sec_label, _r_slug, m) in enumerate(extracted, start=1):
+        ta_obj = m.get('team_a') if isinstance(m.get('team_a'), dict) else None
+        tb_obj = m.get('team_b') if isinstance(m.get('team_b'), dict) else None
+        ta_id = m.get('team_a_id') or (ta_obj.get('id') if ta_obj else None)
+        tb_id = m.get('team_b_id') or (tb_obj.get('id') if tb_obj else None)
+        w_id = m.get('winner_id')
+        status = m.get('status') or ('completed' if w_id else 'pending')
+        if status == 'completed' or w_id:
+            total_completed_matches += 1
+
+        raw_maps = m.get('maps') or []
+        clean_maps = []
+        if isinstance(raw_maps, list):
+            for mp_i, mp in enumerate(raw_maps, start=1):
+                if isinstance(mp, dict):
+                    clean_maps.append({
+                        'map_number': mp.get('map_number', mp_i),
+                        'map_name': mp.get('map_name') or mp.get('name') or f"Map {mp_i}",
+                        'team_a_score': mp.get('team_a_score', 0),
+                        'team_b_score': mp.get('team_b_score', 0),
+                    })
+
+        round_lbl = m.get('round_name') or m.get('round_type') or f"Vòng {m.get('round', idx)}"
+        match_item = {
+            'match_code': m.get('match_code') or m.get('id') or f"M{idx}",
+            'round_name': round_lbl,
+            'bo': m.get('bo') or (5 if 'grand' in str(round_lbl).lower() else 3),
+            'status': status,
+            'team_a': _club_summary(ta_id, ta_obj),
+            'team_b': _club_summary(tb_id, tb_obj),
+            'score_a': m.get('team_a_score', 0),
+            'score_b': m.get('team_b_score', 0),
+            'winner_id': w_id,
+            'maps': clean_maps,
+            'involves_highlight': bool(highlight_club_id and highlight_club_id in (ta_id, tb_id)),
+        }
+        sections_map.setdefault(sec_label, []).append(match_item)
+
+    sections = [{'section_name': k, 'matches': v} for k, v in sections_map.items()]
+
+    # 2. Bảng xếp hạng & Tiền thưởng chung cuộc
+    pl_q = CampaignStagePlacement.query.filter_by(
+        campaign_id=campaign_id, year=target_year, stage_key=stage_key
+    )
+    if eff_region:
+        pl_q = pl_q.filter_by(region_slug=eff_region)
+    placements = pl_q.order_by(CampaignStagePlacement.rank.asc(), CampaignStagePlacement.matches_won.desc()).all()
+
+    standings = []
+    for p in placements:
+        d = p.to_dict()
+        d['is_highlight'] = bool(highlight_club_id and p.club_id == highlight_club_id)
+        standings.append(d)
+
+    # Fallback đọc thẳng standings từ stage_data nếu giải chưa confirmed vào CampaignStagePlacement
+    if not standings:
+        raw_standings = []
+        if is_regional:
+            reg_src = (data.get('regional_results') or data.get('regions') or {}).get(eff_region, {})
+            raw_standings = reg_src.get('standings') or reg_src.get('swiss_standings') or []
+        else:
+            raw_standings = (data.get('result') or {}).get('standings') or []
+
+        for r_idx, s in enumerate(raw_standings, start=1):
+            t_obj = s.get('team') if isinstance(s.get('team'), dict) else None
+            cid = s.get('club_id') or (t_obj.get('id') if t_obj else None)
+            rk = s.get('rank') or r_idx
+            pm = get_stage_prize_money(stage_key, rk)
+            cp = get_stage_points(stage_key if stage_key not in ('stage1', 'stage2') else f"{stage_key}_playoffs", rank=rk)
+            standings.append({
+                'club_id': cid,
+                'club': _club_summary(cid, t_obj),
+                'rank': rk,
+                'rank_display': _get_rank_display(rk),
+                'elimination_stage': s.get('elimination_stage') or '-',
+                'matches_won': s.get('matches_won', s.get('wins', 0)),
+                'matches_lost': s.get('matches_lost', s.get('losses', 0)),
+                'stage_points_earned': cp,
+                'prize_money': pm,
+                'prize_money_display': format_usd(pm),
+                'is_highlight': bool(highlight_club_id and cid == highlight_club_id),
+            })
+
+    hosts = get_season_hosts(campaign_id, target_year)
+    host_city = (data.get('host_city') or {}).get('city_name') or (hosts.get(stage_key) or {}).get('city_name')
+    stage_display = (stage.stage_name if stage else None) or stage_key.upper()
+    if eff_region:
+        stage_display = f"{stage_display} · {eff_region.upper()}"
+
+    prize_pool = get_stage_total_prize_pool(stage_key)
+    reg_param = f"&region={eff_region}" if eff_region else ""
+
+    return {
+        'campaign_id': campaign_id,
+        'stage_key': stage_key,
+        'stage_name': stage_display,
+        'year': target_year,
+        'status': stage.status if stage else 'pending',
+        'is_regional': is_regional,
+        'region_slug': eff_region,
+        'available_regions': ['pacific', 'americas', 'emea', 'china'] if is_regional else [],
+        'host_city': host_city,
+        'prize_pool': prize_pool,
+        'prize_pool_display': format_usd(prize_pool),
+        'full_bracket_url': f"/campaign/{campaign_id}/stage/{stage_key}?year={target_year}{reg_param}",
+        'total_matches': len(extracted),
+        'completed_matches': total_completed_matches,
+        'standings': standings,
+        'sections': sections,
+    }
+
+
+STAGE_CHRONOLOGICAL_ORDER: Dict[str, int] = {
+    'open_qualifier': 1,
+    'kickoff': 2,
+    'major': 3,
+    'oq_stage1': 4,
+    'stage1': 5,
+    'ewc_qualifier': 6,
+    'master': 7,
+    'ewc': 8,
+    'oq_stage2': 9,
+    'stage2': 10,
+    'champion': 11,
+}
+
+
+def _extract_match_club_id(m: Dict[str, Any], side: str) -> Optional[int]:
+    """Extract team_a_id or team_b_id uniformly from flat or nested match dicts."""
+    val = m.get(f'team_{side}_id')
+    if val is None and isinstance(m.get(f'team_{side}'), dict):
+        nested = m[f'team_{side}']
+        val = nested.get('id') if nested.get('id') is not None else nested.get('club_id')
+    try:
+        return int(val) if val is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _encode_maps_summary(maps_raw: Any) -> str:
+    """Serialize compact map score tuples JSON (or fallback string) within 255 chars."""
+    if not isinstance(maps_raw, list) or not maps_raw:
+        return ''
+    encoded: List[List[Any]] = []
+    for mp in maps_raw:
+        if not isinstance(mp, dict):
+            continue
+        sa = mp.get('team_a_score', mp.get('score_a', mp.get('a')))
+        sb = mp.get('team_b_score', mp.get('score_b', mp.get('b')))
+        if sa is None or sb is None:
+            continue
+        try:
+            sa_i, sb_i = int(sa), int(sb)
+        except (TypeError, ValueError):
+            continue
+        mname = str(mp.get('map_name') or mp.get('map') or '').strip()[:24]
+        encoded.append([mname, sa_i, sb_i])
+    if not encoded:
+        return ''
+    payload = json.dumps(encoded, ensure_ascii=False, separators=(',', ':'))
+    while len(payload) > 250 and len(encoded) > 1:
+        # Trim map names before dropping scores if unusually long
+        encoded = [['', item[1], item[2]] for item in encoded]
+        payload = json.dumps(encoded, ensure_ascii=False, separators=(',', ':'))
+        if len(payload) > 250:
+            encoded.pop()
+            payload = json.dumps(encoded, ensure_ascii=False, separators=(',', ':'))
+    return payload[:255]
+
+
+def _format_maps_for_orientation(
+    raw_summary: Optional[str],
+    flip: bool = False,
+) -> Tuple[str, int, int, List[Dict[str, Any]]]:
+    """Return display maps summary, round counters, and structured map list aligned to perspective."""
+    if not raw_summary:
+        return '', 0, 0, []
+    try:
+        parsed = json.loads(raw_summary)
+    except Exception:
+        return str(raw_summary), 0, 0, []
+
+    if not isinstance(parsed, list):
+        return str(raw_summary), 0, 0, []
+
+    parts: List[str] = []
+    maps_list: List[Dict[str, Any]] = []
+    rounds_for = 0
+    rounds_against = 0
+    for idx, item in enumerate(parsed, start=1):
+        if not isinstance(item, list) or len(item) < 3:
+            continue
+        mname, sa, sb = str(item[0] or ''), int(item[1]), int(item[2])
+        s_for, s_against = (sb, sa) if flip else (sa, sb)
+        rounds_for += s_for
+        rounds_against += s_against
+        parts.append(f"{mname} {s_for}-{s_against}" if mname else f"{s_for}-{s_against}")
+        maps_list.append({
+            'map_number': idx,
+            'map_name': mname or f"Map {idx}",
+            'score_a': s_for,
+            'score_b': s_against,
+            'winner_side': 'a' if s_for > s_against else ('b' if s_against > s_for else 'd'),
+        })
+    return ', '.join(parts), rounds_for, rounds_against, maps_list
+
+
+def sync_stage_match_records(
+    campaign_id: int,
+    stage: CampaignStage,
+    parsed_data: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Idempotently synchronize completed matches from one CampaignStage into CampaignMatchRecord."""
+    if not stage or stage.stage_key not in COMPETITIVE_STAGE_KEYS:
+        return 0
+
+    # Flush pending stage_data edits first so before_update bumps data_version accurately
+    if stage in db.session and db.inspect(stage).attrs.stage_data.history.has_changes():
+        db.session.flush()
+
+    if parsed_data is not None:
+        data = parsed_data
+    elif stage.stage_data:
+        try:
+            data = json.loads(stage.stage_data)
+        except Exception:
+            data = {}
+    else:
+        data = {}
+
+    if not isinstance(data, dict):
+        data = {}
+
+    extracted_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    stage_name = (stage.stage_name or stage.stage_key.upper())[:100]
+
+    for idx, (sec_label, r_slug, m) in enumerate(_iter_matches_from_stage_json(data)):
+        if not isinstance(m, dict) or m.get('status') != 'completed':
+            continue
+        ta_id = _extract_match_club_id(m, 'a')
+        tb_id = _extract_match_club_id(m, 'b')
+        if not ta_id or not tb_id or ta_id == tb_id:
+            continue
+
+        raw_sa = m.get('team_a_score') if m.get('team_a_score') is not None else (m.get('score_a') or 0)
+        raw_sb = m.get('team_b_score') if m.get('team_b_score') is not None else (m.get('score_b') or 0)
+        sa = int(raw_sa)
+        sb = int(raw_sb)
+
+        raw_winner = m.get('winner_id')
+        try:
+            winner_id = int(raw_winner) if raw_winner is not None else None
+        except (TypeError, ValueError):
+            winner_id = None
+        if winner_id is None:
+            if sa > sb:
+                winner_id = ta_id
+            elif sb > sa:
+                winner_id = tb_id
+
+        r_slug_norm = (r_slug or '').strip().lower()[:30]
+        raw_mid = m.get('id') or m.get('match_id')
+        match_key = str(raw_mid)[:80] if raw_mid is not None else f"{sec_label}:{idx}"[:80]
+
+        round_name = str(m.get('round_name') or m.get('label') or sec_label or '').strip()[:120]
+        try:
+            m_order = int(m.get('match_order') or idx)
+        except (TypeError, ValueError):
+            m_order = idx
+
+        extracted_map[(r_slug_norm, match_key)] = {
+            'stage_name': stage_name,
+            'round_name': round_name,
+            'match_order': m_order,
+            'pair_low_id': min(ta_id, tb_id),
+            'pair_high_id': max(ta_id, tb_id),
+            'team_a_id': ta_id,
+            'team_b_id': tb_id,
+            'score_a': sa,
+            'score_b': sb,
+            'winner_id': winner_id,
+            'maps_summary': _encode_maps_summary(m.get('maps')),
+        }
+
+    existing_rows = CampaignMatchRecord.query.filter_by(
+        campaign_id=campaign_id,
+        year=stage.year,
+        stage_key=stage.stage_key,
+    ).all()
+    existing_by_key = {(r.region_slug or '', r.match_key): r for r in existing_rows}
+
+    changes = 0
+    for key, payload in extracted_map.items():
+        r_slug_norm, match_key = key
+        rec = existing_by_key.get(key)
+        if rec is None:
+            db.session.add(CampaignMatchRecord(
+                campaign_id=campaign_id,
+                year=stage.year,
+                stage_key=stage.stage_key,
+                region_slug=r_slug_norm,
+                match_key=match_key,
+                **payload,
+            ))
+            changes += 1
+        else:
+            dirty = False
+            for field, new_val in payload.items():
+                if getattr(rec, field) != new_val:
+                    setattr(rec, field, new_val)
+                    dirty = True
+            if dirty:
+                changes += 1
+
+    for key, old_rec in existing_by_key.items():
+        if key not in extracted_map:
+            db.session.delete(old_rec)
+            changes += 1
+
+    current_dv = stage.data_version or 1
+    if stage.data_version is None:
+        stage.data_version = current_dv
+    if stage.h2h_synced_version != current_dv:
+        stage.h2h_synced_version = current_dv
+        changes += 1
+
+    if changes > 0:
+        db.session.flush()
+    return changes
+
+
+def backfill_stage_match_records_if_needed(campaign_id: int) -> int:
+    """Sync ONLY dirty/unindexed stages where data_version != h2h_synced_version (O(1) when steady)."""
+    dirty_stage_ids = [
+        row[0]
+        for row in db.session.query(CampaignStage.id)
+        .filter(
+            CampaignStage.campaign_id == campaign_id,
+            CampaignStage.stage_key.in_(COMPETITIVE_STAGE_KEYS),
+            CampaignStage.stage_data.isnot(None),
+            db.or_(
+                CampaignStage.h2h_synced_version.is_(None),
+                CampaignStage.data_version.is_(None),
+                CampaignStage.h2h_synced_version != CampaignStage.data_version,
+            ),
+        )
+        .all()
+    ]
+    if not dirty_stage_ids:
+        return 0
+
+    stages_to_sync = CampaignStage.query.filter(CampaignStage.id.in_(dirty_stage_ids)).all()
+    total_changes = 0
+    for st in stages_to_sync:
+        total_changes += sync_stage_match_records(campaign_id, st)
+    if total_changes > 0:
+        db.session.commit()
+    return len(stages_to_sync)
+
+
+def get_head_to_head_history(
+    campaign_id: int,
+    team_a_id: int,
+    team_b_id: int,
+    exclude_match_key: Optional[str] = None,
+    exclude_year: Optional[int] = None,
+    exclude_stage_key: Optional[str] = None,
+    exclude_region_slug: Optional[str] = None,
+    limit: Optional[int] = 15,
+) -> Dict[str, Any]:
+    """Return instant O(log N + H2H_count) indexed head-to-head series & history between two clubs."""
+    campaign = get_campaign(campaign_id)
+    if not campaign:
+        raise ValueError(f"Campaign {campaign_id} not found")
+
+    ta_id = int(team_a_id)
+    tb_id = int(team_b_id)
+    clubs = {c.id: c for c in Club.query.filter(Club.id.in_([ta_id, tb_id])).all()}
+    club_a = clubs.get(ta_id)
+    club_b = clubs.get(tb_id)
+    if not club_a or not club_b:
+        raise ValueError("One or both clubs not found")
+
+    def _club_summary(c: Club) -> Dict[str, Any]:
+        return {
+            'id': c.id,
+            'name': c.name,
+            'short_code': c.short_code,
+            'region': c.region.name if c.region else '',
+            'logo_url': c.logo_url,
+        }
+
+    # Sync only stages whose data_version moved ahead of h2h_synced_version
+    backfill_stage_match_records_if_needed(campaign_id)
+
+    pair_low = min(ta_id, tb_id)
+    pair_high = max(ta_id, tb_id)
+    rows = (
+        CampaignMatchRecord.query
+        .filter_by(campaign_id=campaign_id, pair_low_id=pair_low, pair_high_id=pair_high)
+        .all()
+    )
+
+    ex_key = str(exclude_match_key).strip() if exclude_match_key else None
+    ex_stage = (exclude_stage_key or '').strip() or None
+    ex_region = (exclude_region_slug or '').strip().lower() if exclude_region_slug else None
+    try:
+        ex_year_i = int(exclude_year) if exclude_year is not None and str(exclude_year).strip() != '' else None
+    except (TypeError, ValueError):
+        ex_year_i = None
+
+    filtered_rows: List[CampaignMatchRecord] = []
+    for r in rows:
+        if ex_key and r.match_key == ex_key:
+            same_stage = (ex_stage is None or r.stage_key == ex_stage)
+            same_year = (ex_year_i is None or r.year == ex_year_i)
+            same_region = (ex_region is None or not r.region_slug or r.region_slug == ex_region)
+            if same_stage and same_year and same_region:
+                continue
+        filtered_rows.append(r)
+
+    filtered_rows.sort(
+        key=lambda r: (
+            r.year or 0,
+            STAGE_CHRONOLOGICAL_ORDER.get(r.stage_key, 0),
+            r.match_order or 0,
+            r.id or 0,
+        ),
+        reverse=True,
+    )
+
+    team_a_wins = 0
+    team_b_wins = 0
+    team_a_maps = 0
+    team_b_maps = 0
+    team_a_rounds = 0
+    team_b_rounds = 0
+    intl_a_wins = 0
+    intl_b_wins = 0
+    reg_a_wins = 0
+    reg_b_wins = 0
+    years_seen = set()
+    matches_out: List[Dict[str, Any]] = []
+    recent_form_for_a: List[str] = []
+
+    eff_limit = None
+    if limit is not None and int(limit) > 0:
+        eff_limit = min(int(limit), 200)
+
+    international_stages = {'major', 'master', 'ewc', 'champion'}
+
+    for idx, r in enumerate(filtered_rows):
+        flip = (r.team_a_id != ta_id)
+        score_for = r.score_b if flip else r.score_a
+        score_against = r.score_a if flip else r.score_b
+        team_a_maps += score_for
+        team_b_maps += score_against
+        if r.year:
+            years_seen.add(r.year)
+
+        won_by_a = (r.winner_id == ta_id) if r.winner_id else (score_for > score_against)
+        won_by_b = (r.winner_id == tb_id) if r.winner_id else (score_against > score_for)
+        is_intl = r.stage_key in international_stages
+        if won_by_a:
+            team_a_wins += 1
+            if is_intl:
+                intl_a_wins += 1
+            else:
+                reg_a_wins += 1
+        elif won_by_b:
+            team_b_wins += 1
+            if is_intl:
+                intl_b_wins += 1
+            else:
+                reg_b_wins += 1
+
+        maps_text, r_for, r_against, maps_list = _format_maps_for_orientation(r.maps_summary, flip=flip)
+        team_a_rounds += r_for
+        team_b_rounds += r_against
+
+        if idx < 5:
+            recent_form_for_a.append('W' if won_by_a else ('L' if won_by_b else 'D'))
+
+        if eff_limit is None or idx < eff_limit:
+            matches_out.append({
+                'year': r.year,
+                'stage_key': r.stage_key,
+                'stage_name': r.stage_name,
+                'region_slug': r.region_slug or None,
+                'is_international': is_intl,
+                'match_key': r.match_key,
+                'round_name': r.round_name or '',
+                'team_a_id': ta_id,
+                'team_b_id': tb_id,
+                'score_a': score_for,
+                'score_b': score_against,
+                'winner_id': r.winner_id,
+                'won_by_a': won_by_a,
+                'maps_summary': maps_text,
+                'maps_list': maps_list,
+                'rounds_a': r_for,
+                'rounds_b': r_against,
+                'round_diff': r_for - r_against,
+            })
+
+    total_matches = len(filtered_rows)
+    streak_text = 'Chưa có chuỗi đối đầu'
+    if filtered_rows:
+        first_winner = filtered_rows[0].winner_id
+        if first_winner in (ta_id, tb_id):
+            streak_len = 0
+            for r in filtered_rows:
+                if r.winner_id == first_winner:
+                    streak_len += 1
+                else:
+                    break
+            streak_club = club_a if first_winner == ta_id else club_b
+            streak_text = f"{streak_club.short_code} thắng {streak_len} trận liên tiếp"
+
+    a_winrate = round((team_a_wins / total_matches) * 100.0, 1) if total_matches > 0 else 50.0
+    return {
+        'success': True,
+        'campaign_id': campaign_id,
+        'team_a': _club_summary(club_a),
+        'team_b': _club_summary(club_b),
+        'summary': {
+            'total_matches': total_matches,
+            'team_a_wins': team_a_wins,
+            'team_b_wins': team_b_wins,
+            'team_a_maps': team_a_maps,
+            'team_b_maps': team_b_maps,
+            'team_a_rounds': team_a_rounds,
+            'team_b_rounds': team_b_rounds,
+            'international_a_wins': intl_a_wins,
+            'international_b_wins': intl_b_wins,
+            'regional_a_wins': reg_a_wins,
+            'regional_b_wins': reg_b_wins,
+            'available_years': sorted(years_seen, reverse=True),
+            'team_a_winrate': a_winrate,
+            'streak_text': streak_text,
+            'recent_form': recent_form_for_a,
+        },
+        'matches': matches_out,
+        'is_full_history': eff_limit is None or len(matches_out) >= total_matches,
+    }

@@ -102,6 +102,7 @@
                   <th style="text-align: center;">Vòng dừng bước</th>
                   <th style="text-align: center;">Thành tích W-L</th>
                   <th style="text-align: center; color: var(--yellow);">Điểm CP</th>
+                  <th style="text-align: right; color: #34d399;">💰 Tiền thưởng</th>
                   <th style="text-align: center;">Power Rating</th>
                 </tr>
               </thead>
@@ -122,10 +123,15 @@
     </div>
 
     <!-- Modal Footer -->
-    <div style="padding: 12px 20px; background: #0f172a; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-      <a href="/campaign/{{ campaign.id }}/hall-of-fame" style="text-decoration: none; color: #fbbf24; font-size: 0.85em; display: flex; align-items: center; gap: 6px;">
-        <span>🏛️</span> Xem toàn bộ Bảng Vàng Hall of Fame ➔
-      </a>
+    <div style="padding: 12px 20px; background: #0f172a; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <button type="button" id="btn-history-open-replay" onclick="openHistoryFullReplay()" style="padding: 8px 14px; background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px; font-weight: bold; font-size: 0.85em; cursor: pointer;">
+          🔍 Xem Toàn Bộ Trận Đấu &amp; Tỷ Số ➔
+        </button>
+        <a href="/campaign/{{ campaign.id }}/hall-of-fame" style="text-decoration: none; color: #fbbf24; font-size: 0.85em; display: flex; align-items: center; gap: 6px;">
+          <span>🏛️</span> Bảng Vàng Hall of Fame ➔
+        </a>
+      </div>
       <button type="button" class="btn-sm btn-manual" onclick="closeTournamentHistoryModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer;">
         Đóng
       </button>
@@ -252,7 +258,7 @@ async function loadTournamentHistoryData() {
     renderPlacementsTable(data.placements);
 
     const totalEl = document.getElementById('history-total-count');
-    if (totalEl) totalEl.textContent = `Tổng cộng: ${data.placements.length} đội`;
+    if (totalEl) totalEl.textContent = `Tổng quỹ thưởng: ${data.prize_pool_display || '$0'} • ${data.placements.length} đội`;
 
     if (loading) loading.style.display = 'none';
     if (content) content.style.display = 'block';
@@ -306,6 +312,7 @@ function renderPodium(podium) {
         <span style="color: ${tier.color || '#fbbf24'}; font-weight: bold;">
           ${tier.badge || 'Power'} ${item.power_rating_snapshot || 80.0}
         </span>
+        <span style="color: #34d399; font-weight: 800;">${item.prize_money_display || '$0'}</span>
         <span style="color: #fbbf24; font-weight: bold;">
           +${item.stage_points_earned || 0} CP
         </span>
@@ -361,6 +368,9 @@ function renderPlacementsTable(placements) {
       <td style="text-align: center; font-weight: bold; color: #fbbf24;">
         ${p.stage_points_earned > 0 ? '+' + p.stage_points_earned + ' CP' : '0 CP'}
       </td>
+      <td style="text-align: right; font-weight: 800; color: ${p.prize_money > 0 ? '#34d399' : 'var(--dim)'};">
+        ${p.prize_money_display || '$0'}
+      </td>
       <td style="text-align: center;">
         <span class="badge" style="background: ${tier.bg || 'rgba(255,255,255,0.1)'}; color: ${tier.color || '#fff'}; border: 1px solid ${tier.border || 'transparent'}; font-weight: bold; font-size: 0.85em;">
           ${tier.badge || ''} ${p.power_rating_snapshot || 80.0}
@@ -369,5 +379,14 @@ function renderPlacementsTable(placements) {
     `;
     tbody.appendChild(tr);
   });
+}
+
+function openHistoryFullReplay() {
+  if (!currentHistoryStageKey || typeof openTournamentReplayModal !== 'function') return;
+  const reg = REGIONAL_STAGES.includes(currentHistoryStageKey) ? currentHistoryRegion : null;
+  const yr = currentHistoryYear;
+  const st = currentHistoryStageKey;
+  closeTournamentHistoryModal();
+  openTournamentReplayModal({{ campaign.id }}, st, yr, reg);
 }
 </script>

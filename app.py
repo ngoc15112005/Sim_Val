@@ -45,7 +45,7 @@ def create_app():
                 from models import (
                     Campaign, CampaignClubState, CampaignStage, CampaignSeason,
                     CampaignStagePlacement, CampaignStoryline, CampaignPartnershipReview,
-                    CampaignPlayer,
+                    CampaignPlayer, CampaignMatchRecord,
                 )
                 db.create_all()
 
@@ -82,11 +82,25 @@ def create_app():
                                 if 'salary_cap' not in state_cols:
                                     cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN salary_cap INTEGER DEFAULT 1200")
 
+                            cursor.execute("PRAGMA table_info(campaign_stage_placements)")
+                            pl_cols = [row[1] for row in cursor.fetchall()]
+                            if pl_cols and 'prize_money' not in pl_cols:
+                                cursor.execute("ALTER TABLE campaign_stage_placements ADD COLUMN prize_money INTEGER DEFAULT 0")
+
+                            cursor.execute("PRAGMA table_info(campaign_stages)")
+                            cs_cols = [row[1] for row in cursor.fetchall()]
+                            if cs_cols:
+                                if 'data_version' not in cs_cols:
+                                    cursor.execute("ALTER TABLE campaign_stages ADD COLUMN data_version INTEGER NOT NULL DEFAULT 1")
+                                if 'h2h_synced_version' not in cs_cols:
+                                    cursor.execute("ALTER TABLE campaign_stages ADD COLUMN h2h_synced_version INTEGER NOT NULL DEFAULT 0")
+
                             # Ensure composite indexes exist on legacy SQLite databases
                             for idx_sql in (
                                 "CREATE INDEX IF NOT EXISTS ix_ccs_campaign_club ON campaign_club_states (campaign_id, club_id)",
                                 "CREATE INDEX IF NOT EXISTS ix_cs_campaign_year_stage ON campaign_stages (campaign_id, year, stage_key)",
                                 "CREATE INDEX IF NOT EXISTS ix_cs_campaign_status ON campaign_stages (campaign_id, status)",
+                                "CREATE INDEX IF NOT EXISTS ix_cs_h2h_sync ON campaign_stages (campaign_id, h2h_synced_version, data_version)",
                                 "CREATE INDEX IF NOT EXISTS ix_cseason_campaign_year ON campaign_seasons (campaign_id, year)",
                                 "CREATE INDEX IF NOT EXISTS ix_csp_campaign_year_stage ON campaign_stage_placements (campaign_id, year, stage_key)",
                                 "CREATE INDEX IF NOT EXISTS ix_csp_campaign_club ON campaign_stage_placements (campaign_id, club_id)",
@@ -94,6 +108,8 @@ def create_app():
                                 "CREATE INDEX IF NOT EXISTS ix_cpr_campaign_year ON campaign_partnership_reviews (campaign_id, year)",
                                 "CREATE INDEX IF NOT EXISTS ix_cplayer_campaign_club ON campaign_players (campaign_id, club_id)",
                                 "CREATE INDEX IF NOT EXISTS ix_cplayer_campaign_status ON campaign_players (campaign_id, status)",
+                                "CREATE INDEX IF NOT EXISTS ix_cmr_h2h ON campaign_match_records (campaign_id, pair_low_id, pair_high_id)",
+                                "CREATE INDEX IF NOT EXISTS ix_cmr_camp_year_stage ON campaign_match_records (campaign_id, year, stage_key)",
                             ):
                                 cursor.execute(idx_sql)
 
@@ -114,9 +130,13 @@ def create_app():
     register_routes(app)
 
     # Register Jinja2 globals (pure helper functions callable from templates)
+    from config import get_stage_prize_money, get_stage_total_prize_pool, format_usd
     from services.bracket_service import _match_label, _match_short_label
     app.jinja_env.globals['_match_label'] = _match_label
     app.jinja_env.globals['_match_short_label'] = _match_short_label
+    app.jinja_env.globals['get_stage_prize_money'] = get_stage_prize_money
+    app.jinja_env.globals['get_stage_total_prize_pool'] = get_stage_total_prize_pool
+    app.jinja_env.globals['format_usd'] = format_usd
 
     return app
 

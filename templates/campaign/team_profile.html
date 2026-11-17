@@ -47,6 +47,15 @@
         Mã đội: <strong style="color: #fff;">{{ profile.club.short_code }}</strong> &bull;
         Khu vực: <span class="badge" style="text-transform: uppercase;">{{ profile.club.region_slug or profile.rankings.region_slug }}</span>
       </div>
+      {% set r_metrics = profile.roster.metrics if profile.roster else {} %}
+      <div style="margin-top: 8px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
+        <span class="badge" style="font-size: 0.74em; {{ 'background: rgba(251, 191, 36, 0.16); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45);' if r_metrics.get('is_partner') else 'background: rgba(148, 163, 184, 0.14); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);' }}">
+          {{ '⭐ PARTNER' if r_metrics.get('is_partner') else '⚔️ NON-PARTNER' }}
+        </span>
+        <span class="badge" style="font-size: 0.74em; background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">
+          Lực: {{ r_metrics.get('story_rating', 80) }} + {{ r_metrics.get('player_bonus', 0) }} = {{ r_metrics.get('roster_base_rating', 80) }}
+        </span>
+      </div>
 
       <!-- Tier Badge Large -->
       <div style="margin-top: 14px;">
@@ -150,6 +159,57 @@
       </div>
     </div>
 
+    <!-- Prize Money & Best Finish Card -->
+    <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 18px;">
+      <h3 style="margin: 0 0 10px; font-size: 1.05em; color: #34d399; display: flex; align-items: center; gap: 8px;">
+        <span>💰</span> Tài Chính &amp; Tiền Thưởng Giải Đấu
+      </h3>
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+        <span style="font-size: 0.84em; color: var(--dim);">Tổng thưởng sự nghiệp:</span>
+        <strong style="font-size: 1.45em; font-weight: 900; color: #34d399;">{{ profile.career_stats.lifetime_prize_money_display or '$0' }}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.84em; color: var(--dim); margin-bottom: 10px;">
+        <span>Mùa giải {{ campaign.current_year }}:</span>
+        <strong style="color: #a7f3d0;">{{ profile.career_stats.current_season_prize_money_display or '$0' }}</strong>
+      </div>
+      {% set rm = profile.roster.metrics if profile.roster else {} %}
+      {% set pay = rm.get('payroll', 0) %}
+      {% set cap = rm.get('salary_cap', 1200) %}
+      {% set pay_pct = ((pay / cap * 100)|round|int) if cap > 0 else 0 %}
+      <div style="padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; justify-content: space-between; font-size: 0.82em; margin-bottom: 4px;">
+          <span style="color: var(--dim);">Quỹ lương đội hình:</span>
+          <strong style="color: {{ '#f87171' if pay > cap else '#fff' }};">${{ pay }}K / ${{ cap }}K</strong>
+        </div>
+        <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;">
+          <div style="width: {{ [pay_pct, 100]|min }}%; height: 100%; background: {{ '#ef4444' if pay > cap else ('#f59e0b' if pay_pct > 85 else '#10b981') }};"></div>
+        </div>
+      </div>
+      {% if profile.career_stats.best_placement %}
+      <div style="margin-top: 10px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 0.82em;">
+        <div style="color: var(--dim); font-size: 0.85em;">🏅 Đỉnh cao sự nghiệp:</div>
+        <strong style="color: #fbbf24;">{{ profile.career_stats.best_placement.rank_display }}</strong> · {{ profile.career_stats.best_placement.tournament_name }} ({{ profile.career_stats.best_placement.year }})
+      </div>
+      {% endif %}
+    </div>
+
+    {% if profile.storylines %}
+    <!-- Current Season Club Storylines -->
+    <div class="card" style="padding: 16px; border-left: 4px solid #a855f7;">
+      <h3 style="margin: 0 0 10px; font-size: 1.02em; color: #c084fc; display: flex; align-items: center; gap: 6px;">
+        <span>📰</span> Kịch Bản &amp; Biến Động Mùa {{ campaign.current_year }}
+      </h3>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        {% for st in profile.storylines %}
+        <div style="padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 0.82em;">
+          <div style="font-weight: 800; color: #fff;">{{ st.title }}</div>
+          <div style="color: var(--dim); margin-top: 2px;">{{ st.headline }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Power & Attributes Radar Card -->
     <div class="card" style="padding: 18px;">
       <h3 style="margin: 0 0 14px; font-size: 1.1em; color: #fff; display: flex; align-items: center; gap: 8px;">
@@ -231,31 +291,31 @@
   <!-- ========================================================================= -->
   <div style="display: flex; flex-direction: column; gap: 20px;">
     
-    <!-- Quick Career Stats 4-Box Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
+    <!-- Quick Career Stats Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 14px;">
       <div class="card" style="padding: 14px 16px;">
         <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tổng Số Trận Đã Đấu</div>
-        <div style="font-size: 1.6em; font-weight: 900; color: #fff; margin-top: 2px;">
+        <div style="font-size: 1.55em; font-weight: 900; color: #fff; margin-top: 2px;">
           {{ profile.career_stats.total_matches }}
         </div>
         <div style="font-size: 0.8em; color: #4ade80;">
-          {{ profile.career_stats.matches_won }}W - {{ profile.career_stats.matches_lost }}L
+          {{ profile.career_stats.matches_won }}W - {{ profile.career_stats.matches_lost }}L ({{ profile.career_stats.win_rate }}%)
         </div>
       </div>
 
-      <div class="card" style="padding: 14px 16px;">
-        <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tỷ Lệ Thắng Trận (Win Rate)</div>
-        <div style="font-size: 1.6em; font-weight: 900; color: #38bdf8; margin-top: 2px;">
-          {{ profile.career_stats.win_rate }}%
+      <div class="card" style="padding: 14px 16px; border: 1px solid rgba(16, 185, 129, 0.35);">
+        <div style="font-size: 0.75em; color: #6ee7b7; text-transform: uppercase; font-weight: bold;">💰 Tổng Tiền Thưởng</div>
+        <div style="font-size: 1.5em; font-weight: 900; color: #34d399; margin-top: 2px;">
+          {{ profile.career_stats.lifetime_prize_money_display or '$0' }}
         </div>
         <div style="font-size: 0.8em; color: var(--dim);">
-          Tất cả các giải đấu
+          Mùa {{ campaign.current_year }}: <strong style="color: #a7f3d0;">{{ profile.career_stats.current_season_prize_money_display or '$0' }}</strong>
         </div>
       </div>
 
       <div class="card" style="padding: 14px 16px;">
         <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tổng Điểm CP Tích Lũy</div>
-        <div style="font-size: 1.6em; font-weight: 900; color: #fbbf24; margin-top: 2px;">
+        <div style="font-size: 1.55em; font-weight: 900; color: #fbbf24; margin-top: 2px;">
           {{ profile.career_stats.lifetime_cp }} CP
         </div>
         <div style="font-size: 0.8em; color: var(--yellow);">
@@ -265,7 +325,7 @@
 
       <div class="card" style="padding: 14px 16px;">
         <div style="font-size: 0.75em; color: var(--dim); text-transform: uppercase; font-weight: bold;">Tham Dự Giải Quốc Tế</div>
-        <div style="font-size: 1.6em; font-weight: 900; color: #a855f7; margin-top: 2px;">
+        <div style="font-size: 1.55em; font-weight: 900; color: #a855f7; margin-top: 2px;">
           {{ profile.career_stats.international_appearances }} lần
         </div>
         <div style="font-size: 0.8em; color: var(--dim);">
@@ -273,6 +333,126 @@
         </div>
       </div>
     </div>
+
+    <!-- Active Roster & Bench Card (Player System v2.0) -->
+    {% set r_data = profile.roster if profile.roster else {} %}
+    {% set rm = r_data.get('metrics', {}) %}
+    <div class="card" style="padding: 20px; border: 1px solid rgba(56, 189, 248, 0.35);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.25em; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <span>👥</span> Đội Hình Chính Thức (Active Roster &amp; Bench)
+          </h2>
+          <div style="font-size: 0.83em; color: var(--dim); margin-top: 3px;">
+            Sức mạnh đội = Gốc CLB (<strong style="color:#fff;">{{ rm.get('story_rating', 80) }}</strong>)
+            + Bonus Tuyển thủ (<strong style="color:#4ade80;">+{{ rm.get('player_bonus', 0) }}</strong>)
+            = <strong style="color:#38bdf8;">{{ rm.get('roster_base_rating', 80) }}</strong>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span class="badge" style="font-size: 0.78em; {{ 'background:rgba(16,185,129,0.16); color:#4ade80; border:1px solid rgba(16,185,129,0.4);' if rm.get('roles_ok') else 'background:rgba(239,68,68,0.16); color:#f87171; border:1px solid rgba(239,68,68,0.4);' }}">
+            {{ '✓ Đủ 4 Core Roles' if rm.get('roles_ok') else '! Thiếu Role' }}
+          </span>
+          <span class="badge" style="font-size: 0.78em; background: rgba(255,255,255,0.06); color: #cbd5e1;">
+            Ngoại binh: {{ rm.get('import_count', 0) }}/{{ rm.get('max_foreign', 2) }}
+          </span>
+          {% if campaign.is_compatible %}
+          <button type="button" onclick="openClubRosterModal({{ campaign.id }}, {{ profile.club.id }}, () => window.location.reload())"
+                  style="padding: 6px 12px; background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px; font-weight: 700; font-size: 0.82em; cursor: pointer;">
+            ⚙️ Chỉnh sửa đội hình
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% set all_roster = (r_data.get('starters', []) + r_data.get('bench', [])) %}
+      {% if all_roster %}
+      <div class="table-scroll">
+        <table class="swiss-standings-table" style="font-size: 0.9em;">
+          <thead>
+            <tr>
+              <th>Vị trí</th>
+              <th>Tuyển thủ (IGN)</th>
+              <th style="text-align: center;">Quốc tịch</th>
+              <th style="text-align: center;">Tuổi</th>
+              <th>Vai trò</th>
+              <th style="text-align: center;">Bonus</th>
+              <th style="text-align: right;">Lương/mùa</th>
+              <th>Ghi chú sự nghiệp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in all_roster %}
+            <tr>
+              <td>
+                {% if p.roster_slot == 'starter' %}
+                <span class="badge" style="background: rgba(56, 189, 248, 0.16); color: #38bdf8; font-size: 0.76em;">CHÍNH</span>
+                {% else %}
+                <span class="badge" style="background: rgba(168, 85, 247, 0.16); color: #c084fc; font-size: 0.76em;">DỰ BỊ</span>
+                {% endif %}
+              </td>
+              <td>
+                <strong style="color: #fff;">{{ p.ign }}</strong>
+                {% if p.is_custom %}<span style="margin-left: 5px; font-size: 0.7em; padding: 1px 5px; border-radius: 3px; background: rgba(244,114,182,0.18); color: #f472b6;">CUSTOM</span>{% endif %}
+              </td>
+              <td style="text-align: center;">{{ p.nationality_flag }} <span style="color: var(--dim); font-size: 0.84em;">{{ p.nationality_name }}</span></td>
+              <td style="text-align: center; color: #cbd5e1;">{{ p.age }}</td>
+              <td>
+                <span class="badge" style="font-size: 0.78em; {{ 'background:rgba(251,191,36,0.16); color:#fbbf24;' if p.is_flex else 'background:rgba(56,189,248,0.14); color:#38bdf8;' }}">
+                  {{ '✨ Flex' if p.is_flex else p.primary_role }}{% if p.secondary_role %} / {{ p.secondary_role }}{% endif %}
+                </span>
+              </td>
+              <td style="text-align: center; font-weight: 900; color: {{ '#fbbf24' if p.bonus_rating >= 3 else ('#4ade80' if p.bonus_rating >= 1 else '#94a3b8') }};">+{{ p.bonus_rating }}</td>
+              <td style="text-align: right; font-weight: 700; color: #34d399;">${{ p.salary }}K</td>
+              <td style="color: var(--dim); font-size: 0.84em;">{{ p.career_note or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding: 20px; text-align: center; color: var(--dim); border: 1px dashed var(--border); border-radius: 8px; font-size: 0.9em;">
+        Chiến dịch này thuộc save cũ v1.x (chưa có dữ liệu tuyển thủ từng cá nhân).
+      </div>
+      {% endif %}
+    </div>
+
+    {% if profile.season_breakdown %}
+    <!-- Season-by-Season Summary -->
+    <div class="card" style="padding: 18px 20px;">
+      <h3 style="margin: 0 0 12px; font-size: 1.1em; color: #fff; display: flex; align-items: center; gap: 8px;">
+        <span>📅</span> Tổng Kết Theo Từng Mùa Giải (Season-by-Season)
+      </h3>
+      <div class="table-scroll">
+        <table class="swiss-standings-table" style="font-size: 0.88em;">
+          <thead>
+            <tr>
+              <th style="text-align: center;">Năm</th>
+              <th style="text-align: center;">Số giải</th>
+              <th style="text-align: center;">W - L</th>
+              <th style="text-align: center;">Vô địch</th>
+              <th style="text-align: center; color: #fbbf24;">CP</th>
+              <th style="text-align: right; color: #34d399;">💰 Tiền thưởng</th>
+              <th>Thành tích cao nhất</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sb in profile.season_breakdown %}
+            <tr>
+              <td style="text-align: center; font-weight: 800; color: #fff;">{{ sb.year }}</td>
+              <td style="text-align: center;">{{ sb.tournaments_count }}</td>
+              <td style="text-align: center; font-weight: 700; color: {{ '#4ade80' if sb.wins >= sb.losses else 'var(--text)' }};">{{ sb.wins }}W - {{ sb.losses }}L ({{ sb.win_rate }}%)</td>
+              <td style="text-align: center; font-weight: 800; color: #fbbf24;">{{ sb.titles_count }} 🏆</td>
+              <td style="text-align: center; color: #fbbf24; font-weight: 700;">{{ sb.cp_earned }}</td>
+              <td style="text-align: right; font-weight: 800; color: #34d399;">{{ sb.prize_money_display }}</td>
+              <td style="color: var(--dim); font-size: 0.9em;">{{ sb.best_label }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Tournament Results Table (Liquipedia Style) -->
     <div class="card" style="padding: 20px;">
@@ -306,7 +486,9 @@
               <th style="text-align: center;">Vòng dừng bước</th>
               <th style="text-align: center;">Thành tích W-L</th>
               <th style="text-align: center; color: var(--yellow);">Điểm CP</th>
+              <th style="text-align: right; color: #34d399;">💰 Tiền thưởng</th>
               <th style="text-align: center;">Power Rating</th>
+              <th style="text-align: center;">Xem lại</th>
             </tr>
           </thead>
           <tbody id="tour-results-tbody">
@@ -346,10 +528,26 @@
               <td style="text-align: center; font-weight: bold; color: #fbbf24;">
                 {{ ('+' ~ res.stage_points_earned ~ ' CP') if res.stage_points_earned > 0 else '0 CP' }}
               </td>
+              <td style="text-align: right; font-weight: 800; color: {{ '#34d399' if res.prize_money > 0 else 'var(--dim)' }};">
+                {{ res.prize_money_display or '$0' }}
+              </td>
               <td style="text-align: center;">
                 <span class="badge" style="background: {{ res.tier.bg }}; color: {{ res.tier.color }}; border: 1px solid {{ res.tier.border }}; font-weight: bold; font-size: 0.85em;">
                   {{ res.tier.badge }} {{ res.power_rating_snapshot }}
                 </span>
+              </td>
+              <td style="text-align: center; white-space: nowrap;">
+                <button type="button"
+                        onclick="openTournamentReplayModal({{ campaign.id }}, '{{ res.stage_key }}', {{ res.year }}, {{ res.region_slug|tojson }}, {{ profile.club.id }})"
+                        style="padding: 4px 8px; border-radius: 5px; background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-size: 0.78em; font-weight: 700; cursor: pointer;"
+                        title="Xem lại toàn bộ trận đấu & bảng xếp hạng">
+                  🔍 Xem
+                </button>
+                <a href="{{ res.replay_url }}"
+                   style="margin-left: 4px; padding: 4px 7px; border-radius: 5px; background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid var(--border); font-size: 0.78em; text-decoration: none;"
+                   title="Mở trang Sơ đồ nhánh đấu đầy đủ">
+                  🗺️
+                </a>
               </td>
             </tr>
             {% endfor %}
@@ -387,11 +585,18 @@
             </div>
           </div>
 
-          <div style="text-align: right;">
-            <div style="font-size: 1.3em; font-weight: 900; color: {{ '#4ade80' if m.is_winner else '#f87171' }};">
-              {{ m.score_display }}
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="text-align: right;">
+              <div style="font-size: 1.3em; font-weight: 900; color: {{ '#4ade80' if m.is_winner else '#f87171' }};">
+                {{ m.score_display }}
+              </div>
+              <div style="font-size: 0.75em; color: var(--dim);">Tỷ số Maps</div>
             </div>
-            <div style="font-size: 0.75em; color: var(--dim);">Tỷ số Maps</div>
+            <button type="button"
+                    onclick="openTournamentReplayModal({{ campaign.id }}, '{{ m.stage_key }}', {{ m.year }}, {{ m.region_slug|tojson }}, {{ profile.club.id }})"
+                    style="padding: 5px 10px; border-radius: 5px; background: rgba(56,189,248,0.14); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); font-size: 0.78em; font-weight: 700; cursor: pointer;">
+              🔍 Xem giải
+            </button>
           </div>
         </div>
         {% endfor %}
@@ -401,6 +606,9 @@
 
   </div>
 </div>
+
+{% include "campaign/_club_roster_modal.html" %}
+{% include "campaign/_players_hub_modal.html" %}
 
 <style>
 .tour-filter-btn {

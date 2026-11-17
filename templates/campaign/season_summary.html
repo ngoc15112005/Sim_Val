@@ -197,21 +197,27 @@
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
     <!-- 1. Champions -->
     <div style="background: var(--surface); border: 2px solid #eab308; border-radius: 8px; padding: 12px 14px;">
-      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VALORANT Champions {{ champ_city }} (Thế Giới)
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+        <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+          VALORANT Champions {{ champ_city }}
+        </div>
+        <span style="font-size: 0.72em; color: #34d399; font-weight: 800;">💰 {{ format_usd(get_stage_total_prize_pool('champion')) }}</span>
       </div>
       {% set ch_title = summary_data.titles.get('champion') %}
       {% if ch_title and ch_title.champion %}
-      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-        {% if ch_title.champion.logo_url %}
-        <img src="{{ ch_title.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
-        {% endif %}
-        <div>
-          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; font-size: 1.05em; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.champion.id }})">{{ ch_title.champion.name }} ({{ ch_title.champion.short_code }})</div>
-          <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: {% if ch_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.runner_up.id }})">{{ ch_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {% if ch_title.champion.logo_url %}
+          <img src="{{ ch_title.champion.logo_url }}" alt="" style="width: 32px; height: 32px; object-fit: contain;">
+          {% endif %}
+          <div>
+            <div class="team-profile-trigger" style="font-weight: bold; color: #fff; font-size: 1.05em; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.champion.id }})">{{ ch_title.champion.name }} ({{ ch_title.champion.short_code }})</div>
+            <div style="font-size: 0.78em; color: var(--dim);">
+              Á quân: {% if ch_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ch_title.runner_up.id }})">{{ ch_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+            </div>
           </div>
         </div>
+        <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'champion', {{ summary_data.year }})" style="padding: 4px 8px; border-radius: 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); font-size: 0.75em; font-weight: 700; cursor: pointer;">🔍 Xem</button>
       </div>
       {% else %}
       <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
@@ -220,21 +226,27 @@
 
     <!-- 2. Masters -->
     <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
-      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VCT Masters {{ master_city }}
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+        <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+          VCT Masters {{ master_city }}
+        </div>
+        <span style="font-size: 0.72em; color: #34d399; font-weight: 800;">💰 {{ format_usd(get_stage_total_prize_pool('master')) }}</span>
       </div>
       {% set master_title = summary_data.titles.get('master') %}
       {% if master_title and master_title.champion %}
-      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-        {% if master_title.champion.logo_url %}
-        <img src="{{ master_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
-        {% endif %}
-        <div>
-          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.champion.id }})">{{ master_title.champion.name }} ({{ master_title.champion.short_code }})</div>
-          <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: {% if master_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.runner_up.id }})">{{ master_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {% if master_title.champion.logo_url %}
+          <img src="{{ master_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+          {% endif %}
+          <div>
+            <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.champion.id }})">{{ master_title.champion.name }} ({{ master_title.champion.short_code }})</div>
+            <div style="font-size: 0.78em; color: var(--dim);">
+              Á quân: {% if master_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ master_title.runner_up.id }})">{{ master_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+            </div>
           </div>
         </div>
+        <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'master', {{ summary_data.year }})" style="padding: 4px 8px; border-radius: 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); font-size: 0.75em; font-weight: 700; cursor: pointer;">🔍 Xem</button>
       </div>
       {% else %}
       <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
@@ -243,21 +255,27 @@
 
     <!-- 3. Major -->
     <div style="background: var(--surface); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; padding: 12px 14px;">
-      <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
-        VCT Major {{ major_city }}
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+        <div style="font-size: 0.75em; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+          VCT Major {{ major_city }}
+        </div>
+        <span style="font-size: 0.72em; color: #34d399; font-weight: 800;">💰 {{ format_usd(get_stage_total_prize_pool('major')) }}</span>
       </div>
       {% set major_title = summary_data.titles.get('major') %}
       {% if major_title and major_title.champion %}
-      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-        {% if major_title.champion.logo_url %}
-        <img src="{{ major_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
-        {% endif %}
-        <div>
-          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.champion.id }})">{{ major_title.champion.name }} ({{ major_title.champion.short_code }})</div>
-          <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: {% if major_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.runner_up.id }})">{{ major_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {% if major_title.champion.logo_url %}
+          <img src="{{ major_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+          {% endif %}
+          <div>
+            <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.champion.id }})">{{ major_title.champion.name }} ({{ major_title.champion.short_code }})</div>
+            <div style="font-size: 0.78em; color: var(--dim);">
+              Á quân: {% if major_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ major_title.runner_up.id }})">{{ major_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+            </div>
           </div>
         </div>
+        <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'major', {{ summary_data.year }})" style="padding: 4px 8px; border-radius: 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); font-size: 0.75em; font-weight: 700; cursor: pointer;">🔍 Xem</button>
       </div>
       {% else %}
       <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
@@ -266,21 +284,27 @@
 
     <!-- 4. Esports World Cup -->
     <div style="background: var(--surface); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 12px 14px;">
-      <div style="font-size: 0.75em; color: #4ade80; font-weight: 800; text-transform: uppercase;">
-        Esports World Cup ({{ ewc_city }})
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+        <div style="font-size: 0.75em; color: #4ade80; font-weight: 800; text-transform: uppercase;">
+          Esports World Cup ({{ ewc_city }})
+        </div>
+        <span style="font-size: 0.72em; color: #34d399; font-weight: 800;">💰 {{ format_usd(get_stage_total_prize_pool('ewc')) }}</span>
       </div>
       {% set ewc_title = summary_data.titles.get('ewc') %}
       {% if ewc_title and ewc_title.champion %}
-      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-        {% if ewc_title.champion.logo_url %}
-        <img src="{{ ewc_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
-        {% endif %}
-        <div>
-          <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.champion.id }})">{{ ewc_title.champion.name }} ({{ ewc_title.champion.short_code }})</div>
-          <div style="font-size: 0.78em; color: var(--dim);">
-            Á quân: {% if ewc_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.runner_up.id }})">{{ ewc_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {% if ewc_title.champion.logo_url %}
+          <img src="{{ ewc_title.champion.logo_url }}" alt="" style="width: 30px; height: 30px; object-fit: contain;">
+          {% endif %}
+          <div>
+            <div class="team-profile-trigger" style="font-weight: bold; color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.champion.id }})">{{ ewc_title.champion.name }} ({{ ewc_title.champion.short_code }})</div>
+            <div style="font-size: 0.78em; color: var(--dim);">
+              Á quân: {% if ewc_title.runner_up %}<strong class="team-profile-trigger" style="color: #fff; cursor: pointer;" onclick="openTeamProfileModal({{ ewc_title.runner_up.id }})">{{ ewc_title.runner_up.name }}</strong>{% else %}N/A{% endif %}
+            </div>
           </div>
         </div>
+        <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'ewc', {{ summary_data.year }})" style="padding: 4px 8px; border-radius: 5px; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.4); font-size: 0.75em; font-weight: 700; cursor: pointer;">🔍 Xem</button>
       </div>
       {% else %}
       <div style="color: var(--dim); font-size: 0.85em; margin-top: 8px;">Chưa diễn ra</div>
@@ -313,6 +337,7 @@
             <td>
               {% if ko_t %}
                 <span class="team-profile-trigger" style="color: #fbbf24; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ ko_t.id }})">{{ ko_t.name }} ({{ ko_t.short_code }})</span>
+                <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'kickoff', {{ summary_data.year }}, '{{ r }}')" style="margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); font-size: 0.72em; cursor: pointer;" title="Xem giải Kickoff {{ r|upper }}">🔍</button>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
@@ -320,6 +345,7 @@
             <td>
               {% if s1_t %}
                 <span class="team-profile-trigger" style="color: #60a5fa; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ s1_t.id }})">{{ s1_t.name }} ({{ s1_t.short_code }})</span>
+                <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'stage1', {{ summary_data.year }}, '{{ r }}')" style="margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); font-size: 0.72em; cursor: pointer;" title="Xem giải Stage 1 {{ r|upper }}">🔍</button>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
@@ -327,6 +353,7 @@
             <td>
               {% if s2_t %}
                 <span class="team-profile-trigger" style="color: #4ade80; font-weight: bold; cursor: pointer;" onclick="openTeamProfileModal({{ s2_t.id }})">{{ s2_t.name }} ({{ s2_t.short_code }})</span>
+                <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, 'stage2', {{ summary_data.year }}, '{{ r }}')" style="margin-left: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(56,189,248,0.12); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); font-size: 0.72em; cursor: pointer;" title="Xem giải Stage 2 {{ r|upper }}">🔍</button>
               {% else %}
                 <span style="color: var(--dim);">-</span>
               {% endif %}
@@ -388,6 +415,15 @@
     {% for sk in ['kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'] %}
     {% set st_data = summary_data.stage_placements.get(sk, {}) %}
     <div id="hof-stage-panel-{{ sk }}" class="hof-stage-panel {% if loop.first %}active{% endif %}">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 8px 12px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-size: 0.86em; color: #34d399; font-weight: 800;">
+          💰 Quỹ Thưởng Giải Đấu: {{ format_usd(get_stage_total_prize_pool(sk)) }}
+          {% if sk in ['kickoff', 'stage1', 'stage2'] %}<span style="color: var(--dim); font-weight: normal;">(mỗi khu vực)</span>{% endif %}
+        </div>
+        <button type="button" onclick="openTournamentReplayModal({{ campaign.id }}, '{{ sk }}', {{ summary_data.year }})" style="padding: 6px 12px; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45); font-weight: 700; font-size: 0.84em; cursor: pointer;">
+          🔍 Xem Toàn Bộ Trận Đấu &amp; Tỷ Số ➔
+        </button>
+      </div>
       {% if st_data and st_data.placements %}
       <div class="table-scroll">
         <table class="swiss-standings-table">
@@ -401,6 +437,7 @@
               <th style="text-align: center;">Vòng dừng bước</th>
               <th style="text-align: center;">Thành tích W-L</th>
               <th style="text-align: center; color: var(--yellow);">Điểm CP</th>
+              <th style="text-align: right; color: #34d399;">💰 Tiền thưởng</th>
               <th style="text-align: center;">Power Rating</th>
             </tr>
           </thead>
@@ -432,6 +469,9 @@
               </td>
               <td style="text-align: center; font-weight: bold; color: #fbbf24;">
                 {{ '+' ~ p.stage_points_earned ~ ' CP' if p.stage_points_earned > 0 else '0 CP' }}
+              </td>
+              <td style="text-align: right; font-weight: 800; color: {{ '#34d399' if (p.prize_money or get_stage_prize_money(sk, p.rank)) > 0 else 'var(--dim)' }};">
+                {{ p.prize_money_display or format_usd(get_stage_prize_money(sk, p.rank)) }}
               </td>
               <td style="text-align: center;">
                 {% set tier = p.tier or {} %}

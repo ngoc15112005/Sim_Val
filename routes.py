@@ -357,6 +357,8 @@ def register_routes(app):
         get_stage_placements_history, get_all_time_trophy_table, get_global_power_rankings,
         recalculate_campaign_gpr,
         get_team_profile_data,
+        get_stage_replay_data,
+        get_head_to_head_history,
         confirm_stage_region, confirm_stage_tournament, confirm_stage_all,
         unlock_stage_region, unlock_stage_tournament,
         get_season_hosts,
@@ -548,7 +550,7 @@ def register_routes(app):
 
         req_year = request.args.get('year', type=int) or campaign.current_year
         stage = get_stage_record(campaign_id, 'open_qualifier', year=req_year)
-        oq_data = get_open_qualifier_data(campaign_id)
+        oq_data = get_open_qualifier_data(campaign_id, year=req_year)
         selected_region = request.args.get('region', 'pacific')
 
         return render_template(
@@ -1281,7 +1283,7 @@ def register_routes(app):
 
         req_year = request.args.get('year', type=int) or campaign.current_year
         stage = get_stage_record(campaign_id, 'oq_stage1', year=req_year)
-        oq_data = get_oq_stage1_data(campaign_id)
+        oq_data = get_oq_stage1_data(campaign_id, year=req_year)
         return render_template(
             'campaign/oq_stage1.html',
             campaign=campaign,
@@ -1717,7 +1719,7 @@ def register_routes(app):
 
         req_year = request.args.get('year', type=int) or campaign.current_year
         stage = get_stage_record(campaign_id, 'oq_stage2', year=req_year)
-        oq_data = get_oq_stage2_data(campaign_id)
+        oq_data = get_oq_stage2_data(campaign_id, year=req_year)
         return render_template(
             'campaign/oq_stage2.html',
             campaign=campaign,
@@ -2068,6 +2070,55 @@ def register_routes(app):
         history_data = get_stage_placements_history(campaign_id, stage_key, year=year, region_slug=region)
         return jsonify({'success': True, 'data': history_data})
 
+    @app.route('/api/campaign/<int:campaign_id>/stage-replay/<stage_key>')
+    def api_campaign_stage_replay(campaign_id, stage_key):
+        campaign = get_campaign(campaign_id)
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        year = request.args.get('year', type=int) or campaign.current_year
+        region = request.args.get('region')
+        highlight_club_id = request.args.get('club_id', type=int)
+        try:
+            replay = get_stage_replay_data(
+                campaign_id,
+                stage_key,
+                year=year,
+                region_slug=region,
+                highlight_club_id=highlight_club_id,
+            )
+            return jsonify({'success': True, 'replay': replay})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    @app.route('/api/campaign/<int:campaign_id>/h2h')
+    def api_campaign_head_to_head(campaign_id):
+        team_a_id = request.args.get('team_a_id', type=int)
+        team_b_id = request.args.get('team_b_id', type=int)
+        if not team_a_id or not team_b_id:
+            return jsonify({'error': 'team_a_id and team_b_id are required'}), 400
+        exclude_match_key = request.args.get('exclude_match_key', type=str)
+        exclude_year = request.args.get('year', type=int)
+        exclude_stage_key = request.args.get('stage_key', type=str)
+        exclude_region_slug = request.args.get('region_slug', type=str)
+        limit = request.args.get('limit', default=15, type=int)
+        if request.args.get('all') in ('1', 'true', 'yes'):
+            limit = 0
+        try:
+            data = get_head_to_head_history(
+                campaign_id=campaign_id,
+                team_a_id=team_a_id,
+                team_b_id=team_b_id,
+                exclude_match_key=exclude_match_key,
+                exclude_year=exclude_year,
+                exclude_stage_key=exclude_stage_key,
+                exclude_region_slug=exclude_region_slug,
+                limit=limit,
+            )
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
     @app.route('/api/campaign/<int:campaign_id>/hall-of-fame-data')
     def api_campaign_hall_of_fame_data(campaign_id):
         campaign = get_campaign(campaign_id)
@@ -2123,6 +2174,7 @@ def register_routes(app):
             'campaign/team_profile.html',
             campaign=campaign,
             profile=profile_data,
+            subregions_list=list(SUBREGION_METADATA.values()),
             cfg=Config,
         )
 

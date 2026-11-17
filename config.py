@@ -161,4 +161,91 @@ class Config:
         ]
     }
 
+    PRIZE_POOLS_BY_STAGE = {
+        'champion': {
+            'total': 2_250_000,
+            'ranks': {
+                1: 1_000_000, 2: 400_000, 3: 250_000, 4: 130_000,
+                5: 85_000, 6: 85_000, 7: 50_000, 8: 50_000,
+                9: 30_000, 10: 30_000, 11: 30_000, 12: 30_000,
+                13: 20_000, 14: 20_000, 15: 20_000, 16: 20_000,
+            },
+        },
+        'ewc': {
+            'total': 3_500_000,
+            'ranks': {
+                1: 1_500_000, 2: 650_000, 3: 350_000, 4: 200_000,
+                5: 100_000, 6: 100_000, 7: 100_000, 8: 100_000,
+                9: 60_000, 10: 60_000, 11: 60_000, 12: 60_000,
+                13: 40_000, 14: 40_000, 15: 40_000, 16: 40_000,
+            },
+        },
+        'master': {
+            'total': 1_000_000,
+            'ranks': {
+                1: 350_000, 2: 200_000, 3: 125_000, 4: 75_000,
+                5: 50_000, 6: 50_000, 7: 35_000, 8: 35_000,
+                9: 25_000, 10: 25_000, 11: 15_000, 12: 15_000,
+            },
+        },
+        'major': {
+            'total': 750_000,
+            'ranks': {
+                1: 300_000, 2: 160_000, 3: 100_000, 4: 70_000,
+                5: 35_000, 6: 35_000, 7: 25_000, 8: 25_000,
+            },
+        },
+        'stage1': {
+            'total': 250_000,
+            'ranks': {1: 100_000, 2: 65_000, 3: 40_000, 4: 25_000, 5: 10_000, 6: 10_000},
+        },
+        'stage2': {
+            'total': 250_000,
+            'ranks': {1: 100_000, 2: 65_000, 3: 40_000, 4: 25_000, 5: 10_000, 6: 10_000},
+        },
+        'kickoff': {
+            'total': 100_000,
+            'ranks': {1: 50_000, 2: 25_000, 3: 15_000, 4: 10_000},
+        },
+        'open_qualifier': {
+            'total': 30_000,
+            'ranks': {1: 12_000, 2: 8_000, 3: 5_000, 4: 5_000},
+        },
+        'oq_stage1': {
+            'total': 30_000,
+            'ranks': {1: 12_000, 2: 8_000, 3: 5_000, 4: 5_000},
+        },
+        'oq_stage2': {
+            'total': 30_000,
+            'ranks': {1: 12_000, 2: 8_000, 3: 5_000, 4: 5_000},
+        },
+        'ewc_qualifier': {
+            'total': 30_000,
+            'ranks': {1: 12_000, 2: 8_000, 3: 5_000, 4: 5_000},
+        },
+    }
+
+
+def get_stage_prize_money(stage_key: str, rank: int | None) -> int:
+    """Tra cứu O(1) tiền thưởng USD theo stage_key và thứ hạng."""
+    if not stage_key or not rank or rank <= 0:
+        return 0
+    pool = Config.PRIZE_POOLS_BY_STAGE.get(stage_key)
+    if not pool:
+        return 0
+    return int(pool.get('ranks', {}).get(int(rank), 0))
+
+
+def get_stage_total_prize_pool(stage_key: str) -> int:
+    """Tổng quỹ tiền thưởng USD của một giải đấu."""
+    pool = Config.PRIZE_POOLS_BY_STAGE.get(stage_key or '')
+    return int(pool.get('total', 0)) if pool else 0
+
+
+def format_usd(amount: int | float | None) -> str:
+    """Định dạng tiền thưởng USD gọn đẹp ($1,000,000)."""
+    val = int(round(amount or 0))
+    return f"${val:,}"
+
+
 

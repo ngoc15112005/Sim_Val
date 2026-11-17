@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 
 db = SQLAlchemy()
 
@@ -228,6 +229,8 @@ class Campaign(db.Model):
                                           cascade='all, delete-orphan')
     players = db.relationship('CampaignPlayer', backref='campaign', lazy=True,
                               cascade='all, delete-orphan')
+    match_records = db.relationship('CampaignMatchRecord', backref='campaign', lazy=True,
+                                    cascade='all, delete-orphan')
 
     @property
     def is_compatible(self) -> bool:
@@ -350,6 +353,7 @@ class CampaignStage(db.Model):
     __table_args__ = (
         db.Index('ix_cs_campaign_year_stage', 'campaign_id', 'year', 'stage_key'),
         db.Index('ix_cs_campaign_status', 'campaign_id', 'status'),
+        db.Index('ix_cs_h2h_sync', 'campaign_id', 'h2h_synced_version', 'data_version'),
     )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
@@ -358,6 +362,8 @@ class CampaignStage(db.Model):
     stage_name = db.Column(db.String(100), nullable=False)
     status = db.Column(db.String(20), default='pending')  # 'pending', 'in_progress', 'completed'
     stage_data = db.Column(db.Text, nullable=True)  # JSON formatted results
+    data_version = db.Column(db.Integer, default=1, nullable=False)
+    h2h_synced_version = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime, nullable=True)
 
@@ -372,6 +378,14 @@ class CampaignStage(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }
+
+
+@event.listens_for(CampaignStage, 'before_update')
+def _bump_campaign_stage_data_version(mapper, connection, target):
+    """Automatically bump data_version whenever stage_data changes so H2H never serves stale results."""
+    state = db.inspect(target)
+    if state.attrs.stage_data.history.has_changes():
+        target.data_version = (target.data_version or 1) + 1
 
 
 class CampaignSeason(db.Model):
@@ -429,6 +443,7 @@ class CampaignStagePlacement(db.Model):
     rank_display = db.Column(db.String(30), nullable=False)  # '1st (Vô địch)', '2nd (Á quân)', '3rd', 'Top 4', etc.
     elimination_stage = db.Column(db.String(50), nullable=True)
     stage_points_earned = db.Column(db.Integer, default=0)
+    prize_money = db.Column(db.Integer, default=0)
     matches_won = db.Column(db.Integer, default=0)
     matches_lost = db.Column(db.Integer, default=0)
 
@@ -440,8 +455,10 @@ class CampaignStagePlacement(db.Model):
     club = db.relationship('Club', backref='placements')
 
     def to_dict(self):
+        from config import get_stage_prize_money, format_usd
         from engine.power_rating import get_tier_info
         ps = self.power_score_snapshot if self.power_score_snapshot is not None else 1500.0
+        pm = self.prize_money if (self.prize_money is not None and self.prize_money > 0) else get_stage_prize_money(self.stage_key, self.rank)
         return {
             'id': self.id,
             'campaign_id': self.campaign_id,
@@ -454,6 +471,8 @@ class CampaignStagePlacement(db.Model):
             'rank_display': self.rank_display,
             'elimination_stage': self.elimination_stage,
             'stage_points_earned': self.stage_points_earned or 0,
+            'prize_money': pm,
+            'prize_money_display': format_usd(pm),
             'matches_won': self.matches_won or 0,
             'matches_lost': self.matches_lost or 0,
             'power_score_snapshot': round(ps, 1),
@@ -462,6 +481,37 @@ class CampaignStagePlacement(db.Model):
             'club': self.club.to_dict() if self.club else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class CampaignMatchRecord(db.Model):
+    """Normalized Head-to-Head index of completed campaign matches for O(log N) lookup across decades."""
+    __tablename__ = 'campaign_match_records'
+    __table_args__ = (
+        db.Index('ix_cmr_h2h', 'campaign_id', 'pair_low_id', 'pair_high_id'),
+        db.Index('ix_cmr_camp_year_stage', 'campaign_id', 'year', 'stage_key'),
+        db.UniqueConstraint(
+            'campaign_id', 'year', 'stage_key', 'region_slug', 'match_key',
+            name='uq_cmr_campaign_match',
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    stage_key = db.Column(db.String(30), nullable=False)
+    stage_name = db.Column(db.String(100), nullable=False)
+    region_slug = db.Column(db.String(30), default='', nullable=False)
+    match_key = db.Column(db.String(80), nullable=False)
+    round_name = db.Column(db.String(120), nullable=True)
+    match_order = db.Column(db.Integer, default=0)
+
+    pair_low_id = db.Column(db.Integer, nullable=False)
+    pair_high_id = db.Column(db.Integer, nullable=False)
+    team_a_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
+    team_b_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
+    score_a = db.Column(db.Integer, default=0)
+    score_b = db.Column(db.Integer, default=0)
+    winner_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=True)
+    maps_summary = db.Column(db.String(255), nullable=True)
 
 
 class CampaignStoryline(db.Model):

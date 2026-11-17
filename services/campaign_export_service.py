@@ -91,6 +91,7 @@ def export_campaign_save(campaign_id: int) -> Dict[str, Any]:
             'rank_display': p.rank_display,
             'elimination_stage': p.elimination_stage,
             'stage_points_earned': p.stage_points_earned,
+            'prize_money': p.prize_money or 0,
             'matches_won': p.matches_won,
             'matches_lost': p.matches_lost,
             'power_score_snapshot': p.power_score_snapshot,
@@ -289,17 +290,24 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
         if not club:
             continue
 
+        from config import get_stage_prize_money
+        st_k = p_data.get('stage_key', 'major')
+        rk_v = p_data.get('rank', 1)
+        pm_val = p_data.get('prize_money')
+        if pm_val is None or pm_val == 0:
+            pm_val = get_stage_prize_money(st_k, rk_v)
         new_p = CampaignStagePlacement(
             campaign_id=new_campaign.id,
             year=p_data.get('year', new_campaign.current_year),
-            stage_key=p_data.get('stage_key', 'major'),
+            stage_key=st_k,
             tournament_name=p_data.get('tournament_name', ''),
             region_slug=p_data.get('region_slug'),
             club_id=club.id,
-            rank=p_data.get('rank', 1),
+            rank=rk_v,
             rank_display=p_data.get('rank_display', '#1'),
             elimination_stage=p_data.get('elimination_stage'),
             stage_points_earned=p_data.get('stage_points_earned', 0),
+            prize_money=pm_val,
             matches_won=p_data.get('matches_won', 0),
             matches_lost=p_data.get('matches_lost', 0),
             power_score_snapshot=p_data.get('power_score_snapshot', 1500.0),
@@ -383,4 +391,6 @@ def import_campaign_save(payload: Dict[str, Any], custom_name: Optional[str] = N
         db.session.add(new_pl)
 
     db.session.commit()
+    from services.campaign_service import backfill_stage_match_records_if_needed
+    backfill_stage_match_records_if_needed(new_campaign.id)
     return new_campaign

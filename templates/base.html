@@ -35,7 +35,11 @@
     </script>
     {% if campaign %}
         {% include "campaign/_team_profile_modal.html" %}
+        {% include "campaign/_tournament_replay_modal.html" %}
     {% endif %}
     {% block scripts %}{% endblock %}
+    {% if campaign %}
+        {% include "campaign/_match_h2h_panel.html" %}
+    {% endif %}
 </body>
 </html>

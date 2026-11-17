@@ -104,6 +104,30 @@ class TestPlayerSystemV2(unittest.TestCase):
             self.assertTrue(s['roles_ok'], f"{cs.club.short_code} missing roles: {s['missing_roles']}")
             self.assertLessEqual(s['payroll'], cs.salary_cap, f"{cs.club.short_code} over cap")
             self.assertGreaterEqual(cs.player_bonus, 0)
+            self.assertLessEqual(
+                cs.roster_base_rating, 97,
+                f"{cs.club.short_code} over-inflated roster_base_rating={cs.roster_base_rating}"
+            )
+            self.assertGreaterEqual(cs.roster_base_rating, 65)
+
+        # Verify updated 2026 championship rosters are properly seeded
+        expected_club_players = [
+            ('LOUD', 'erde'),
+            ('NS', 'Dambi'),
+            ('LEV', 'Neon'),
+            ('100T', 'Timotino'),
+            ('GE', 'PatMen'),
+            ('KC', 'dos9'),
+            ('TYL', 'slowly'),
+        ]
+        for club_code, ign in expected_club_players:
+            p = CampaignPlayer.query.join(Club).filter(
+                CampaignPlayer.campaign_id == camp.id,
+                Club.short_code == club_code,
+                CampaignPlayer.ign == ign,
+                CampaignPlayer.roster_slot == 'starter',
+            ).first()
+            self.assertIsNotNone(p, f"Expected 2026 starter '{ign}' on '{club_code}'")
 
     def test_prx_strength_formula_and_bonus_clamp(self):
         self.assertEqual(clamp_bonus(-4), 0)
