@@ -248,6 +248,9 @@ class Campaign(db.Model):
 
 class CampaignClubState(db.Model):
     __tablename__ = 'campaign_club_states'
+    __table_args__ = (
+        db.Index('ix_ccs_campaign_club', 'campaign_id', 'club_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     club_id = db.Column(db.Integer, db.ForeignKey('clubs.id'), nullable=False)
@@ -326,6 +329,10 @@ class CampaignClubState(db.Model):
 
 class CampaignStage(db.Model):
     __tablename__ = 'campaign_stages'
+    __table_args__ = (
+        db.Index('ix_cs_campaign_year_stage', 'campaign_id', 'year', 'stage_key'),
+        db.Index('ix_cs_campaign_status', 'campaign_id', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     year = db.Column(db.Integer, nullable=False)
@@ -351,6 +358,9 @@ class CampaignStage(db.Model):
 
 class CampaignSeason(db.Model):
     __tablename__ = 'campaign_seasons'
+    __table_args__ = (
+        db.Index('ix_cseason_campaign_year', 'campaign_id', 'year'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     year = db.Column(db.Integer, nullable=False)
@@ -385,6 +395,10 @@ class CampaignSeason(db.Model):
 class CampaignStagePlacement(db.Model):
     """Stores persistent historical final placements for each tournament/stage across all campaign years."""
     __tablename__ = 'campaign_stage_placements'
+    __table_args__ = (
+        db.Index('ix_csp_campaign_year_stage', 'campaign_id', 'year', 'stage_key'),
+        db.Index('ix_csp_campaign_club', 'campaign_id', 'club_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     year = db.Column(db.Integer, nullable=False)
@@ -435,6 +449,9 @@ class CampaignStagePlacement(db.Model):
 class CampaignStoryline(db.Model):
     """Stores active and historical narrative storylines generated or committed for each campaign year."""
     __tablename__ = 'campaign_storylines'
+    __table_args__ = (
+        db.Index('ix_cstory_campaign_year', 'campaign_id', 'year'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     year = db.Column(db.Integer, nullable=False)
@@ -484,6 +501,9 @@ class CampaignStoryline(db.Model):
 class CampaignPartnershipReview(db.Model):
     """Stores 24-month Partnership Evaluation cycles (every 2 years), AI recommendations, and user final decisions."""
     __tablename__ = 'campaign_partnership_reviews'
+    __table_args__ = (
+        db.Index('ix_cpr_campaign_year', 'campaign_id', 'year'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.id'), nullable=False)
     year = db.Column(db.Integer, nullable=False)          # End year of the 2-year cycle (e.g., 2028 for 2027-2028)

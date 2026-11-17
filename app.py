@@ -28,6 +28,18 @@ def create_app():
     if not is_remote:
         with app.app_context():
             try:
+                if db.engine.dialect.name == 'sqlite':
+                    from sqlalchemy import event
+
+                    @event.listens_for(db.engine, "connect")
+                    def _set_sqlite_pragma(dbapi_connection, _connection_record):
+                        cur = dbapi_connection.cursor()
+                        cur.execute("PRAGMA journal_mode=WAL")
+                        cur.execute("PRAGMA synchronous=NORMAL")
+                        cur.execute("PRAGMA temp_store=MEMORY")
+                        cur.execute("PRAGMA cache_size=-32000")
+                        cur.close()
+
                 from models import Region, Club, Role, Player, Tournament
                 from models import TournamentParticipant, Match, MatchMap, ClubRating
                 from models import (
@@ -61,6 +73,19 @@ def create_app():
                                     cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN previous_rank INTEGER")
                                 if 'win_streak' not in state_cols:
                                     cursor.execute("ALTER TABLE campaign_club_states ADD COLUMN win_streak INTEGER DEFAULT 0")
+
+                            # Ensure composite indexes exist on legacy SQLite databases
+                            for idx_sql in (
+                                "CREATE INDEX IF NOT EXISTS ix_ccs_campaign_club ON campaign_club_states (campaign_id, club_id)",
+                                "CREATE INDEX IF NOT EXISTS ix_cs_campaign_year_stage ON campaign_stages (campaign_id, year, stage_key)",
+                                "CREATE INDEX IF NOT EXISTS ix_cs_campaign_status ON campaign_stages (campaign_id, status)",
+                                "CREATE INDEX IF NOT EXISTS ix_cseason_campaign_year ON campaign_seasons (campaign_id, year)",
+                                "CREATE INDEX IF NOT EXISTS ix_csp_campaign_year_stage ON campaign_stage_placements (campaign_id, year, stage_key)",
+                                "CREATE INDEX IF NOT EXISTS ix_csp_campaign_club ON campaign_stage_placements (campaign_id, club_id)",
+                                "CREATE INDEX IF NOT EXISTS ix_cstory_campaign_year ON campaign_storylines (campaign_id, year)",
+                                "CREATE INDEX IF NOT EXISTS ix_cpr_campaign_year ON campaign_partnership_reviews (campaign_id, year)",
+                            ):
+                                cursor.execute(idx_sql)
 
                             conn.connection.commit()
                     except Exception as _e:

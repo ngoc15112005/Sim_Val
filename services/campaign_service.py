@@ -13,9 +13,21 @@ Manages:
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Optional, Any, Tuple, Union
+from sqlalchemy.orm import joinedload
 from models import (
     db, Club, Region, Campaign, CampaignClubState, CampaignStage, CampaignSeason, CampaignStagePlacement
 )
+
+COMPETITIVE_STAGE_KEYS = (
+    'open_qualifier', 'kickoff', 'major',
+    'oq_stage1', 'stage1', 'ewc_qualifier',
+    'master', 'ewc',
+    'oq_stage2', 'stage2', 'champion',
+)
+
+# Bounded in-memory cache for prior-year GPR checkpoints:
+# Keyed by campaign_id -> (prior_signature, checkpoint_dict)
+_GPR_PRIOR_CACHE: Dict[int, Tuple[Any, Dict[str, Any]]] = {}
 from config import Config
 from engine.power_rating import (
     update_team_elo,
@@ -176,7 +188,13 @@ def list_campaigns() -> List[Campaign]:
 
 
 def get_campaign_club_states(campaign_id: int, region_slug: Optional[str] = None) -> List[CampaignClubState]:
-    query = CampaignClubState.query.filter_by(campaign_id=campaign_id).join(Club).join(Region)
+    query = (
+        CampaignClubState.query
+        .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+        .filter_by(campaign_id=campaign_id)
+        .join(Club)
+        .join(Region)
+    )
     if region_slug:
         query = query.filter(Region.slug == region_slug)
     return query.order_by(CampaignClubState.is_partner.desc(), CampaignClubState.story_rating.desc()).all()
@@ -581,7 +599,7 @@ def unlock_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> D
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
-    recalculate_campaign_gpr(campaign.id)
+    recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
     return {
         'success': True,
@@ -622,7 +640,7 @@ def unlock_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]:
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
-    recalculate_campaign_gpr(campaign.id)
+    recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
     return {
         'success': True,
@@ -2900,13 +2918,23 @@ def award_stage_cp(campaign_id: int, stage_key: str, results_list: List[Dict[str
 
 def get_championship_leaderboard(campaign_id: int, region_slug: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return sorted Championship Points leaderboard applying all 11 VCT 2025 tiebreakers."""
-    query = CampaignClubState.query.filter_by(campaign_id=campaign_id).join(Club).join(Region)
+    query = (
+        CampaignClubState.query
+        .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+        .filter_by(campaign_id=campaign_id)
+        .join(Club)
+        .join(Region)
+    )
     if region_slug:
         query = query.filter(Region.slug == region_slug)
 
     states = query.all()
     teams_payload = []
     for s in states:
+        try:
+            ranks = json.loads(s.stage_ranks or '{}')
+        except Exception:
+            ranks = {}
         teams_payload.append({
             'club_id': s.club_id,
             'name': s.club.name,
@@ -2917,11 +2945,11 @@ def get_championship_leaderboard(campaign_id: int, region_slug: Optional[str] = 
             'championship_points': s.championship_points or 0,
             'story_rating': s.story_rating,
             'effective_rating': s.effective_rating,
-            'stage2_rank': s.get_stage_rank('stage2_playoffs'),
-            'master_rank': s.get_stage_rank('master'),
-            'stage1_rank': s.get_stage_rank('stage1_playoffs'),
-            'major_rank': s.get_stage_rank('major'),
-            'kickoff_rank': s.get_stage_rank('kickoff'),
+            'stage2_rank': ranks.get('stage2_playoffs'),
+            'master_rank': ranks.get('master'),
+            'stage1_rank': ranks.get('stage1_playoffs'),
+            'major_rank': ranks.get('major'),
+            'kickoff_rank': ranks.get('kickoff'),
             'regular_season_wins': s.regular_season_wins or 0,
             'map_differential': s.map_differential or 0,
             'round_differential': s.round_differential or 0,
@@ -3770,12 +3798,45 @@ def run_champion_stage(campaign_id: int) -> Dict[str, Any]:
 # Year-End Hall of Fame & Season Summary
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _strip_summary_for_storage(summary_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Tạo bản sao gọn nhẹ để lưu trữ lâu dài, loại bỏ hoàn toàn past_records đệ quy
+    và các bảng tính lại động (all_time_trophies, global_power_rankings, stage_placements, available_years)
+    nhằm triệt tiêu hoàn toàn hiện tượng phình dữ liệu O(2^N) qua nhiều năm.
+    """
+    if not isinstance(summary_data, dict):
+        return {}
+    redundant_keys = {
+        'past_records',
+        'all_time_trophies',
+        'global_power_rankings',
+        'stage_placements',
+        'available_years',
+    }
+    return {k: v for k, v in summary_data.items() if k not in redundant_keys}
+
+
+def _build_compact_past_record(raw_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Chuẩn hóa 1 bản ghi năm cũ trong past_records thành dạng phẳng (không lồng past_records con)."""
+    if not isinstance(raw_dict, dict):
+        return {}
+    return {
+        'year': raw_dict.get('year'),
+        'titles': raw_dict.get('titles', {}),
+        'world_champion': raw_dict.get('world_champion'),
+        'club_of_the_year': raw_dict.get('club_of_the_year'),
+        'best_region': raw_dict.get('best_region'),
+        'most_improved': raw_dict.get('most_improved'),
+        'season_hosts': raw_dict.get('season_hosts', {}),
+    }
+
+
 def _prepare_season_summary_stage(campaign: Campaign):
     """Assemble final year-end summary stage for the campaign."""
     summary_stage = CampaignStage.query.filter_by(
         campaign_id=campaign.id, year=campaign.current_year, stage_key='season_summary'
     ).first()
-    summary_data = get_season_summary_data(campaign.id)
+    summary_data = get_season_summary_data(campaign.id, include_past_records=False)
+    storable_json = json.dumps(_strip_summary_for_storage(summary_data))
 
     if not summary_stage:
         summary_stage = CampaignStage(
@@ -3784,11 +3845,11 @@ def _prepare_season_summary_stage(campaign: Campaign):
             stage_key='season_summary',
             stage_name=f'Year-End Hall of Fame {campaign.current_year}',
             status='in_progress',
-            stage_data=json.dumps(summary_data),
+            stage_data=storable_json,
         )
         db.session.add(summary_stage)
     else:
-        summary_stage.stage_data = json.dumps(summary_data)
+        summary_stage.stage_data = storable_json
 
 
 def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
@@ -3855,7 +3916,11 @@ def _extract_kickoff_titles(campaign_id: int, year: int) -> Dict[str, Any]:
     return k_titles
 
 
-def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dict[str, Any]:
+def get_season_summary_data(
+    campaign_id: int,
+    year: Optional[int] = None,
+    include_past_records: bool = True,
+) -> Dict[str, Any]:
     """Gather all title winners, season awards, leaderboards, placements, and Hall of Fame records for any year."""
     campaign = get_campaign(campaign_id)
     if not campaign:
@@ -3879,9 +3944,10 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         if hof_stage and hof_stage.stage_data:
             try:
                 archived = json.loads(hof_stage.stage_data)
+                archived.pop('past_records', None)
                 archived['available_years'] = available_years
                 archived['year'] = target_year
-                archived['all_time_trophies'] = get_all_time_trophy_table(campaign_id)
+                archived['all_time_trophies'] = get_all_time_trophy_table(campaign_id, skip_backfill=True)
                 archived['global_power_rankings'] = get_global_power_rankings(campaign_id)
 
                 if 'titles' not in archived:
@@ -3897,7 +3963,9 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
                 # Load stage placements for this year
                 stage_placements = {}
                 for sk in ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'):
-                    stage_placements[sk] = get_stage_placements_history(campaign_id, sk, year=target_year)
+                    stage_placements[sk] = get_stage_placements_history(
+                        campaign_id, sk, year=target_year, skip_backfill=True
+                    )
                 archived['stage_placements'] = stage_placements
                 return archived
             except Exception:
@@ -4070,7 +4138,12 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
     world_champion = titles.get('champion', {}).get('champion')
 
     # Club of the Year: Club with highest Championship Points (and international title bonus)
-    all_clubs_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    all_clubs_states = (
+        CampaignClubState.query
+        .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+        .filter_by(campaign_id=campaign_id)
+        .all()
+    )
     best_club_state = max(all_clubs_states, key=lambda cs: (cs.championship_points or 0, cs.story_rating or 0)) if all_clubs_states else None
 
     # Best Region: Region with highest total CP
@@ -4082,23 +4155,26 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
     # Most Improved Club: Club with highest story rating
     most_improved_state = max(all_clubs_states, key=lambda cs: cs.story_rating or 0) if all_clubs_states else None
 
-    # Previous Hall of Fame history
-    hof_stages = CampaignStage.query.filter(
-        CampaignStage.campaign_id == campaign_id,
-        CampaignStage.stage_key.like('hof_year_%')
-    ).order_by(CampaignStage.year.asc()).all()
-
+    # Previous Hall of Fame history (flat compact records without recursive past_records)
     past_records = []
-    for h in hof_stages:
-        try:
-            past_records.append(json.loads(h.stage_data))
-        except Exception:
-            pass
+    if include_past_records:
+        hof_stages = CampaignStage.query.filter(
+            CampaignStage.campaign_id == campaign_id,
+            CampaignStage.stage_key.like('hof_year_%')
+        ).order_by(CampaignStage.year.asc()).all()
+
+        for h in hof_stages:
+            try:
+                parsed = json.loads(h.stage_data)
+                if parsed:
+                    past_records.append(_build_compact_past_record(parsed))
+            except Exception:
+                pass
 
     # Stage placements for this year
     stage_placements = {}
     for sk in ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion'):
-        stage_placements[sk] = get_stage_placements_history(campaign_id, sk, year=year)
+        stage_placements[sk] = get_stage_placements_history(campaign_id, sk, year=year, skip_backfill=True)
 
     return {
         'year': year,
@@ -4120,7 +4196,7 @@ def get_season_summary_data(campaign_id: int, year: Optional[int] = None) -> Dic
         } if most_improved_state else None,
         'leaderboards': leaderboards,
         'past_records': past_records,
-        'all_time_trophies': get_all_time_trophy_table(campaign_id),
+        'all_time_trophies': get_all_time_trophy_table(campaign_id, skip_backfill=True),
         'global_power_rankings': get_global_power_rankings(campaign_id),
         'stage_placements': stage_placements,
         'season_hosts': hosts,
@@ -4145,8 +4221,9 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
 
     old_year = campaign.current_year
     backfill_stage_placements_if_needed(campaign.id)
-    recalculate_campaign_gpr(campaign.id)
-    summary_data = get_season_summary_data(campaign_id)
+    recalculate_campaign_gpr(campaign.id, skip_backfill=True)
+    summary_data = get_season_summary_data(campaign_id, include_past_records=False)
+    storable_summary_json = json.dumps(_strip_summary_for_storage(summary_data))
 
     # 1. Archive to permanent Hall of Fame stage record
     hof_stage = CampaignStage.query.filter_by(
@@ -4159,7 +4236,7 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
             stage_key=f'hof_year_{old_year}',
             stage_name=f'Hall of Fame {old_year}',
             status='completed',
-            stage_data=json.dumps(summary_data),
+            stage_data=storable_summary_json,
             completed_at=datetime.now(timezone.utc),
         )
         db.session.add(hof_stage)
@@ -4189,7 +4266,7 @@ def advance_campaign_to_next_year(campaign_id: int) -> Dict[str, Any]:
             ewc_winner_id=_extract_cid(ewc_champ),
             champion_winner_id=_extract_cid(champ_champ),
             mvp_club_id=mvp_cid,
-            recap_data=json.dumps(summary_data),
+            recap_data=storable_summary_json,
             completed_at=datetime.now(timezone.utc),
         )
         db.session.add(season_rec)
@@ -4412,21 +4489,70 @@ def _extract_all_matches_from_stage(stage_key: str, stage_data: Dict[str, Any]) 
     return matches
 
 
-def recalculate_campaign_gpr(campaign_id: int) -> List[Dict[str, Any]]:
+# Per-stage extracted match cache keyed by (stage_id, len(stage_data), completed_at_iso)
+# Stores tuple of (tag, w_id, ta_id, tb_id, map_diff, round_diff) for O(1) JSON-skipping replay
+_STAGE_MATCH_CACHE: Dict[Tuple[int, int, str], List[Tuple[str, int, int, int, int, int]]] = {}
+
+
+def _get_stage_matches_for_gpr(st: CampaignStage) -> List[Tuple[str, int, int, int, int, int]]:
+    """Extract compact match tuples for GPR calculation, caching immutable completed stages."""
+    if not st.stage_data:
+        return []
+    comp_iso = st.completed_at.isoformat() if st.completed_at else ''
+    cache_key = (st.id, len(st.stage_data), comp_iso)
+    if st.status == 'completed' and cache_key in _STAGE_MATCH_CACHE:
+        return _STAGE_MATCH_CACHE[cache_key]
+
+    try:
+        st_data = json.loads(st.stage_data)
+    except Exception:
+        return []
+
+    matches_with_meta = _extract_all_matches_from_stage(st.stage_key, st_data)
+    compact = []
+    for tag, m in matches_with_meta:
+        w_id = m.get('winner_id') or (m.get('winner', {}).get('id') if isinstance(m.get('winner'), dict) else None)
+        ta_id = m.get('team_a_id') or (m.get('team_a', {}).get('id') if isinstance(m.get('team_a'), dict) else None)
+        tb_id = m.get('team_b_id') or (m.get('team_b', {}).get('id') if isinstance(m.get('team_b'), dict) else None)
+        sa = m.get('team_a_score', 0) or 0
+        sb = m.get('team_b_score', 0) or 0
+        if not w_id and (sa > 0 or sb > 0) and sa != sb:
+            w_id = ta_id if sa > sb else tb_id
+        if w_id and ta_id and tb_id and ta_id != tb_id:
+            w_score = sa if w_id == ta_id else sb
+            l_score = sb if w_id == ta_id else sa
+            map_diff = max(1, w_score - l_score)
+            round_diff = m.get('round_diff') or (map_diff * 4)
+            compact.append((tag, w_id, ta_id, tb_id, map_diff, round_diff))
+
+    if st.status == 'completed':
+        if len(_STAGE_MATCH_CACHE) > 2000:
+            _STAGE_MATCH_CACHE.clear()
+        _STAGE_MATCH_CACHE[cache_key] = compact
+    return compact
+
+
+def recalculate_campaign_gpr(campaign_id: int, skip_backfill: bool = False) -> List[Dict[str, Any]]:
     """Comprehensively recalculate dynamic Elo, win/loss streaks, power scores, and rank deltas
-    for all 48 clubs across all played matches, placements, and story development in the campaign.
+    for all 96 clubs across all played competitive matches and placements in the campaign.
     """
     campaign = get_campaign(campaign_id)
     if not campaign:
         return []
 
-    backfill_stage_placements_if_needed(campaign_id)
+    if not skip_backfill:
+        backfill_stage_placements_if_needed(campaign_id)
 
-    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    club_states = (
+        CampaignClubState.query
+        .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+        .filter_by(campaign_id=campaign_id)
+        .all()
+    )
     if not club_states:
         return []
 
-    clubs = {c.id: c for c in Club.query.all()}
+    clubs = {c.id: c for c in Club.query.options(joinedload(Club.region)).all()}
     club_region_map = {c.id: (c.region.slug if c.region else 'pacific') for c in clubs.values()}
 
     # Initialize ratings from base rating
@@ -4455,48 +4581,62 @@ def recalculate_campaign_gpr(campaign_id: int) -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    STAGE_CHRONOLOGY = [
-        'open_qualifier', 'kickoff', 'major',
-        'oq_stage1', 'stage1', 'ewc_qualifier',
-        'master', 'ewc',
-        'oq_stage2', 'stage2', 'champion'
-    ]
+    STAGE_CHRONOLOGY = list(COMPETITIVE_STAGE_KEYS)
+    stage_order_map = {k: idx for idx, k in enumerate(STAGE_CHRONOLOGY)}
 
-    all_stages = CampaignStage.query.filter_by(campaign_id=campaign_id).all()
-    # Sort stages by year, then by STAGE_CHRONOLOGY order
-    sorted_stages = sorted(
-        all_stages,
-        key=lambda s: (
-            s.year,
-            STAGE_CHRONOLOGY.index(s.stage_key) if s.stage_key in STAGE_CHRONOLOGY else 99,
-            s.id
+    # Query lightweight metadata ONLY (never fetch stage_data blobs for cached historical stages!)
+    stage_meta = (
+        db.session.query(
+            CampaignStage.id,
+            CampaignStage.year,
+            CampaignStage.stage_key,
+            CampaignStage.status,
+            CampaignStage.completed_at,
+            db.func.length(CampaignStage.stage_data),
         )
+        .filter(
+            CampaignStage.campaign_id == campaign_id,
+            CampaignStage.stage_key.in_(STAGE_CHRONOLOGY),
+        )
+        .all()
     )
+    sorted_meta = sorted(
+        stage_meta,
+        key=lambda row: (row[1], stage_order_map.get(row[2], 99), row[0])
+    )
+
+    uncached_ids = []
+    for sid, yr, sk, status, comp_at, data_len in sorted_meta:
+        dlen = data_len or 0
+        if dlen == 0:
+            continue
+        comp_iso = comp_at.isoformat() if comp_at else ''
+        if not (status == 'completed' and (sid, dlen, comp_iso) in _STAGE_MATCH_CACHE):
+            uncached_ids.append(sid)
+
+    uncached_stages_by_id: Dict[int, CampaignStage] = {}
+    if uncached_ids:
+        uncached_rows = CampaignStage.query.filter(CampaignStage.id.in_(uncached_ids)).all()
+        uncached_stages_by_id = {st.id: st for st in uncached_rows}
+
+    # Preload ALL stage placements in ONE single query instead of N queries inside loop
+    all_placements = CampaignStagePlacement.query.filter_by(campaign_id=campaign_id).all()
+    placements_by_stage: Dict[Tuple[int, str], List[CampaignStagePlacement]] = {}
+    for p in all_placements:
+        placements_by_stage.setdefault((p.year, p.stage_key), []).append(p)
 
     stages_with_matches_played = 0
 
-    for st in sorted_stages:
-        if not st.stage_data:
+    for sid, st_year, st_stage_key, st_status, st_comp_at, dlen in sorted_meta:
+        if not (dlen or 0):
             continue
-        try:
-            st_data = json.loads(st.stage_data)
-        except Exception:
-            continue
-
-        matches_with_meta = _extract_all_matches_from_stage(st.stage_key, st_data)
-        completed_stage_matches = []
-        for tag, m in matches_with_meta:
-            w_id = m.get('winner_id') or (m.get('winner', {}).get('id') if isinstance(m.get('winner'), dict) else None)
-            ta_id = m.get('team_a_id') or (m.get('team_a', {}).get('id') if isinstance(m.get('team_a'), dict) else None)
-            tb_id = m.get('team_b_id') or (m.get('team_b', {}).get('id') if isinstance(m.get('team_b'), dict) else None)
-            if not w_id:
-                sa = m.get('team_a_score', 0)
-                sb = m.get('team_b_score', 0)
-                if sa is not None and sb is not None and (sa > 0 or sb > 0) and sa != sb:
-                    w_id = ta_id if sa > sb else tb_id
-            if w_id and ta_id and tb_id and ta_id != tb_id:
-                completed_stage_matches.append((tag, m, w_id, ta_id, tb_id))
-
+        comp_iso = st_comp_at.isoformat() if st_comp_at else ''
+        cache_key = (sid, dlen or 0, comp_iso)
+        if st_status == 'completed' and cache_key in _STAGE_MATCH_CACHE:
+            completed_stage_matches = _STAGE_MATCH_CACHE[cache_key]
+        else:
+            st_obj = uncached_stages_by_id.get(sid)
+            completed_stage_matches = _get_stage_matches_for_gpr(st_obj) if st_obj else []
         if not completed_stage_matches:
             continue
 
@@ -4517,22 +4657,16 @@ def recalculate_campaign_gpr(campaign_id: int) -> List[Dict[str, Any]]:
         )
         pre_stage_ranks = {s.club_id: idx for idx, s in enumerate(temp_ranked, start=1)}
 
-        for tag, m, w_id, ta_id, tb_id in completed_stage_matches:
+        for tag, w_id, ta_id, tb_id, map_diff, round_diff in completed_stage_matches:
             l_id = tb_id if w_id == ta_id else ta_id
-            sa = m.get('team_a_score', 0) or 0
-            sb = m.get('team_b_score', 0) or 0
-            w_score = sa if w_id == ta_id else sb
-            l_score = sb if w_id == ta_id else sa
-            map_diff = max(1, w_score - l_score)
-            round_diff = m.get('round_diff') or (map_diff * 4)
 
-            tier = st.stage_key
-            if 'playoff' in tag.lower() and st.stage_key in ('stage1', 'stage2'):
-                tier = f'{st.stage_key}_playoffs'
+            tier = st_stage_key
+            if 'playoff' in tag.lower() and st_stage_key in ('stage1', 'stage2'):
+                tier = f'{st_stage_key}_playoffs'
 
             cur_w = team_elo_map.get(w_id, 1500.0)
             cur_l = team_elo_map.get(l_id, 1500.0)
-            nw, nl, delta = update_team_elo(
+            nw, nl, _ = update_team_elo(
                 cur_w, cur_l,
                 tournament_tier=tier,
                 map_diff=map_diff,
@@ -4548,16 +4682,13 @@ def recalculate_campaign_gpr(campaign_id: int) -> List[Dict[str, Any]]:
 
             reg_w = club_region_map.get(w_id, 'pacific')
             reg_l = club_region_map.get(l_id, 'pacific')
-            if st.stage_key in ('major', 'master', 'ewc', 'champion') and reg_w != reg_l:
+            if st_stage_key in ('major', 'master', 'ewc', 'champion') and reg_w != reg_l:
                 league_ratings, _ = update_regional_league_elo(
-                    league_ratings, reg_w, reg_l, tournament_tier=st.stage_key
+                    league_ratings, reg_w, reg_l, tournament_tier=st_stage_key
                 )
 
-        # Apply prestige bonuses for this stage's official placements
-        st_placements = CampaignStagePlacement.query.filter_by(
-            campaign_id=campaign_id, stage_key=st.stage_key, year=st.year
-        ).all()
-        for p in st_placements:
+        # Apply prestige bonuses from preloaded stage placements (0 extra SQL queries)
+        for p in placements_by_stage.get((st_year, st_stage_key), ()):
             bonus = 0.0
             if p.stage_key == 'champion':
                 bonus = 120.0 if p.rank == 1 else (60.0 if p.rank == 2 else (30.0 if p.rank <= 4 else 0.0))
@@ -4645,6 +4776,12 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
         return []
 
     club_states = {cs.club_id: cs for cs in CampaignClubState.query.filter_by(campaign_id=campaign_id).all()}
+    existing_by_club = {
+        p.club_id: p
+        for p in CampaignStagePlacement.query.filter_by(
+            campaign_id=campaign_id, year=target_year, stage_key=stage_key
+        ).all()
+    }
     records = []
 
     def _save_placement(cid, rank, r_slug, tour_name, elim_stage, cp, m_won, m_lost):
@@ -4654,12 +4791,7 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
         p_score = cs.power_score if cs and cs.power_score is not None else 1500.0
         p_rating = cs.power_rating if cs and cs.power_rating is not None else 80.0
 
-        existing = CampaignStagePlacement.query.filter_by(
-            campaign_id=campaign_id,
-            year=target_year,
-            stage_key=stage_key,
-            club_id=cid,
-        ).first()
+        existing = existing_by_club.get(cid)
 
         rank_d = _get_rank_display(rank)
         if not existing:
@@ -4806,17 +4938,33 @@ def record_stage_placements(campaign_id: int, stage_key: str, year: Optional[int
 
 
 def backfill_stage_placements_if_needed(campaign_id: int):
-    """Scan all existing completed stages in database and backfill historical placements if missing."""
-    stages = CampaignStage.query.filter_by(campaign_id=campaign_id, status='completed').all()
+    """Scan completed competitive stages (without loading stage_data JSON) and backfill placements only if missing."""
     valid_keys = ('kickoff', 'major', 'stage1', 'master', 'ewc', 'stage2', 'champion')
+    completed_pairs = (
+        db.session.query(CampaignStage.year, CampaignStage.stage_key)
+        .filter(
+            CampaignStage.campaign_id == campaign_id,
+            CampaignStage.status == 'completed',
+            CampaignStage.stage_key.in_(valid_keys),
+        )
+        .all()
+    )
+    if not completed_pairs:
+        return
 
-    for st in stages:
-        if st.stage_key in valid_keys:
-            existing_count = CampaignStagePlacement.query.filter_by(
-                campaign_id=campaign_id, year=st.year, stage_key=st.stage_key
-            ).count()
-            if existing_count == 0:
-                record_stage_placements(campaign_id, st.stage_key, year=st.year)
+    existing_pairs = set(
+        db.session.query(CampaignStagePlacement.year, CampaignStagePlacement.stage_key)
+        .filter_by(campaign_id=campaign_id)
+        .distinct()
+        .all()
+    )
+
+    missing = [(yr, sk) for (yr, sk) in completed_pairs if (yr, sk) not in existing_pairs]
+    if not missing:
+        return
+
+    for yr, sk in missing:
+        record_stage_placements(campaign_id, sk, year=yr)
 
     db.session.commit()
 
@@ -4825,10 +4973,12 @@ def get_stage_placements_history(
     campaign_id: int,
     stage_key: str,
     year: Optional[int] = None,
-    region_slug: Optional[str] = None
+    region_slug: Optional[str] = None,
+    skip_backfill: bool = False,
 ) -> Dict[str, Any]:
     """Retrieve historical placements and podium for a tournament across years."""
-    backfill_stage_placements_if_needed(campaign_id)
+    if not skip_backfill:
+        backfill_stage_placements_if_needed(campaign_id)
 
     # Find all available years that have records for this stage_key
     query_years = db.session.query(CampaignStagePlacement.year).filter_by(
@@ -4871,11 +5021,12 @@ def get_stage_placements_history(
     }
 
 
-def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
+def get_all_time_trophy_table(campaign_id: int, skip_backfill: bool = False) -> List[Dict[str, Any]]:
     """Generate all-time medal/trophy room table for all clubs across campaign history."""
-    backfill_stage_placements_if_needed(campaign_id)
+    if not skip_backfill:
+        backfill_stage_placements_if_needed(campaign_id)
 
-    clubs = Club.query.all()
+    clubs = Club.query.options(joinedload(Club.region)).all()
 
     # Query all 1st and 2nd placements
     title_placements = CampaignStagePlacement.query.filter(
@@ -4933,18 +5084,32 @@ def get_all_time_trophy_table(campaign_id: int) -> List[Dict[str, Any]]:
 
 
 def get_global_power_rankings(campaign_id: int, region_slug: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Retrieve full 48-team Riot Global Power Rankings (GPR x AWS) leaderboard with Tier Badges & Delta Rank."""
-    club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+    """Retrieve full 96-team Riot Global Power Rankings (GPR x AWS) leaderboard with Tier Badges & Delta Rank."""
+    club_states = (
+        CampaignClubState.query
+        .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+        .filter_by(campaign_id=campaign_id)
+        .all()
+    )
 
     # Auto-synchronize GPR if any completed stage exists but GPR rankings are uninitialized/frozen
     if club_states:
-        all_stages = CampaignStage.query.filter_by(campaign_id=campaign_id).all()
-        has_completed_stage = any(s.status == 'completed' for s in all_stages)
+        has_completed_stage = (
+            db.session.query(CampaignStage.id)
+            .filter_by(campaign_id=campaign_id, status='completed')
+            .first()
+            is not None
+        )
         all_zero_streaks = all((cs.win_streak or 0) == 0 for cs in club_states)
         all_no_prev_rank = all(cs.previous_rank is None for cs in club_states)
         if has_completed_stage and (all_zero_streaks or all_no_prev_rank):
-            recalculate_campaign_gpr(campaign_id)
-            club_states = CampaignClubState.query.filter_by(campaign_id=campaign_id).all()
+            recalculate_campaign_gpr(campaign_id, skip_backfill=True)
+            club_states = (
+                CampaignClubState.query
+                .options(joinedload(CampaignClubState.club).joinedload(Club.region))
+                .filter_by(campaign_id=campaign_id)
+                .all()
+            )
 
     items = []
     for cs in club_states:
@@ -5005,13 +5170,19 @@ DEFAULT_REGIONAL_DNA = {
 
 
 def _extract_recent_matches_for_club(campaign_id: int, club_id: int, limit: int = 5) -> List[Dict[str, Any]]:
-    """Extract recent head-to-head match records for a club across campaign stages."""
-    stages = CampaignStage.query.filter_by(campaign_id=campaign_id).order_by(
-        CampaignStage.year.desc(), CampaignStage.id.desc()
-    ).all()
+    """Extract recent head-to-head match records for a club across competitive campaign stages."""
+    stages = (
+        CampaignStage.query
+        .filter(
+            CampaignStage.campaign_id == campaign_id,
+            CampaignStage.stage_key.in_(COMPETITIVE_STAGE_KEYS),
+        )
+        .order_by(CampaignStage.year.desc(), CampaignStage.id.desc())
+        .all()
+    )
 
     found_matches = []
-    clubs_cache = {c.id: c for c in Club.query.all()}
+    clubs_cache = {c.id: c for c in Club.query.options(joinedload(Club.region)).all()}
 
     for st in stages:
         if not st.stage_data:
@@ -5342,7 +5513,12 @@ def _advance_campaign_to_next_stage(campaign: Campaign, stage_key: str, data: Di
         _prepare_season_summary_stage(campaign)
 
 
-def confirm_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> Dict[str, Any]:
+def confirm_stage_region(
+    campaign_id: int,
+    stage_key: str,
+    region_slug: str,
+    skip_gpr: bool = False,
+) -> Dict[str, Any]:
     """Explicitly confirm and permanently lock a single region's tournament results (Option A).
     Awards championship points, ratings, sets is_confirmed=True. If all regions confirmed, advances campaign.
     """
@@ -5509,7 +5685,8 @@ def confirm_stage_region(campaign_id: int, stage_key: str, region_slug: str) -> 
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
-    recalculate_campaign_gpr(campaign.id)
+    if not skip_gpr:
+        recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
     return {
         'success': True,
@@ -5645,7 +5822,7 @@ def confirm_stage_tournament(campaign_id: int, stage_key: str) -> Dict[str, Any]
 
     stage.stage_data = json.dumps(data)
     db.session.commit()
-    recalculate_campaign_gpr(campaign.id)
+    recalculate_campaign_gpr(campaign.id, skip_backfill=True)
 
     return {
         'success': True,
@@ -5694,5 +5871,6 @@ def confirm_stage_all(campaign_id: int, stage_key: str) -> Dict[str, Any]:
 
     last_res = None
     for r in all_regions:
-        last_res = confirm_stage_region(campaign_id, stage_key, r)
+        last_res = confirm_stage_region(campaign_id, stage_key, r, skip_gpr=True)
+    recalculate_campaign_gpr(campaign_id, skip_backfill=True)
     return last_res

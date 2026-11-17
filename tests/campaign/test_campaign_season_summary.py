@@ -109,13 +109,14 @@ class TestCampaignSeasonSummaryIntegration(unittest.TestCase):
         self.assertEqual(campaign.current_year, 2028)
         self.assertEqual(campaign.current_stage, 'open_qualifier')
 
-        # 7. Check Archived Hall of Fame record for Year 2027
+        # 7. Check Archived Hall of Fame record for Year 2027 (must not embed recursive past_records)
         hof_stage = CampaignStage.query.filter_by(campaign_id=cid, year=2027, stage_key='hof_year_2027').first()
         self.assertIsNotNone(hof_stage)
         self.assertEqual(hof_stage.status, 'completed')
         hof_data = json.loads(hof_stage.stage_data)
         self.assertEqual(hof_data['year'], 2027)
         self.assertIsNotNone(hof_data['world_champion'])
+        self.assertNotIn('past_records', hof_data)
 
         # 8. Check Season Reset & Aging on Club States
         all_states = CampaignClubState.query.filter_by(campaign_id=cid).all()
@@ -129,11 +130,23 @@ class TestCampaignSeasonSummaryIntegration(unittest.TestCase):
         self.assertIsNotNone(new_oq)
         self.assertEqual(new_oq.status, 'in_progress')
 
-        # 10. Check that Season Summary now contains 2027 in past_records
+        # 10. Check that Season Summary now contains 2027 in past_records (flat, non-nested)
         new_summary = get_season_summary_data(cid)
         self.assertEqual(new_summary['year'], 2028)
         self.assertEqual(len(new_summary['past_records']), 1)
         self.assertEqual(new_summary['past_records'][0]['year'], 2027)
+        self.assertNotIn('past_records', new_summary['past_records'][0])
+
+        # 11. Advance a second year to verify hof_year_2028 does not grow exponentially
+        advance_campaign_to_next_year(cid)
+        hof_2028 = CampaignStage.query.filter_by(campaign_id=cid, year=2028, stage_key='hof_year_2028').first()
+        self.assertIsNotNone(hof_2028)
+        hof_2028_data = json.loads(hof_2028.stage_data)
+        self.assertNotIn('past_records', hof_2028_data)
+        summary_2029 = get_season_summary_data(cid)
+        self.assertEqual(len(summary_2029['past_records']), 2)
+        for pr in summary_2029['past_records']:
+            self.assertNotIn('past_records', pr)
 
 
 if __name__ == '__main__':
